@@ -1,0 +1,548 @@
+DIAGRAMA DE FLUJO SUPERACIÓN DE UMBRAL: 
+
+
+INICIO
+
+
+
+↓
+
+
+
+1. Cargar archivos de entrada
+
+
+
+• Configuración del puerto
+
+• Relación impactos vs variables climáticas
+
+• Relación umbrales y curvas de daño vs activos
+
+• Indicadores climáticos
+
+• Relacion_modelos_activos_e_indicadores.xlsx (carpeta xls)
+
+
+
+↓
+
+
+
+2. Configuración del cálculo
+
+
+
+El percentil y el modo de selección del indicador se resuelven en el paso 5b
+
+(por iteración IM), no de forma global al inicio.
+
+
+
+↓
+
+
+
+3. Iteración por Activos (CP)
+
+
+
+Entrar al Excel: Configuración del puerto
+
+
+
+Recorrer cada Activo Físico u Operacional.
+
+
+
+Para cada activo:
+
+
+
+Extraer:
+
+• Activo Físico u Operacional
+
+• Tipo de UO asociado
+
+
+
+↓
+
+
+
+4. Buscar impactos asociados al activo
+
+
+
+Entrar al Excel: Relación impactos vs variables climáticas
+
+
+
+Buscar:
+
+
+
+Activo Físico u Operacional = Activo obtenido en la iteración CP
+
+
+
+Extraer:
+
+
+
+• Todas las filas coincidentes asociadas a ese activo
+
+
+
+↓
+
+
+
+5. Iteración por Modos de fallo (IM)
+
+
+
+Sobre la tabla filtrada obtenida en el paso 4.
+
+
+
+Recorrer cada fila coincidente.
+
+
+
+Para cada fila:
+
+
+
+Extraer:
+
+• Modo de fallo / Modo de parada
+
+• Variable climática
+
+• Tipo de impacto (p. ej. ELO, ELS)
+
+
+
+↓
+
+
+
+5b. ¿Existe regla en Relacion_modelos_activos_e_indicadores.xlsx?
+
+
+
+Entrar al Excel: Relacion_modelos_activos_e_indicadores.xlsx
+
+
+
+Buscar una fila explícita que coincida con:
+
+
+
+1. Modelo (PI agitación / PI viento / superación de umbral)
+
+2. Activo Físico u Operacional (si está definido en la fila)
+
+3. Modo de fallo / Modo de parada
+
+4. Variable climática
+
+5. Tipo de impacto (si está definido en la fila)
+
+
+
+La fila debe tener modo de fallo y variable explícitos (no comodines).
+
+
+
+↓
+
+
+
+¿Hay fila definida?
+
+
+
+Sí
+
+
+
+↓
+
+
+
+Usar del Excel:
+
+• Percentil
+
+• Selección indicador (Por umbral / Predefinido)
+
+• Indicador climático (si es predefinido)
+
+
+
+↓
+
+
+
+¿Indicador predefinido en el Excel?
+
+
+
+Sí → Ir al paso 7 (el paso 6 no aplica: no se busca umbral numérico)
+
+
+
+No → Continuar al paso 6 (umbral) y luego paso 7 con el percentil del Excel
+
+
+
+↓
+
+
+
+No (no hay fila en el Excel)
+
+
+
+↓
+
+
+
+Seguir la lógica clásica del diagrama:
+
+
+
+• Percentil por defecto: P99
+
+• Indicador: por umbral (contiene el umbral obtenido)
+
+• Filtros adicionales del paso 7 si hay varios candidatos
+
+
+
+→ Continuar al paso 6
+
+
+
+↓
+
+
+
+6. Buscar el umbral correspondiente
+
+
+
+(Omitir si en el paso 5b el Excel fijó un indicador predefinido)
+
+
+
+Entrar al Excel:
+
+Relación umbrales y curvas de daño vs activos
+
+
+
+Aplicar los siguientes filtros:
+
+
+
+1. Activo Físico u Operacional
+
+2. Modo de fallo / Modo de parada
+
+
+
+↓
+
+
+
+Seleccionar el umbral correspondiente:
+
+
+
+• Si existe una columna específica para el Tipo de Unidad Operacional y tiene valor, utilizar dicho umbral.
+
+
+
+• Si el umbral correspondiente al Tipo de Unidad Operacional está vacío o no existe, utilizar el valor de la columna "Umbral General".
+
+
+
+↓
+
+
+
+Extraer:
+
+
+
+• Activo Físico u Operacional
+
+• Modo de fallo / Modo de parada
+
+• Variable climática
+
+• Umbral seleccionado
+
+
+
+↓
+
+
+
+7. Buscar el indicador climático
+
+
+
+Entrar al Excel:
+
+Indicadores climáticos
+
+
+
+Aplicar los siguientes filtros:
+
+
+
+1. Variable climática
+
+2. Percentil (del Excel en 5b, o P99 si se siguió el diagrama)
+
+
+
+↓
+
+
+
+¿Cómo se selecciona el indicador?
+
+
+
+Desde Excel (paso 5b) → Predefinido
+
+
+
+↓
+
+
+
+Usar el indicador definido en Relacion_modelos_activos_e_indicadores.xlsx
+
+(p. ej. «Número de días con vientos extremos» para ELO + Viento)
+
+
+
+↓
+
+
+
+Desde Excel (paso 5b) → Por umbral
+
+o
+
+Desde diagrama (sin fila en 5b)
+
+
+
+↓
+
+
+
+Indicador que contenga el umbral obtenido en el paso 6
+
+
+
+↓
+
+
+
+¿Existe más de un indicador?
+
+
+
+Sí
+
+
+
+↓
+
+
+
+Aplicar un segundo filtro:
+
+
+
+• Indicador que contenga el Tipo de UO
+
+
+
+No
+
+
+
+↓
+
+
+
+Continuar
+
+
+
+↓
+
+
+
+Extraer:
+
+
+
+• Valor del escenario Histórico
+
+• Valores de todos los escenarios futuros
+
+
+
+Criterio espacial:
+
+
+
+• Si existen varios puntos o indicadores candidatos, seleccionar el indicador cuya Lon/Lat esté más cerca del centroide del área donde se localiza el activo analizado.
+
+
+
+↓
+
+
+
+8. Calcular la variación
+
+
+
+Para cada escenario:
+
+
+
+Variación = Indicador del escenario − Indicador Histórico
+
+
+
+Donde:
+
+
+
+• Histórico → Variación = 0
+
+
+
+↓
+
+
+
+9. Generar la tabla de resultados
+
+
+
+Mostrar:
+
+
+
+| Escenario     | Indicador | Variación          |
+
+| ------------- | --------- | ------------------ |
+
+| Histórico     | Valor     | 0                  |
+
+| SSP2-4.5 2040 | Valor     | Futuro − Histórico |
+
+| SSP5-8.5 2040 | Valor     | Futuro − Histórico |
+
+| ...           | ...       | ...                |
+
+
+
+↓
+
+
+
+10. Interpretar el resultado
+
+
+
+Según el tipo de indicador:
+
+
+
+Ejemplo: Número de horas de cierre
+
+
+
+• Variación > 0 → Aumentan las horas de cierre (Empeora)
+
+• Variación < 0 → Disminuyen las horas de cierre (Mejora)
+
+• Variación = 0 → Sin cambios
+
+
+
+↓
+
+
+
+11. ¿Quedan modos de fallo por analizar para el mismo activo?
+
+
+
+Sí
+
+
+
+→ IM = IM + 1
+
+→ Volver al paso 5
+
+→ Extraer el siguiente Modo de fallo / Modo de parada
+
+→ Continuar desde el paso 5b en adelante
+
+
+
+No
+
+
+
+↓
+
+
+
+12. ¿Quedan Activos Físicos u Operacionales por analizar?
+
+
+
+Sí
+
+
+
+→ CP = CP + 1
+
+→ Volver al paso 3
+
+→ Extraer el siguiente Activo Físico u Operacional y su Tipo de UO
+
+→ Continuar desde el paso 4 en adelante
+
+
+
+No
+
+
+
+↓
+
+
+
+FIN
+
+
