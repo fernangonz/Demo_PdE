@@ -777,7 +777,8 @@ def render_explorador_indicadores(raiz: Path | None = None) -> None:
     if not raiz.is_dir():
         st.error(
             "No se encuentra la carpeta de indicadores. "
-            "Comprueba que el disco P: esta disponible."
+            "Crea la carpeta `indicadores/` en la raiz del proyecto "
+            "o define la variable de entorno `PDE_INDICADORES_PATH`."
         )
         return
 

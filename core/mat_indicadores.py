@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Lectura de indicadores climaticos desde archivos .mat (Impacto_N).
 
-Estructura esperada bajo ``P:\\99_TOOLRIESGO_PDE\\10_Indicadores``::
+Estructura esperada bajo ``<proyecto>/indicadores``::
 
     <driver>/Impacto_1.mat   -> rejilla espacial (CoordenadaX/Y, Baseline, Proyecciones)
     <driver>/Impacto_11.mat  -> serie por puerto (Puerto, Baseline, Proyecciones)
@@ -11,6 +11,7 @@ Si un campo no existe o esta vacio, la UI debe mostrar ``-``.
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -22,7 +23,13 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat
 
-RUTA_INDICADORES_DEFAULT = Path(r"P:\99_TOOLRIESGO_PDE\10_Indicadores")
+_ROOT_PROYECTO = Path(__file__).resolve().parents[1]
+_RUTA_INDICADORES_ENV = os.getenv("PDE_INDICADORES_PATH", "").strip()
+RUTA_INDICADORES_DEFAULT = (
+    Path(_RUTA_INDICADORES_ENV)
+    if _RUTA_INDICADORES_ENV
+    else (_ROOT_PROYECTO / "indicadores")
+)
 
 # Etiquetas en espanol para carpetas de driver.
 ETIQUETAS_DRIVER: dict[str, str] = {
