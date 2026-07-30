@@ -1,6 +1,0 @@
-ve = str(esc).strip().lower().replace("-", "").replace(".", "").replace(" ", "")
-    if clave in {"historico", "hist�rico", "baseline", "hist"}:
-        return "Historico"
-    if clave in {"ssp245", "ssp2450", "ssp24.5", "ssp2.45"}:
-        return "SSP2-4.5"
-    if clave in {"ssp585", "ssp5850"

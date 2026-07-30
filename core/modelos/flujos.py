@@ -22,7 +22,18 @@ _PDF = {".pdf"}
 # Nombres de archivo (sin extension) asociados a cada modelo.
 # ELO->PI, ELS->OPEX, ELU->CAPEX: cada familia tiene su propio procedimiento.
 # No reutilizar OPEX/CAPEX como diagrama de PI FALTA DE CALADO.
+# DIAGRAMA_FLUJO_UNICO: procedimiento maestro del catálogo (no es un motor).
+ID_DIAGRAMA_FLUJO_UNICO = "DIAGRAMA_FLUJO_UNICO"
+
 _ALIASES_FLUJO: dict[str, tuple[str, ...]] = {
+    ID_DIAGRAMA_FLUJO_UNICO: (
+        "DIAGRAMA DE FLUJO UNICO",
+        "DIAGRAMA DE FLUJO ÚNICO",
+        "FLUJO UNICO",
+        "FLUJO ÚNICO",
+        "PROCEDIMIENTO MAESTRO",
+        ID_DIAGRAMA_FLUJO_UNICO,
+    ),
     "CALCULO_ACTIVO": (
         "ESQUEMA CALCULO POR ACTIVO",
         "ESQUEMA CALCULO ACTIVO",

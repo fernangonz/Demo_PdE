@@ -2249,8 +2249,17 @@ def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
         )
 
 
+_CATALOGO_SEL_MAESTRO = "maestro"
+
+
 def _set_catalogo_modo(idx: int) -> None:
     st.session_state["pde_catalogo_modo_sel"] = idx
+    st.session_state["pde_catalogo_vista"] = None
+
+
+def _set_catalogo_maestro() -> None:
+    """Selecciona el procedimiento maestro (diagrama de flujo único)."""
+    st.session_state["pde_catalogo_modo_sel"] = _CATALOGO_SEL_MAESTRO
     st.session_state["pde_catalogo_vista"] = None
 
 
@@ -2263,13 +2272,81 @@ def _cerrar_vista_catalogo() -> None:
     st.session_state["pde_catalogo_vista"] = None
 
 
-def _bloque_catalogo_modos_impacto() -> None:
-    """Catálogo compacto dentro de un desplegable (cerrado por defecto)."""
+def _mostrar_controles_diagrama_catalogo(
+    *,
+    modelo_id: str,
+    titulo: str,
+    key_suffix: str,
+) -> None:
+    """PDF / TXT / Cerrar + visor para un diagrama del catálogo."""
     from core.modelos.flujos import (
         buscar_diagrama,
         buscar_diagrama_pdf,
         buscar_diagrama_texto,
     )
+
+    st.markdown(f"**{titulo}**")
+    if not modelo_id:
+        st.warning("Diagrama no disponible.")
+        return
+
+    pdf = buscar_diagrama_pdf(modelo_id)
+    txt = buscar_diagrama_texto(modelo_id)
+    key_vista = "pde_catalogo_vista"
+    vista = st.session_state.get(key_vista)
+
+    c_pdf, c_txt, c_cerrar, _ = st.columns([1, 1, 1, 3])
+    with c_pdf:
+        st.button(
+            "PDF",
+            key=f"pde_cat_pdf_btn_{key_suffix}",
+            use_container_width=True,
+            disabled=pdf is None,
+            on_click=_set_catalogo_vista,
+            args=("pdf",),
+        )
+    with c_txt:
+        st.button(
+            "TXT",
+            key=f"pde_cat_txt_btn_{key_suffix}",
+            use_container_width=True,
+            disabled=txt is None,
+            on_click=_set_catalogo_vista,
+            args=("txt",),
+        )
+    with c_cerrar:
+        if vista in ("pdf", "txt"):
+            st.button(
+                "Cerrar",
+                key=f"pde_cat_cerrar_{key_suffix}",
+                use_container_width=True,
+                on_click=_cerrar_vista_catalogo,
+            )
+
+    vista = st.session_state.get(key_vista)
+    if vista == "pdf" and pdf is not None:
+        _mostrar_pdf_en_frontend(
+            pdf.ruta,
+            height=640,
+            key=f"pde_cat_pdf_{key_suffix}",
+        )
+    elif vista == "txt" and txt is not None:
+        _mostrar_txt_diagrama(txt.ruta)
+    elif vista == "pdf" and pdf is None and txt is not None:
+        st.warning("No hay PDF esquemático.")
+    elif vista is None:
+        st.caption("Pulsa **PDF** o **TXT** para cargar el diagrama.")
+    else:
+        diagrama = buscar_diagrama(modelo_id)
+        if diagrama is not None and diagrama.tipo == "imagen" and vista == "pdf":
+            st.image(str(diagrama.ruta), use_container_width=True)
+        else:
+            st.warning("Diagrama no disponible.")
+
+
+def _bloque_catalogo_modos_impacto() -> None:
+    """Catálogo compacto dentro de un desplegable (cerrado por defecto)."""
+    from core.modelos.flujos import ID_DIAGRAMA_FLUJO_UNICO
 
     # _plegable conserva abierto/cerrado en session_state (st.expander con
     # expanded=False se cierra en cada rerun al pulsar botones internos).
@@ -2283,7 +2360,15 @@ def _bloque_catalogo_modos_impacto() -> None:
 
         etiquetas = [_etiqueta_catalogo_modo(e) for e in CATALOGO_MODOS_IMPACTO]
         key_sel = "pde_catalogo_modo_sel"
-        key_vista = "pde_catalogo_vista"  # None | "pdf" | "txt"
+
+        st.caption("Procedimiento maestro")
+        st.button(
+            "Diagrama de flujo único",
+            key="pde_cat_btn_maestro",
+            use_container_width=True,
+            on_click=_set_catalogo_maestro,
+        )
+        st.caption("Modos de impacto")
 
         n_cols = 3
         for i in range(0, len(etiquetas), n_cols):
@@ -2304,7 +2389,18 @@ def _bloque_catalogo_modos_impacto() -> None:
 
         idx_sel = st.session_state.get(key_sel)
         if idx_sel is None:
-            st.caption("Pulsa un modo y luego PDF o TXT para ver el diagrama.")
+            st.caption(
+                "Pulsa el procedimiento maestro o un modo y luego PDF o TXT "
+                "para ver el diagrama."
+            )
+            return
+
+        if idx_sel == _CATALOGO_SEL_MAESTRO:
+            _mostrar_controles_diagrama_catalogo(
+                modelo_id=ID_DIAGRAMA_FLUJO_UNICO,
+                titulo="Diagrama de flujo único — Procedimiento maestro",
+                key_suffix="maestro",
+            )
             return
 
         try:
@@ -2317,65 +2413,11 @@ def _bloque_catalogo_modos_impacto() -> None:
             return
 
         entrada = CATALOGO_MODOS_IMPACTO[idx_sel]
-        titulo = etiquetas[idx_sel]
-        modelo_id = entrada.diagrama_modelo_id
-
-        st.markdown(f"**{titulo}**")
-        if not modelo_id:
-            st.warning("Diagrama no disponible.")
-            return
-
-        pdf = buscar_diagrama_pdf(modelo_id)
-        txt = buscar_diagrama_texto(modelo_id)
-        vista = st.session_state.get(key_vista)
-
-        c_pdf, c_txt, c_cerrar, _ = st.columns([1, 1, 1, 3])
-        with c_pdf:
-            st.button(
-                "PDF",
-                key=f"pde_cat_pdf_btn_{idx_sel}",
-                use_container_width=True,
-                disabled=pdf is None,
-                on_click=_set_catalogo_vista,
-                args=("pdf",),
-            )
-        with c_txt:
-            st.button(
-                "TXT",
-                key=f"pde_cat_txt_btn_{idx_sel}",
-                use_container_width=True,
-                disabled=txt is None,
-                on_click=_set_catalogo_vista,
-                args=("txt",),
-            )
-        with c_cerrar:
-            if vista in ("pdf", "txt"):
-                st.button(
-                    "Cerrar",
-                    key=f"pde_cat_cerrar_{idx_sel}",
-                    use_container_width=True,
-                    on_click=_cerrar_vista_catalogo,
-                )
-
-        vista = st.session_state.get(key_vista)
-        if vista == "pdf" and pdf is not None:
-            _mostrar_pdf_en_frontend(
-                pdf.ruta,
-                height=640,
-                key=f"pde_cat_pdf_{idx_sel}",
-            )
-        elif vista == "txt" and txt is not None:
-            _mostrar_txt_diagrama(txt.ruta)
-        elif vista == "pdf" and pdf is None and txt is not None:
-            st.warning("No hay PDF esquemático.")
-        elif vista is None:
-            st.caption("Pulsa **PDF** o **TXT** para cargar el diagrama.")
-        else:
-            diagrama = buscar_diagrama(modelo_id)
-            if diagrama is not None and diagrama.tipo == "imagen" and vista == "pdf":
-                st.image(str(diagrama.ruta), use_container_width=True)
-            else:
-                st.warning("Diagrama no disponible.")
+        _mostrar_controles_diagrama_catalogo(
+            modelo_id=entrada.diagrama_modelo_id or "",
+            titulo=etiquetas[idx_sel],
+            key_suffix=str(idx_sel),
+        )
 
 
 def _resultados_impactos_puerto() -> None:
