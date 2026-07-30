@@ -16,12 +16,13 @@ from generar_flujos_pdf import (  # noqa: E402
     MARGIN,
     PAGE_W,
     FlowPDF,
+    branch_from_diamond,
     connect_vertical,
     crop_pdf_below_fin,
 )
 
 # Página más alta: el maestro es más largo que un flujo individual
-PAGE_H_MASTER = 9800.0
+PAGE_H_MASTER = 11200.0
 
 
 def _mid(box) -> float:
@@ -29,8 +30,48 @@ def _mid(box) -> float:
     return (box["top"] + box["bottom"]) / 2.0
 
 
-def _gap(prev, amount: float = 36.0) -> float:
+def _gap(prev, amount: float = 42.0) -> float:
     return prev["bottom"] - amount
+
+
+def _merge_down_to_top(pdf: FlowPDF, left_box, right_box, target_cx: float, target_top: float) -> None:
+    """Fusión sin etiquetas SÍ/NO: ambas cajas bajan a una línea y entran por arriba."""
+    join_y = min(left_box["bottom"], right_box["bottom"]) - 28
+    mid_y = (join_y + target_top) / 2.0
+    pdf.polyline(
+        [
+            (left_box["cx"], left_box["bottom"]),
+            (left_box["cx"], join_y),
+            (target_cx, join_y),
+        ],
+        arrow_end=False,
+    )
+    pdf.polyline(
+        [
+            (right_box["cx"], right_box["bottom"]),
+            (right_box["cx"], join_y),
+            (target_cx, join_y),
+        ],
+        arrow_end=False,
+    )
+    pdf.arrow_down(target_cx, join_y, target_top + 2)
+    pdf.label_center(target_cx, mid_y + 2, "Continuar", size=11)
+
+
+def _merge_four_to_top(pdf: FlowPDF, boxes, target_cx: float, target_top: float) -> None:
+    """Fusión no etiquetada de varias cajas hacia el siguiente paso (arriba del destino)."""
+    join_y = min(b["bottom"] for b in boxes) - 32
+    for b in boxes:
+        pdf.polyline(
+            [
+                (b["cx"], b["bottom"]),
+                (b["cx"], join_y),
+                (target_cx, join_y),
+            ],
+            arrow_end=False,
+        )
+    pdf.arrow_down(target_cx, join_y, target_top + 2)
+    pdf.label_center(target_cx, (join_y + target_top) / 2 + 2, "Continuar", size=11)
 
 
 class MasterFlowPDF(FlowPDF):
@@ -174,18 +215,21 @@ def build_master(out_path: Path) -> None:
     )
     connect_vertical(pdf, b5, b5b)
 
-    # Diamante: ¿Existe fila?
-    y_d = b5b["bottom"] - 70
-    d_fila = pdf.diamond(cx, y_d, 320, 110, "¿Existe fila definida en Excel 4?")
+    # -------------------------------------------------------------------------
+    # Diamante: ¿Existe fila?  ?  SÍ Excel | NO clásica  ?  fusión ? ¿predefinido?
+    # -------------------------------------------------------------------------
+    left_cx = cx - 500
+    right_cx = cx + 500
+
+    y_d = b5b["bottom"] - 80
+    d_fila = pdf.diamond(cx, y_d, 340, 120, "¿Existe fila definida en Excel 4?")
     pdf.arrow_down(cx, b5b["bottom"] - 2, d_fila["top"] + 2)
 
-    # Rama SÍ / NO laterales
-    left_cx = cx - 480
-    right_cx = cx + 480
-    branch_top = d_fila["bottom"] - 50
+    branch_top = d_fila["bottom"] - 55
+    branch_from_diamond(pdf, d_fila, left_cx, right_cx, branch_top, "SÍ", "NO")
 
     b_si = pdf.process_box(
-        left_cx, branch_top, 520,
+        left_cx, branch_top, 540,
         "SÍ — Usar configuración del Excel",
         [
             "Usar percentil y selección del indicador del Excel.",
@@ -195,7 +239,7 @@ def build_master(out_path: Path) -> None:
         font_size=11,
     )
     b_no = pdf.process_box(
-        right_cx, branch_top, 520,
+        right_cx, branch_top, 540,
         "NO — Lógica clásica del diagrama",
         [
             "Percentil por defecto: P99.",
@@ -204,38 +248,18 @@ def build_master(out_path: Path) -> None:
         ],
         font_size=11,
     )
-    # Conexiones desde diamante
-    pdf.polyline([
-        (d_fila["left"], d_fila["cy"]),
-        (left_cx, d_fila["cy"]),
-        (left_cx, b_si["top"] + 2),
-    ])
-    pdf.label(left_cx + 20, d_fila["cy"] + 12, "SÍ")
-    pdf.polyline([
-        (d_fila["right"], d_fila["cy"]),
-        (right_cx, d_fila["cy"]),
-        (right_cx, b_no["top"] + 2),
-    ])
-    pdf.label(right_cx - 40, d_fila["cy"] + 12, "NO")
 
-    # Diamante predefinido (centro, bajo las dos ramas)
-    merge_y = min(b_si["bottom"], b_no["bottom"]) - 70
-    d_pred = pdf.diamond(cx, merge_y, 340, 120, "¿Indicador predefinido?")
-    # Bajar desde ambas cajas al diamante
-    pdf.polyline([
-        (left_cx, b_si["bottom"]),
-        (left_cx, d_pred["cy"]),
-        (d_pred["left"], d_pred["cy"]),
-    ])
-    pdf.polyline([
-        (right_cx, b_no["bottom"]),
-        (right_cx, d_pred["cy"]),
-        (d_pred["right"], d_pred["cy"]),
-    ])
+    # Diamante predefinido: ENTRADA solo por arriba (fusión sin SÍ/NO)
+    pred_cy = min(b_si["bottom"], b_no["bottom"]) - 110
+    d_pred = pdf.diamond(cx, pred_cy, 360, 130, "¿Indicador predefinido?")
+    _merge_down_to_top(pdf, b_si, b_no, cx, d_pred["top"])
 
-    # SÍ predefinido → saltar 6
+    # Salidas SÍ/NO desde el diamante (etiquetas solo en flechas salientes)
+    out_top = d_pred["bottom"] - 55
+    branch_from_diamond(pdf, d_pred, left_cx, right_cx, out_top, "SÍ", "NO")
+
     b_skip6 = pdf.process_box(
-        left_cx, d_pred["bottom"] - 50, 520,
+        left_cx, out_top, 540,
         "SÍ — Omitir paso 6 → ir a paso 7",
         [
             "Usar indicador fijado en Excel 4.",
@@ -244,16 +268,8 @@ def build_master(out_path: Path) -> None:
         ],
         font_size=11,
     )
-    pdf.polyline([
-        (d_pred["left"], d_pred["cy"]),
-        (left_cx, d_pred["cy"]),
-        (left_cx, b_skip6["top"] + 2),
-    ])
-    pdf.label(left_cx + 20, d_pred["cy"] + 12, "SÍ")
-
-    # NO predefinido → Fb check / paso 6
     b_no_pred = pdf.process_box(
-        right_cx, d_pred["bottom"] - 50, 520,
+        right_cx, out_top, 540,
         "NO — Continuar según modelo",
         [
             "A/C/D → paso 6 (buscar umbral).",
@@ -263,15 +279,11 @@ def build_master(out_path: Path) -> None:
         ],
         font_size=11,
     )
-    pdf.polyline([
-        (d_pred["right"], d_pred["cy"]),
-        (right_cx, d_pred["cy"]),
-        (right_cx, b_no_pred["top"] + 2),
-    ])
-    pdf.label(right_cx - 40, d_pred["cy"] + 12, "NO")
 
-    # 6 Umbral
-    y6 = min(b_skip6["bottom"], b_no_pred["bottom"]) - 50
+    # -------------------------------------------------------------------------
+    # Paso 6 en el tronco; bypass limpio a la izquierda hacia paso 7
+    # -------------------------------------------------------------------------
+    y6 = min(b_skip6["bottom"], b_no_pred["bottom"]) - 70
     b6 = pdf.process_box(
         cx, y6, w,
         "6. Buscar el umbral correspondiente (si aplica)",
@@ -283,23 +295,34 @@ def build_master(out_path: Path) -> None:
             "Si es formulación (p. ej. con Dc): calcular y guardar umbral numérico.",
         ],
     )
-    # Conectar rama NO-predefinido a 6; skip6 baja a bypass hacia 7
-    pdf.polyline([
-        (right_cx, b_no_pred["bottom"]),
-        (right_cx, (b6["top"] + b_no_pred["bottom"]) / 2),
-        (cx, (b6["top"] + b_no_pred["bottom"]) / 2),
-        (cx, b6["top"] + 2),
-    ])
-    pdf.polyline([
-        (left_cx, b_skip6["bottom"]),
-        (left_cx, b6["bottom"] - 20),
-        (cx - 40, b6["bottom"] - 20),
-    ])
-    pdf.label(left_cx + 8, b6["bottom"] - 8, "omitir 6")
+
+    # NO-predefinido ? entra al paso 6 por arriba (sin etiqueta SÍ/NO)
+    mid6 = (b_no_pred["bottom"] + b6["top"]) / 2.0
+    pdf.polyline(
+        [
+            (right_cx, b_no_pred["bottom"]),
+            (right_cx, mid6),
+            (cx, mid6),
+            (cx, b6["top"] + 2),
+        ]
+    )
+
+    # Bypass SÍ: rail izquierda alrededor del 6, etiquetado, hacia el 7
+    skip_rail = MARGIN + 90
+    pdf.polyline(
+        [
+            (left_cx, b_skip6["bottom"]),
+            (left_cx, (b_skip6["bottom"] + b6["top"]) / 2),
+            (skip_rail, (b_skip6["bottom"] + b6["top"]) / 2),
+            (skip_rail, b6["bottom"] - 30),
+        ],
+        arrow_end=False,
+    )
+    pdf.label(skip_rail + 10, _mid(b6), "omitir paso 6 → 7", size=12)
 
     # 7 Indicador
     b7 = pdf.process_box(
-        cx, _gap(b6, 55), w,
+        cx, _gap(b6, 60), w,
         "7. Buscar el indicador climático",
         [
             "EXCEL|3_Indicadores_climáticos",
@@ -315,8 +338,15 @@ def build_master(out_path: Path) -> None:
         ],
     )
     connect_vertical(pdf, b6, b7)
-    # flecha desde bypass omitir 6
-    pdf.arrow_down(cx - 40, b6["bottom"] - 20, b7["top"] + 2)
+    # Cierre del bypass: rail ? lateral izquierdo del paso 7
+    b7_mid = _mid(b7)
+    pdf.polyline(
+        [
+            (skip_rail, b6["bottom"] - 30),
+            (skip_rail, b7_mid),
+            (b7["left"], b7_mid),
+        ]
+    )
 
     # 7.2 varios
     b72 = pdf.process_box(
@@ -330,18 +360,40 @@ def build_master(out_path: Path) -> None:
     )
     connect_vertical(pdf, b7, b72)
 
-    # 8 ramas de cálculo — 4 cajas en 2x2
-    y8 = b72["bottom"] - 40
-    pdf.label_center(cx, y8 + 10, "8–10. Cálculo e interpretación según rama", size=14)
-    y8 -= 30
+    # -------------------------------------------------------------------------
+    # 8–10: un solo split ? SOLO una rama A/B/C/D ? fusión a 11
+    # -------------------------------------------------------------------------
+    b_split = pdf.process_box(
+        cx, _gap(b72, 50), w,
+        "8–10. Según modelo identificado en 2b — aplicar SOLO una rama",
+        [
+            "Elegir la rama del modelo en ejecución (A, B, C o D).",
+            "No ejecutar las cuatro en paralelo: solo la que corresponda al modelo.",
+        ],
+    )
+    connect_vertical(pdf, b72, b_split)
 
-    box_w = 560
-    gap_x = 40
-    left = cx - box_w - gap_x / 2
-    right = cx + box_w + gap_x / 2
+    # Cuatro cajas en una fila, saliendo del split
+    box_w = 480
+    gap_x = 28
+    total_span = 4 * box_w + 3 * gap_x
+    x0 = cx - total_span / 2 + box_w / 2
+    cols = [x0 + i * (box_w + gap_x) for i in range(4)]
+    y_branches = b_split["bottom"] - 70
+
+    # Línea de reparto bajo el split
+    split_drop = b_split["bottom"] - 28
+    pdf.arrow_down(cx, b_split["bottom"] - 2, split_drop)
+    pdf.polyline(
+        [(cols[0], split_drop), (cols[3], split_drop)],
+        arrow_end=False,
+    )
+    for col, lab in zip(cols, ["A", "B", "C", "D"]):
+        pdf.polyline([(col, split_drop), (col, y_branches + 2)])
+        pdf.label(col + 8, split_drop - 18, lab, size=12)
 
     b8a = pdf.process_box(
-        left, y8, box_w,
+        cols[0], y_branches, box_w,
         "Rama A — PI Superación de Umbral",
         [
             "8A Variación = Indicador_escenario − Histórico",
@@ -350,10 +402,11 @@ def build_master(out_path: Path) -> None:
             "10A Interpretar (unidad del indicador):",
             "   >0 Empeora · <0 Mejora · =0 Sin cambios",
         ],
-        font_size=11,
+        font_size=10,
+        line_h=14,
     )
     b8b = pdf.process_box(
-        right, y8, box_w,
+        cols[1], y_branches, box_w,
         "Rama B — PI Falta de Francobordo",
         [
             "8B Variación = Indicador_escenario − Histórico",
@@ -362,13 +415,11 @@ def build_master(out_path: Path) -> None:
             "10B Interpretar según indicador (horas/días):",
             "   >0 Empeora · <0 Mejora · =0 Sin cambios",
         ],
-        font_size=11,
+        font_size=10,
+        line_h=14,
     )
-    pdf.arrow_down(cx, b72["bottom"] - 2, y8 + 2)
-
-    y8b = min(b8a["bottom"], b8b["bottom"]) - 36
     b8c = pdf.process_box(
-        left, y8b, box_w,
+        cols[2], y_branches, box_w,
         "Rama C — OPEX Falta de Calado",
         [
             "8C h = NM − h0 − hsedim  (por escenario)",
@@ -377,10 +428,11 @@ def build_master(out_path: Path) -> None:
             "    Umbral > h → No es necesario dragar",
             "Filas de impacto OPEX (ELO/ELS).",
         ],
-        font_size=11,
+        font_size=10,
+        line_h=14,
     )
     b8d = pdf.process_box(
-        right, y8b, box_w,
+        cols[3], y_branches, box_w,
         "Rama D — CAPEX Falta de Calado",
         [
             "8D h = NM − h0 − hsedim  (por escenario)",
@@ -389,19 +441,21 @@ def build_master(out_path: Path) -> None:
             "    Umbral > h → No es necesario dragar",
             "Misma fórmula; filas ELU (CAPEX).",
         ],
-        font_size=11,
+        font_size=10,
+        line_h=14,
     )
 
-    # Merge a 11
-    merge_bottom = min(b8c["bottom"], b8d["bottom"])
-    y11 = merge_bottom - 55
+    # -------------------------------------------------------------------------
+    # 11 / 12 / FIN
+    # -------------------------------------------------------------------------
+    merge_bottom = min(b8a["bottom"], b8b["bottom"], b8c["bottom"], b8d["bottom"])
+    d11_cy = merge_bottom - 130
+    d11 = pdf.diamond(cx, d11_cy, 380, 130, "11. ¿Quedan modos de fallo (IM) en el activo?")
+    _merge_four_to_top(pdf, [b8a, b8b, b8c, b8d], cx, d11["top"])
 
-    d11 = pdf.diamond(cx, y11 - 55, 360, 120, "11. ¿Quedan modos de fallo (IM) en el activo?")
-    pdf.arrow_down(cx, merge_bottom - 2, d11["top"] + 2)
-
-    # SÍ → volver a 5
+    # SÍ ? volver a 5
     b11_si = pdf.process_box(
-        left_cx, d11["bottom"] - 45, 500,
+        left_cx, d11["bottom"] - 50, 520,
         "SÍ — Continuar iteración IM",
         [
             "IM = IM + 1. Volver al paso 5.",
@@ -411,27 +465,31 @@ def build_master(out_path: Path) -> None:
         ],
         font_size=11,
     )
-    pdf.polyline([
-        (d11["left"], d11["cy"]),
-        (left_cx, d11["cy"]),
-        (left_cx, b11_si["top"] + 2),
-    ])
-    pdf.label(left_cx + 16, d11["cy"] + 12, "SÍ")
-    # bucle hacia arriba a b5
+    pdf.polyline(
+        [
+            (d11["left"], d11["cy"]),
+            (left_cx, d11["cy"]),
+            (left_cx, b11_si["top"] + 2),
+        ]
+    )
+    pdf.label(left_cx + 16, d11["cy"] + 14, "SÍ")
+
     rail = MARGIN + 40
     b5_mid = _mid(b5)
     b11_mid = _mid(b11_si)
-    pdf.polyline([
-        (b11_si["left"], b11_mid),
-        (rail, b11_mid),
-        (rail, b5_mid),
-        (b5["left"], b5_mid),
-    ])
+    pdf.polyline(
+        [
+            (b11_si["left"], b11_mid),
+            (rail, b11_mid),
+            (rail, b5_mid),
+            (b5["left"], b5_mid),
+        ]
+    )
     pdf.label(rail + 8, (b5["top"] + b11_si["bottom"]) / 2, "→ paso 5")
 
-    # NO → 12
+    # NO ? 12
     b12 = pdf.process_box(
-        right_cx, d11["bottom"] - 45, 500,
+        right_cx, d11["bottom"] - 50, 520,
         "NO → 12. ¿Quedan activos (CP)?",
         [
             "SÍ: CP = CP + 1 → volver al paso 3.",
@@ -441,39 +499,41 @@ def build_master(out_path: Path) -> None:
         ],
         font_size=11,
     )
-    pdf.polyline([
-        (d11["right"], d11["cy"]),
-        (right_cx, d11["cy"]),
-        (right_cx, b12["top"] + 2),
-    ])
-    pdf.label(right_cx - 36, d11["cy"] + 12, "NO")
+    pdf.polyline(
+        [
+            (d11["right"], d11["cy"]),
+            (right_cx, d11["cy"]),
+            (right_cx, b12["top"] + 2),
+        ]
+    )
+    pdf.label(right_cx - 36, d11["cy"] + 14, "NO")
 
-    # Diamante 12 bajo b12
-    d12 = pdf.diamond(right_cx, b12["bottom"] - 70, 300, 100, "¿Quedan activos CP?")
+    d12 = pdf.diamond(right_cx, b12["bottom"] - 75, 300, 110, "¿Quedan activos CP?")
     pdf.arrow_down(right_cx, b12["bottom"] - 2, d12["top"] + 2)
 
-    # SÍ CP → bucle a 3
     rail_r = PAGE_W - MARGIN - 40
     b3_mid = _mid(b3)
-    pdf.polyline([
-        (d12["right"], d12["cy"]),
-        (rail_r, d12["cy"]),
-        (rail_r, b3_mid),
-        (b3["right"], b3_mid),
-    ])
-    pdf.label(rail_r - 70, d12["cy"] + 12, "SÍ → paso 3")
+    pdf.polyline(
+        [
+            (d12["right"], d12["cy"]),
+            (rail_r, d12["cy"]),
+            (rail_r, b3_mid),
+            (b3["right"], b3_mid),
+        ]
+    )
+    pdf.label(rail_r - 78, d12["cy"] + 14, "SÍ → paso 3")
 
-    # NO → FIN
-    fin_y = min(b11_si["bottom"], d12["bottom"]) - 80
+    fin_y = min(b11_si["bottom"], d12["bottom"]) - 90
     fin = pdf.oval(cx, fin_y, 160, 44, "FIN")
-    pdf.polyline([
-        (d12["left"], d12["cy"]),
-        (cx, d12["cy"]),
-        (cx, fin["top"] + 2),
-    ])
-    pdf.label(cx + 12, d12["cy"] + 12, "NO")
+    pdf.polyline(
+        [
+            (d12["left"], d12["cy"]),
+            (cx, d12["cy"]),
+            (cx, fin["top"] + 2),
+        ]
+    )
+    pdf.label(cx + 12, d12["cy"] + 14, "NO")
 
-    # Nota pie
     pdf.label(
         MARGIN + 40,
         fin["bottom"] - 50,
@@ -482,7 +542,6 @@ def build_master(out_path: Path) -> None:
         bold=False,
     )
 
-    # Aviso si el contenido se acerca al borde inferior (solapes / página corta)
     if fin["bottom"] < 80:
         print(
             f"Aviso: FIN muy bajo (bottom={fin['bottom']:.1f}). "
@@ -517,19 +576,25 @@ INICIO
 ↓
 5b. Regla en Relacion_modelos_activos_e_indicadores (match explícito).
 ↓
-¿Existe fila?  SÍ → percentil/selección Excel | NO → P99 + lógica clásica
-↓
-¿Indicador predefinido?  SÍ → omitir 6 → 7 | NO → umbral (salvo Fb numérico en francobordo)
+¿Existe fila?
+  SÍ → Usar configuración del Excel (percentil / selección)
+  NO → P99 + lógica clásica
+  ↓ (ambas se fusionan sin etiqueta)
+¿Indicador predefinido?
+  SÍ → omitir paso 6 → paso 7 (bypass lateral)
+  NO → según modelo: A/C/D a paso 6; B Francobordo: Fb numérico omite 6, si no → paso 6
 ↓
 6. Umbral (si aplica): Tipo UO o Umbral General; formular si procede.
 ↓
 7. Indicador: predefinido | por umbral | francobordo (inundación costera, ≥ referencia)
    + filtro Tipo UO + criterio espacial si hay varios
 ↓
-8–10. Cálculo:
-  A/B → Variación = escenario − histórico; interpretar Empeora/Mejora/Sin cambios
-  C/D → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar
-↓
+8–10. Según modelo de 2b — aplicar SOLO una rama:
+  A → Variación = escenario − histórico; Empeora / Mejora / Sin cambios
+  B → igual que A (horas/días)
+  C → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar (OPEX)
+  D → misma fórmula h; filas ELU (CAPEX)
+  ↓ (fusión)
 11. ¿Quedan IM? SÍ → IM+1 → paso 5 | NO → 12
 ↓
 12. ¿Quedan CP? SÍ → CP+1 → paso 3 | NO → FIN

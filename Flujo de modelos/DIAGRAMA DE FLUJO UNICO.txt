@@ -17,19 +17,25 @@ INICIO
 ↓
 5b. Regla en Relacion_modelos_activos_e_indicadores (match explícito).
 ↓
-¿Existe fila?  SÍ → percentil/selección Excel | NO → P99 + lógica clásica
-↓
-¿Indicador predefinido?  SÍ → omitir 6 → 7 | NO → umbral (salvo Fb numérico en francobordo)
+¿Existe fila?
+  SÍ → Usar configuración del Excel (percentil / selección)
+  NO → P99 + lógica clásica
+  ↓ (ambas se fusionan sin etiqueta)
+¿Indicador predefinido?
+  SÍ → omitir paso 6 → paso 7 (bypass lateral)
+  NO → según modelo: A/C/D a paso 6; B Francobordo: Fb numérico omite 6, si no → paso 6
 ↓
 6. Umbral (si aplica): Tipo UO o Umbral General; formular si procede.
 ↓
 7. Indicador: predefinido | por umbral | francobordo (inundación costera, ≥ referencia)
    + filtro Tipo UO + criterio espacial si hay varios
 ↓
-8–10. Cálculo:
-  A/B → Variación = escenario − histórico; interpretar Empeora/Mejora/Sin cambios
-  C/D → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar
-↓
+8–10. Según modelo de 2b — aplicar SOLO una rama:
+  A → Variación = escenario − histórico; Empeora / Mejora / Sin cambios
+  B → igual que A (horas/días)
+  C → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar (OPEX)
+  D → misma fórmula h; filas ELU (CAPEX)
+  ↓ (fusión)
 11. ¿Quedan IM? SÍ → IM+1 → paso 5 | NO → 12
 ↓
 12. ¿Quedan CP? SÍ → CP+1 → paso 3 | NO → FIN
