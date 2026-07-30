@@ -1,0 +1,35 @@
+DIAGRAMA DE FLUJO ÚNICO
+Procedimiento maestro: PI Superación de Umbral | PI Falta de Francobordo | OPEX Falta de Calado | CAPEX Falta de Calado
+
+INICIO
+↓
+1. Cargar archivos (data_modelos): Configuración del puerto, Umbrales, Indicadores climáticos, Relacion_modelos, Relación impactos.
+↓
+2. Configuración del cálculo: percentil y selección de indicador se resuelven en 5b (por IM).
+↓
+2b. Identificar modelo → Rama A / B / C / D.
+↓
+3. Iteración CP (activos). Extraer Activo + Tipo UO (+ Fb o Dc según rama).
+↓
+4. Buscar impactos del activo (filtro según rama).
+↓
+5. Iteración IM (modos de fallo).
+↓
+5b. Regla en Relacion_modelos_activos_e_indicadores (match explícito).
+↓
+¿Existe fila?  SÍ → percentil/selección Excel | NO → P99 + lógica clásica
+↓
+¿Indicador predefinido?  SÍ → omitir 6 → 7 | NO → umbral (salvo Fb numérico en francobordo)
+↓
+6. Umbral (si aplica): Tipo UO o Umbral General; formular si procede.
+↓
+7. Indicador: predefinido | por umbral | francobordo (inundación costera, ≥ referencia)
+   + filtro Tipo UO + criterio espacial si hay varios
+↓
+8–10. Cálculo:
+  A/B → Variación = escenario − histórico; interpretar Empeora/Mejora/Sin cambios
+  C/D → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar
+↓
+11. ¿Quedan IM? SÍ → IM+1 → paso 5 | NO → 12
+↓
+12. ¿Quedan CP? SÍ → CP+1 → paso 3 | NO → FIN
