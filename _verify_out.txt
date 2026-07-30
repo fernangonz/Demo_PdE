@@ -1,0 +1,29 @@
+=== MAPEO ===
+Muelle                              | ELO | PI_CALADO_ELO | PI Falta de Calado | fam=PI
+Pantalßn                            | ELO | PI_CALADO_ELO | PI Falta de Calado | fam=PI
+Duque de alba                       | ELO | PI_CALADO_ELO | PI Falta de Calado | fam=PI
+Boya / monoboya                     | ELO | PI_CALADO_ELO | PI Falta de Calado | fam=PI
+Rampa Ro-Ro                         | ELO | PI_CALADO_ELO | PI Falta de Calado | fam=PI
+Zona de fondeo y espera exterior    | ELS | PI_CALADO_ELS | OPEX Falta de Calado | fam=OPEX
+Bocana                              | ELS | PI_CALADO_ELS | OPEX Falta de Calado | fam=OPEX
+Canal de acceso/ navegaci¾n         | ELS | PI_CALADO_ELS | OPEX Falta de Calado | fam=OPEX
+Dßrsenas (zona de permanencia)      | ELS | PI_CALADO_ELS | OPEX Falta de Calado | fam=OPEX
+Dßrsenas (zona de maniobra y reviro | ELS | PI_CALADO_ELS | OPEX Falta de Calado | fam=OPEX
+Zona de fondeo y espera exterior    | ELU | PI_CALADO_ELU | CAPEX Falta de Calado | fam=CAPEX
+Bocana                              | ELU | PI_CALADO_ELU | CAPEX Falta de Calado | fam=CAPEX
+Canal de acceso/ navegaci¾n         | ELU | PI_CALADO_ELU | CAPEX Falta de Calado | fam=CAPEX
+Dßrsenas (zona de permanencia)      | ELU | PI_CALADO_ELU | CAPEX Falta de Calado | fam=CAPEX
+Dßrsenas (zona de maniobra y reviro | ELU | PI_CALADO_ELU | CAPEX Falta de Calado | fam=CAPEX
+=== VALIDACION Muelle/calado ===
+warning Muelle - N 164 - Carga hidrßulica sobre las obras de amarre: no hay motor de calculo implementado para este modo.
+error Muelle - PI falta de calado (PI Falta de Calado): se requieren 3 indicadores en Relacion_modelos_activos_e_indicadores.
+error Pantalßn - PI falta de calado (PI Falta de Calado): se requieren 3 indicadores en Relacion_modelos_activos_e_indicadores.
+error Duque de alba - PI falta de calado (PI Falta de Calado): se requieren 3 indicadores en Relacion_modelos_activos_e_indicadores.
+error Boya / monoboya - PI falta de calado (PI Falta de Calado): se requieren 3 indicadores en Relacion_modelos_activos_e_indicadores.
+error Rampa Ro-Ro - PI falta de calado (PI Falta de Calado): se requieren 3 indicadores en Relacion_modelos_activos_e_indicadores.
+=== CALCULO activos con calado ===
+Zona de fondeo y espera exterior PI False OPEX True CAPEX True ['OPEX Falta de Calado', 'CAPEX Falta de Calado']
+Bocana PI False OPEX True CAPEX True ['OPEX Falta de Calado', 'CAPEX Falta de Calado']
+Canal de acceso/ navegaci¾n PI False OPEX True CAPEX True ['OPEX Falta de Calado', 'CAPEX Falta de Calado']
+Dßrsenas (zona de permanencia) PI False OPEX True CAPEX True ['OPEX Falta de Calado', 'CAPEX Falta de Calado']
+Dßrsenas (zona de maniobra y reviro) PI False OPEX True CAPEX True ['OPEX Falta de Calado', 'CAPEX Falta de Calado']

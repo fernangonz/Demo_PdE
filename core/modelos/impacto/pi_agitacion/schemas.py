@@ -18,7 +18,7 @@ VARIABLE_DEFAULT = "Oleaje"
 
 METADATOS = MetadatosModelo(
     id=MODELO_ID,
-    nombre="PI superación de umbral (oleaje, viento, corriente y visibilidad)",
+    nombre="PI SUPERACIÓN DE UMBRAL",
     version=MODELO_VERSION,
     categoria="impacto",
     descripcion=(

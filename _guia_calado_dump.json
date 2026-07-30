@@ -1,0 +1,1217 @@
+{
+  "activos": {
+    "Bocana": {
+      "PI": {
+        "label": "PI",
+        "existe": false
+      },
+      "OPEX": {
+        "label": "OPEX",
+        "existe": true,
+        "attrs": {
+          "ok": true
+        },
+        "iteraciones": [
+          {
+            "modo_fallo": "OPEX Falta de Calado",
+            "percentil": "P99"
+          }
+        ],
+        "pasos": [
+          {
+            "numero": 3,
+            "nombre": "Extraer activo y Dc desde Configuracion del puerto",
+            "excel": "Configuracion del puerto",
+            "procedimiento": "1. Abro Excel: Configuracion del puerto\n2. Localizo la fila del activo en calculo\n3. Extraigo: Tipo UO, Activo, Dc (calado del buque)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Activo buscado": "Bocana",
+                  "Modelo": "OPEX falta de calado"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Modelo": "OPEX falta de calado",
+                  "Tipo UO": "Graneles Líquidos",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Dc": "3.0"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 4,
+            "nombre": "Filtrar filas IM de falta de calado en ListRelacion",
+            "excel": "Relacion umbrales y curvas de dano vs activos | ListRelacion impactos-indicador",
+            "procedimiento": "1. Abro Excel: Relacion umbrales... hoja ListRelacion impactos-indicador\n2. Filtro / match: Activo = [Bocana] AND Tipo de impacto = [ELS] AND modo contiene Falta de Calado\n3. Extraigo las filas IM de este modelo",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "OPEX falta de calado",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Tipo de impacto (IM)": "ELS",
+                  "Filtro modo": "contiene Falta de Calado"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Nº": "95",
+                  "Tipo de impacto": "ELS",
+                  "Modos de fallo / Modos de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Activo físico u Operacional": "Bocana",
+                  "Tipo activo/servicio": "Activo físico"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "Identificar IM (iteracion 1) desde ListRelacion",
+            "excel": "Relacion umbrales y curvas de dano vs activos | ListRelacion impactos-indicador",
+            "procedimiento": "1. Abro Excel: Relacion umbrales | hoja ListRelacion impactos-indicador\n2. Localizo la fila IM=1 del activo [Bocana]\n3. Extraigo: modo, variable, tipo impacto, N relacion",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "IM": "1",
+                  "Activo": "Bocana",
+                  "Modelo": "OPEX falta de calado"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Leer fila IM en ListRelacion",
+                  "Claves": "Activo=Bocana | Tipo impacto=ELS"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Modelo": "OPEX falta de calado",
+                  "Nº relacion": "95",
+                  "Modo de fallo / Modo de parada": "OPEX Falta de Calado",
+                  "Variable climatica": "Nivel del mar",
+                  "Tipo de impacto": "ELS"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "5b. Extraer percentil e indicadores (NM, h0, h sed) de la regla",
+            "excel": "Relacion_modelos_activos_e_indicadores",
+            "procedimiento": "1. Abro Excel: Relacion_modelos_activos_e_indicadores\n2. Match: Modelo + Activo + Modo + Variable + Tipo impacto\n3. Extraigo: percentil + 3 indicadores (NM, h0, h sed)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "OPEX falta de calado",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Modo de fallo / Modo de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Tipo de impacto": "ELS"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Match fila de regla",
+                  "Claves": "Modelo+Activo+Modo+Variable+Tipo impacto"
+                }
+              ],
+              "3. Salida — regla": [
+                {
+                  "Campo": "Origen de la regla",
+                  "Valor": "Excel (Relacion_modelos_activos_e_indicadores)"
+                },
+                {
+                  "Campo": "Percentil",
+                  "Valor": "P99"
+                },
+                {
+                  "Campo": "Seleccion indicador",
+                  "Valor": "Predefinido"
+                },
+                {
+                  "Campo": "No indicadores",
+                  "Valor": "3"
+                },
+                {
+                  "Campo": "Fila Excel",
+                  "Valor": "8"
+                }
+              ],
+              "3. Salida — indicadores": [
+                {
+                  "Nº": "1",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Ascenso relativo del nivel del mar",
+                  "Etiqueta": "Ascenso relativo del nivel del mar (m)"
+                },
+                {
+                  "Nº": "2",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Calado objetivo de los poligonos de dragado",
+                  "Etiqueta": "Calado objetivo de los poligonos de dragado"
+                },
+                {
+                  "Nº": "3",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Tasa de sedimentación anual (m/año)",
+                  "Etiqueta": "Tasa de sedimentación anual (m/año)"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 6,
+            "nombre": "Obtener formulacion y umbral (con Dc) desde Relacion umbrales",
+            "excel": "Relacion umbrales y curvas de dano vs activos",
+            "procedimiento": "1. Abro Excel: Relacion umbrales y curvas de dano vs activos\n2. Match: activo / modo / variable / N relacion (+ Tipo UO, Dc)\n3. Extraigo formulacion y umbral calculado con Dc",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Nº relacion impactos": "95",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Modo de fallo / Modo de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Tipo de impacto": "ELS",
+                  "Tipo UO": "Graneles Líquidos",
+                  "Dc": "3.0"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Buscar umbral / formulacion",
+                  "Claves": "N=95 | Activo=Bocana | Modo | Variable | Dc=3.0"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Formulacion umbral": "1.1*Dc+0.75",
+                  "Umbral calculado (m)": "4.050000000000001",
+                  "Nota": "Umbral calculado con la formulación «1.1*Dc+0.75» y Dc = 3 m → 4.05 m"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 7,
+            "nombre": "Extraer valores climaticos por escenario (NM, h0, h sed)",
+            "excel": "Indicadores climaticos",
+            "procedimiento": "1. Abro Excel: Indicadores climaticos\n2. Match: nombre indicador + percentil en la pestana correspondiente\n3. Extraigo valores por escenario (historico y futuros)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "OPEX falta de calado",
+                  "Variable": "Nivel del mar",
+                  "Percentil": "P99",
+                  "Pestana": "Nivel del mar"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Buscar filas de indicador por nombre + percentil",
+                  "Claves": "NM=Ascenso relativo del nivel del mar | h0=Calado objetivo de los poligonos de dragado | hsed=Tasa de sedimentación anual (m/año)"
+                }
+              ],
+              "3. Salida — indicadores encontrados": [
+                {
+                  "Indicador": "Ascenso relativo del nivel del mar",
+                  "Estado": "Seleccionado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 10 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 20 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 50 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 100 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Cambio porcentual en el nivel máximo total del agua asociado a un período de ret",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Rango de marea (m)",
+                  "Estado": "Descartado"
+                }
+              ],
+              "3. Salida — indicadores usados": [
+                {
+                  "Nº": "1",
+                  "Rol": "NM",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Ascenso relativo del nivel del mar"
+                },
+                {
+                  "Nº": "2",
+                  "Rol": "h0",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Calado objetivo de los poligonos de dragado"
+                },
+                {
+                  "Nº": "3",
+                  "Rol": "h sedimentacion",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Tasa de sedimentación anual (m/año)"
+                }
+              ],
+              "3. Salida — valores por escenario": [
+                {
+                  "Escenario": "Histórico",
+                  "NM (m)": "120.0",
+                  "h0 (m)": "120.0",
+                  "h sedimentacion (m)": "120.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "NM (m)": "100.0",
+                  "h0 (m)": "100.0",
+                  "h sedimentacion (m)": "100.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "NM (m)": "152.0",
+                  "h0 (m)": "152.0",
+                  "h sedimentacion (m)": "152.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "NM (m)": "140.0",
+                  "h0 (m)": "140.0",
+                  "h sedimentacion (m)": "140.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "NM (m)": "176.0",
+                  "h0 (m)": "176.0",
+                  "h sedimentacion (m)": "176.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "NM (m)": "164.0",
+                  "h0 (m)": "164.0",
+                  "h sedimentacion (m)": "164.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "NM (m)": "205.0",
+                  "h0 (m)": "205.0",
+                  "h sedimentacion (m)": "205.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "NM (m)": "178.0",
+                  "h0 (m)": "178.0",
+                  "h sedimentacion (m)": "178.0"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 8,
+            "nombre": "Calcular h = NM - h0 - h sedimentacion y comparar con umbral",
+            "excel": "-",
+            "procedimiento": "1. CALCULO (sin Excel)\n2. Accion: h = NM - h0 - h sedimentacion por escenario\n3. Comparo h con el umbral obtenido en el paso 6",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Formula": "h = NM - h0 - h sedimentacion",
+                  "Umbral (m)": "4.050000000000001"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Calcular h y comparar con umbral"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Escenario": "Histórico",
+                  "NM": "120.0",
+                  "h sedimentacion": "120.0",
+                  "h0": "120.0",
+                  "h": "-120.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "Referencia"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "NM": "100.0",
+                  "h sedimentacion": "100.0",
+                  "h0": "100.0",
+                  "h": "-100.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "NM": "152.0",
+                  "h sedimentacion": "152.0",
+                  "h0": "152.0",
+                  "h": "-152.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "NM": "140.0",
+                  "h sedimentacion": "140.0",
+                  "h0": "140.0",
+                  "h": "-140.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "NM": "176.0",
+                  "h sedimentacion": "176.0",
+                  "h0": "176.0",
+                  "h": "-176.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "NM": "164.0",
+                  "h sedimentacion": "164.0",
+                  "h0": "164.0",
+                  "h": "-164.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "NM": "205.0",
+                  "h sedimentacion": "205.0",
+                  "h0": "205.0",
+                  "h": "-205.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "NM": "178.0",
+                  "h sedimentacion": "178.0",
+                  "h0": "178.0",
+                  "h": "-178.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 9,
+            "nombre": "Interpretar regla dragar / no dragar",
+            "excel": "-",
+            "procedimiento": "1. CALCULO (sin Excel)\n2. Accion: aplicar regla de interpretacion por escenario\n3. Salida: dragar si umbral <= h; no dragar si umbral > h",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Aplicar regla dragar / no dragar"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Escenario": "Histórico",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-120.0",
+                  "Interpretacion": "Referencia",
+                  "Regla": "-"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-100.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-152.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-140.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-176.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-164.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-205.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-178.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                }
+              ]
+            }
+          }
+        ],
+        "resultado_attrs": [
+          "advertencias",
+          "desde_calculo",
+          "ejecuciones",
+          "error",
+          "hsedimentacion_historico",
+          "iteraciones",
+          "metadatos",
+          "metadatos_ejecucion",
+          "ok",
+          "resultados_por_pasos",
+          "sintesis",
+          "tabla_como_dataframe",
+          "tablas",
+          "to_dict",
+          "to_json_ready"
+        ]
+      },
+      "CAPEX": {
+        "label": "CAPEX",
+        "existe": true,
+        "attrs": {
+          "ok": true
+        },
+        "iteraciones": [
+          {
+            "modo_fallo": "CAPEX Falta de Calado",
+            "percentil": "P99"
+          }
+        ],
+        "pasos": [
+          {
+            "numero": 5,
+            "nombre": "Identificar IM (iteracion 1) desde ListRelacion",
+            "excel": "Relacion umbrales y curvas de dano vs activos | ListRelacion impactos-indicador",
+            "procedimiento": "1. Abro Excel: Relacion umbrales | hoja ListRelacion impactos-indicador\n2. Localizo la fila IM=1 del activo [Bocana]\n3. Extraigo: modo, variable, tipo impacto, N relacion",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "IM": "1",
+                  "Activo": "Bocana",
+                  "Modelo": "CAPEX falta de calado"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Leer fila IM en ListRelacion",
+                  "Claves": "Activo=Bocana | Tipo impacto=ELU"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Modelo": "CAPEX falta de calado",
+                  "Nº relacion": "153",
+                  "Modo de fallo / Modo de parada": "CAPEX Falta de Calado",
+                  "Variable climatica": "Nivel del mar",
+                  "Tipo de impacto": "ELU"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "5b. Extraer percentil e indicadores (NM, h0, h sed) de la regla",
+            "excel": "Relacion_modelos_activos_e_indicadores",
+            "procedimiento": "1. Abro Excel: Relacion_modelos_activos_e_indicadores\n2. Match: Modelo + Activo + Modo + Variable + Tipo impacto\n3. Extraigo: percentil + 3 indicadores (NM, h0, h sed)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "CAPEX falta de calado",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Modo de fallo / Modo de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Tipo de impacto": "ELU"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Match fila de regla",
+                  "Claves": "Modelo+Activo+Modo+Variable+Tipo impacto"
+                }
+              ],
+              "3. Salida — regla": [
+                {
+                  "Campo": "Origen de la regla",
+                  "Valor": "Excel (Relacion_modelos_activos_e_indicadores)"
+                },
+                {
+                  "Campo": "Percentil",
+                  "Valor": "P99"
+                },
+                {
+                  "Campo": "Seleccion indicador",
+                  "Valor": "Predefinido"
+                },
+                {
+                  "Campo": "No indicadores",
+                  "Valor": "3"
+                },
+                {
+                  "Campo": "Fila Excel",
+                  "Valor": "9"
+                }
+              ],
+              "3. Salida — indicadores": [
+                {
+                  "Nº": "1",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Ascenso relativo del nivel del mar",
+                  "Etiqueta": "Ascenso relativo del nivel del mar (m)"
+                },
+                {
+                  "Nº": "2",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Calado objetivo de los poligonos de dragado",
+                  "Etiqueta": "Calado objetivo de los poligonos de dragado"
+                },
+                {
+                  "Nº": "3",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Tasa de sedimentación anual (m/año)",
+                  "Etiqueta": "Tasa de sedimentación anual (m/año)"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 6,
+            "nombre": "Obtener formulacion y umbral (con Dc) desde Relacion umbrales",
+            "excel": "Relacion umbrales y curvas de dano vs activos",
+            "procedimiento": "1. Abro Excel: Relacion umbrales y curvas de dano vs activos\n2. Match: activo / modo / variable / N relacion (+ Tipo UO, Dc)\n3. Extraigo formulacion y umbral calculado con Dc",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Nº relacion impactos": "153",
+                  "Activo fisico u Operacional": "Bocana",
+                  "Modo de fallo / Modo de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Tipo de impacto": "ELU",
+                  "Tipo UO": "Graneles Líquidos",
+                  "Dc": "3.0"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Buscar umbral / formulacion",
+                  "Claves": "N=153 | Activo=Bocana | Modo | Variable | Dc=3.0"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Formulacion umbral": "1.1*Dc+0.75",
+                  "Umbral calculado (m)": "4.050000000000001",
+                  "Nota": "Umbral calculado con la formulación «1.1*Dc+0.75» y Dc = 3 m → 4.05 m"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 7,
+            "nombre": "Extraer valores climaticos por escenario (NM, h0, h sed)",
+            "excel": "Indicadores climaticos",
+            "procedimiento": "1. Abro Excel: Indicadores climaticos\n2. Match: nombre indicador + percentil en la pestana correspondiente\n3. Extraigo valores por escenario (historico y futuros)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "CAPEX falta de calado",
+                  "Variable": "Nivel del mar",
+                  "Percentil": "P99",
+                  "Pestana": "Nivel del mar"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Buscar filas de indicador por nombre + percentil",
+                  "Claves": "NM=Ascenso relativo del nivel del mar | h0=Calado objetivo de los poligonos de dragado | hsed=Tasa de sedimentación anual (m/año)"
+                }
+              ],
+              "3. Salida — indicadores encontrados": [
+                {
+                  "Indicador": "Ascenso relativo del nivel del mar",
+                  "Estado": "Seleccionado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 10 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 20 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 50 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua para un período de retorno de 100 años",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Nivel de retorno del nivel total del agua",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Cambio porcentual en el nivel máximo total del agua asociado a un período de ret",
+                  "Estado": "Descartado"
+                },
+                {
+                  "Indicador": "Rango de marea (m)",
+                  "Estado": "Descartado"
+                }
+              ],
+              "3. Salida — indicadores usados": [
+                {
+                  "Nº": "1",
+                  "Rol": "NM",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Ascenso relativo del nivel del mar"
+                },
+                {
+                  "Nº": "2",
+                  "Rol": "h0",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Calado objetivo de los poligonos de dragado"
+                },
+                {
+                  "Nº": "3",
+                  "Rol": "h sedimentacion",
+                  "Pestana": "Nivel del mar",
+                  "Indicador climatico": "Tasa de sedimentación anual (m/año)"
+                }
+              ],
+              "3. Salida — valores por escenario": [
+                {
+                  "Escenario": "Histórico",
+                  "NM (m)": "120.0",
+                  "h0 (m)": "120.0",
+                  "h sedimentacion (m)": "120.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "NM (m)": "100.0",
+                  "h0 (m)": "100.0",
+                  "h sedimentacion (m)": "100.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "NM (m)": "152.0",
+                  "h0 (m)": "152.0",
+                  "h sedimentacion (m)": "152.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "NM (m)": "140.0",
+                  "h0 (m)": "140.0",
+                  "h sedimentacion (m)": "140.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "NM (m)": "176.0",
+                  "h0 (m)": "176.0",
+                  "h sedimentacion (m)": "176.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "NM (m)": "164.0",
+                  "h0 (m)": "164.0",
+                  "h sedimentacion (m)": "164.0"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "NM (m)": "205.0",
+                  "h0 (m)": "205.0",
+                  "h sedimentacion (m)": "205.0"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "NM (m)": "178.0",
+                  "h0 (m)": "178.0",
+                  "h sedimentacion (m)": "178.0"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 8,
+            "nombre": "Calcular h = NM - h0 - h sedimentacion y comparar con umbral",
+            "excel": "-",
+            "procedimiento": "1. CALCULO (sin Excel)\n2. Accion: h = NM - h0 - h sedimentacion por escenario\n3. Comparo h con el umbral obtenido en el paso 6",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Formula": "h = NM - h0 - h sedimentacion",
+                  "Umbral (m)": "4.050000000000001"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Calcular h y comparar con umbral"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Escenario": "Histórico",
+                  "NM": "120.0",
+                  "h sedimentacion": "120.0",
+                  "h0": "120.0",
+                  "h": "-120.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "Referencia"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "NM": "100.0",
+                  "h sedimentacion": "100.0",
+                  "h0": "100.0",
+                  "h": "-100.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "NM": "152.0",
+                  "h sedimentacion": "152.0",
+                  "h0": "152.0",
+                  "h": "-152.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "NM": "140.0",
+                  "h sedimentacion": "140.0",
+                  "h0": "140.0",
+                  "h": "-140.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "NM": "176.0",
+                  "h sedimentacion": "176.0",
+                  "h0": "176.0",
+                  "h": "-176.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "NM": "164.0",
+                  "h sedimentacion": "164.0",
+                  "h0": "164.0",
+                  "h": "-164.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "NM": "205.0",
+                  "h sedimentacion": "205.0",
+                  "h0": "205.0",
+                  "h": "-205.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "NM": "178.0",
+                  "h sedimentacion": "178.0",
+                  "h0": "178.0",
+                  "h": "-178.0",
+                  "Umbral": "4.050000000000001",
+                  "Interpretacion": "No es necesario dragar"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 9,
+            "nombre": "Interpretar regla dragar / no dragar",
+            "excel": "-",
+            "procedimiento": "1. CALCULO (sin Excel)\n2. Accion: aplicar regla de interpretacion por escenario\n3. Salida: dragar si umbral <= h; no dragar si umbral > h",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Aplicar regla dragar / no dragar"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Escenario": "Histórico",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-120.0",
+                  "Interpretacion": "Referencia",
+                  "Regla": "-"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2040",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-100.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2040",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-152.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2050",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-140.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2050",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-176.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2060",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-164.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP5-8.5 2060",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-205.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                },
+                {
+                  "Escenario": "SSP2-4.5 2070",
+                  "Umbral (m)": "4.050000000000001",
+                  "h (m)": "-178.0",
+                  "Interpretacion": "No es necesario dragar",
+                  "Regla": "umbral <= h -> dragar; umbral > h -> no dragar"
+                }
+              ]
+            }
+          }
+        ],
+        "resultado_attrs": [
+          "advertencias",
+          "desde_calculo",
+          "ejecuciones",
+          "error",
+          "hsedimentacion_historico",
+          "iteraciones",
+          "metadatos",
+          "metadatos_ejecucion",
+          "ok",
+          "resultados_por_pasos",
+          "sintesis",
+          "tabla_como_dataframe",
+          "tablas",
+          "to_dict",
+          "to_json_ready"
+        ]
+      },
+      "advertencias": []
+    },
+    "Muelle": {
+      "PI": {
+        "label": "PI",
+        "existe": true,
+        "attrs": {
+          "ok": false
+        },
+        "iteraciones": [],
+        "pasos": [
+          {
+            "numero": 3,
+            "nombre": "Extraer activo y Dc desde Configuracion del puerto",
+            "excel": "Configuracion del puerto",
+            "procedimiento": "1. Abro Excel: Configuracion del puerto\n2. Localizo la fila del activo en calculo\n3. Extraigo: Tipo UO, Activo, Dc (calado del buque)",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Activo buscado": "Muelle",
+                  "Modelo": "PI falta de calado"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Modelo": "PI falta de calado",
+                  "Tipo UO": "Graneles Líquidos",
+                  "Activo fisico u Operacional": "Muelle",
+                  "Dc": "3.0"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 4,
+            "nombre": "Filtrar filas IM de falta de calado en ListRelacion",
+            "excel": "Relacion umbrales y curvas de dano vs activos | ListRelacion impactos-indicador",
+            "procedimiento": "1. Abro Excel: Relacion umbrales... hoja ListRelacion impactos-indicador\n2. Filtro / match: Activo = [Muelle] AND Tipo de impacto = [ELO] AND modo contiene Falta de Calado\n3. Extraigo las filas IM de este modelo",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "PI falta de calado",
+                  "Activo fisico u Operacional": "Muelle",
+                  "Tipo de impacto (IM)": "ELO",
+                  "Filtro modo": "contiene Falta de Calado"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Nº": "38",
+                  "Tipo de impacto": "ELO",
+                  "Modos de fallo / Modos de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Activo físico u Operacional": "Muelle",
+                  "Tipo activo/servicio": "Activo físico"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "Identificar IM (iteracion 1) desde ListRelacion",
+            "excel": "Relacion umbrales y curvas de dano vs activos | ListRelacion impactos-indicador",
+            "procedimiento": "1. Abro Excel: Relacion umbrales | hoja ListRelacion impactos-indicador\n2. Localizo la fila IM=1 del activo [Muelle]\n3. Extraigo: modo, variable, tipo impacto, N relacion",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "IM": "1",
+                  "Activo": "Muelle",
+                  "Modelo": "PI falta de calado",
+                  "Etiqueta IM": "PI Falta de Calado"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Leer fila IM en ListRelacion",
+                  "Claves": "Activo=Muelle | Tipo impacto=ELO"
+                }
+              ],
+              "3. Salida": [
+                {
+                  "Modelo": "PI falta de calado",
+                  "Nº relacion": "38",
+                  "Modo de fallo / Modo de parada": "PI Falta de Calado",
+                  "Variable climatica": "Nivel del mar",
+                  "Tipo de impacto": "ELO",
+                  "Tipo UO": "Graneles Líquidos"
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "5b. FALLO al extraer los 3 indicadores de la regla",
+            "excel": "Relacion_modelos_activos_e_indicadores",
+            "procedimiento": "1. Abro Excel: Relacion_modelos_activos_e_indicadores\n2. Match: Modelo + Activo + Modo + Variable + Tipo impacto\n3. FALLO: no se obtienen los 3 indicadores requeridos (NM, h0, h sed)\n4. Motivo: Faltan 3 indicadores (NM, h0 y h sedimentacion) en Relacion_modelos_activos_e_indicadores.",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "1. Entrada (claves de busqueda)": [
+                {
+                  "Modelo": "PI falta de calado",
+                  "Activo fisico u Operacional": "Muelle",
+                  "Modo de fallo / Modo de parada": "Falta de Calado",
+                  "Variable": "Nivel del mar",
+                  "Tipo de impacto": "ELO"
+                }
+              ],
+              "2. Match / accion": [
+                {
+                  "Accion": "Match fila de regla — FALLO",
+                  "Claves": "Modelo+Activo+Modo+Variable+Tipo impacto"
+                }
+              ],
+              "3. Salida — regla": [
+                {
+                  "Campo": "Origen de la regla",
+                  "Valor": "Diagrama (umbral + P99 + filtros por Tipo UO)"
+                },
+                {
+                  "Campo": "Percentil",
+                  "Valor": "P99"
+                },
+                {
+                  "Campo": "No indicadores",
+                  "Valor": "1"
+                }
+              ],
+              "3. Salida — indicadores": [
+                {
+                  "Esperado": "NM",
+                  "Encontrado": "FALTANTE"
+                },
+                {
+                  "Esperado": "h0",
+                  "Encontrado": "FALTANTE"
+                },
+                {
+                  "Esperado": "h sedimentacion",
+                  "Encontrado": "FALTANTE"
+                }
+              ],
+              "FALLO AQUI": [
+                {
+                  "error_code": "INDICADORES_MODELO_FALTANTES",
+                  "motivo": "Faltan 3 indicadores (NM, h0 y h sedimentacion) en Relacion_modelos_activos_e_indicadores."
+                }
+              ]
+            }
+          },
+          {
+            "numero": 5,
+            "nombre": "FALLO EN ESTE PASO",
+            "excel": "Relacion_modelos_activos_e_indicadores",
+            "procedimiento": "FALLO en paso 5 / 5b (regla del modelo).\n1. Abro Excel: Relacion_modelos_activos_e_indicadores\n2. Match Modelo+Activo+Modo+Variable+Tipo impacto\n3. Completo los 3 indicadores (NM, h0, h sed) en esa fila\n4. Motivo: Faltan 3 indicadores (NM, h0 y h sedimentacion) en Relacion_modelos_activos_e_indicadores.",
+            "error_code": null,
+            "ok": null,
+            "motivo": null,
+            "tablas": {
+              "FALLO AQUI": [
+                {
+                  "Paso": "5",
+                  "error_code": "INDICADORES_MODELO_FALTANTES",
+                  "motivo": "Faltan 3 indicadores (NM, h0 y h sedimentacion) en Relacion_modelos_activos_e_indicadores.",
+                  "Que corregir": "Completar 3 indicadores en Relacion_modelos..."
+                }
+              ]
+            }
+          }
+        ],
+        "resultado_attrs": [
+          "advertencias",
+          "desde_calculo",
+          "ejecuciones",
+          "error",
+          "hsedimentacion_historico",
+          "iteraciones",
+          "metadatos",
+          "metadatos_ejecucion",
+          "ok",
+          "resultados_por_pasos",
+          "sintesis",
+          "tabla_como_dataframe",
+          "tablas",
+          "to_dict",
+          "to_json_ready"
+        ]
+      },
+      "OPEX": {
+        "label": "OPEX",
+        "existe": false
+      },
+      "CAPEX": {
+        "label": "CAPEX",
+        "existe": false
+      },
+      "advertencias": [
+        "Faltan 3 indicadores (NM, h0 y h sedimentacion) en Relacion_modelos_activos_e_indicadores."
+      ]
+    }
+  }
+}

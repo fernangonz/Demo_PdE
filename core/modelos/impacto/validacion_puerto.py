@@ -11,6 +11,7 @@ import pandas as pd
 from core.data_loader import auditar_fuentes_excel
 from core.fuentes_datos import fuente
 from core.modelos.catalogo_impactos import (
+    MOTOR_PI_CALADO_ELO,
     MOTOR_PI_CALADO_ELS,
     MOTOR_PI_CALADO_ELU,
     MOTOR_PI_FRANCOBORDO,
@@ -56,6 +57,7 @@ from core.modelos.inputs_activo import (
     leer_inputs_config_activo_desde_fila,
     validar_inputs_positivos,
 )
+from core.modelos.flujos import resolver_motivo_y_codigo_diagrama_indicadores
 from core.modelos.metodologias import (
     etiqueta_archivo_fuente,
     metodologia,
@@ -707,10 +709,17 @@ def _validar_fila_calado(
     ind_hsed = roles.get("hsedim")
 
     if ind_nm is None or ind_h0 is None or ind_hsed is None:
+        mensaje_ind, codigo_ind = resolver_motivo_y_codigo_diagrama_indicadores(
+            motor_id,
+            (
+                f"{activo_resumen} - {nombre_motor} ({etiqueta_im}): se requieren "
+                f"3 indicadores en Relacion_modelos_activos_e_indicadores."
+            ),
+        )
         resultado.avisos.append(
             _aviso(
                 nivel="error",
-                codigo="INDICADORES_MODELO_FALTANTES",
+                codigo=codigo_ind,
                 activo=activo_resumen,
                 activo_raw=activo_raw,
                 modo_fallo=modo_fallo,
@@ -720,10 +729,7 @@ def _validar_fila_calado(
                 input_faltante="NM, h0 y h sedimentacion",
                 archivo=etiqueta_archivo_fuente("relacion_modelos"),
                 hoja="",
-                mensaje=(
-                    f"{activo_resumen} - {nombre_motor} ({etiqueta_im}): se requieren "
-                    f"3 indicadores en Relacion_modelos_activos_e_indicadores."
-                ),
+                mensaje=mensaje_ind,
                 n_relacion=n_rel,
             )
         )
@@ -1099,11 +1105,12 @@ def validar_puerto_antes_calculo(
             continue
 
         calado_vals = leer_calado_activo_desde_fila(fila_cfg, columnas_cfg)
-        meta_calado = metodologia(MOTOR_PI_CALADO_ELS)
+        meta_calado = metodologia(MOTOR_PI_CALADO_ELS) or metodologia(MOTOR_PI_CALADO_ELO)
         inputs_calado = meta_calado.inputs_activo if meta_calado else ()
         requiere_calado = bool(
             modos_falta_calado(impactos, tipo_impacto="ELO")
             or modos_falta_calado(impactos, tipo_impacto="ELS")
+            or modos_falta_calado(impactos, tipo_impacto="ELU")
         )
         calado_buque = calado_vals.get("calado_buque")
         if requiere_calado:
@@ -1140,8 +1147,9 @@ def validar_puerto_antes_calculo(
                 activo_tiene_calculable = True
 
         for tipo_imp, motor_calado in (
-            ("ELO", MOTOR_PI_CALADO_ELS),
-            ("ELS", MOTOR_PI_CALADO_ELU),
+            ("ELO", MOTOR_PI_CALADO_ELO),
+            ("ELS", MOTOR_PI_CALADO_ELS),
+            ("ELU", MOTOR_PI_CALADO_ELU),
         ):
             if not motor_registrado(motor_calado):
                 continue

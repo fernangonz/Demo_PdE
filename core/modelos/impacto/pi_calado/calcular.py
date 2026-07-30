@@ -1,10 +1,9 @@
-"""Punto de entrada del modelo de falta de calado (OPEX ELS / CAPEX ELU)."""
+"""Punto de entrada del modelo de falta de calado (PI ELO / OPEX ELS / CAPEX ELU)."""
 
 from __future__ import annotations
 
 import pandas as pd
 
-from core.modelos.catalogo_impactos import titulo_desde_modo
 from core.relacion_modelos import buscar_regla_modelo
 from core.modelos.impacto.pi_agitacion.utilidades import (
     buscar_umbral_umbrales,
@@ -24,6 +23,7 @@ from core.modelos.impacto.pi_calado.pasos import (
     ResultadosPorPasos,
     construir_pasos_activo_calado,
     construir_pasos_modo_calado,
+    construir_pasos_modo_calado_error,
 )
 from core.modelos.impacto.pi_calado.utilidades import (
     buscar_fila_indicador,
@@ -34,12 +34,50 @@ from core.modelos.impacto.pi_calado.utilidades import (
     resolver_indicadores_calado,
     valor_columna,
 )
+from core.schemas.ejecucion import (
+    IteracionEjecucion,
+    envolver_pasos,
+    familia_desde_tipo_impacto,
+)
 
 
 def _mensaje_fila_excel(n_rel: int | None, tipo_impacto: str) -> str:
     if n_rel is None:
         return ""
     return f" (fila Nº {n_rel}, {tipo_impacto})"
+
+
+def _ejecucion_error(
+    *,
+    numero: int,
+    activo: str,
+    modo_fallo: str,
+    modo_fallo_excel: str,
+    variable: str,
+    tipo_impacto: str,
+    motor_id: str,
+    motivo: str,
+    error_code: str,
+    inputs_usados: dict | None = None,
+    pasos: list | None = None,
+) -> IteracionEjecucion:
+    # No anteponer diagrama aquí: Motivo y Código deben ir alineados en el caller.
+    pasos_ej = envolver_pasos(pasos or [], status="error") if pasos else []
+    return IteracionEjecucion(
+        numero=numero,
+        activo=activo,
+        modo_fallo=modo_fallo,
+        modo_fallo_excel=modo_fallo_excel,
+        variable=variable,
+        tipo_impacto=tipo_impacto,
+        familia=familia_desde_tipo_impacto(tipo_impacto),
+        motor_id=motor_id,
+        estado="error",
+        motivo=motivo,
+        error_code=error_code,
+        inputs_usados=dict(inputs_usados or {}),
+        pasos=pasos_ej,
+    )
 
 
 def calcular(
@@ -52,7 +90,7 @@ def calcular(
     por_hoja_umbrales: dict[str, pd.DataFrame] | None = None,
     incluir_pasos_comunes: bool = True,
 ) -> ResultadoPICalado:
-    """Ejecuta falta de calado para el activo (OPEX ELS o CAPEX ELU), sin atajos cruzados."""
+    """Ejecuta falta de calado para el activo (PI ELO / OPEX ELS / CAPEX ELU), sin atajos cruzados."""
     params = params or ParametrosEntrada()
     meta_modelo = metadatos_para_tipo_impacto(params.tipo_impacto)
     nombre_modelo = nombre_modelo_para_tipo_impacto(params.tipo_impacto)
@@ -137,8 +175,10 @@ def calcular(
         )
 
     iteraciones: list[IteracionResultado] = []
+    ejecuciones: list[IteracionEjecucion] = []
     hsedim_hist: float | None = None
     pasos_totales: list = []
+    familia = familia_desde_tipo_impacto(params.tipo_impacto)
     if incluir_pasos_comunes:
         pasos_totales.extend(construir_pasos_activo_calado(
             nombre_modelo=nombre_modelo,
@@ -153,6 +193,8 @@ def calcular(
         modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
         variable = str(fila_rel.get("Variable", "")).strip()
         estado_limite = str(fila_rel.get("Tipo de impacto", "")).strip() or params.tipo_impacto
+        from core.modelos.catalogo_impactos import titulo_desde_modo
+
         etiqueta_im = titulo_desde_modo(
             modo_fallo,
             variable=variable,
@@ -161,6 +203,12 @@ def calcular(
         n_rel = int(fila_rel["Nº"]) if pd.notna(fila_rel.get("Nº")) else None
         sufijo_fila = _mensaje_fila_excel(n_rel, estado_limite)
         tipo_activo_servicio = str(fila_rel.get("Tipo activo/servicio", "")).strip() or tipo_activo_cfg
+        inputs_base = {
+            "n_relacion": n_rel,
+            "Dc": params.calado_buque,
+            "tipo_impacto": estado_limite,
+            "variable": variable,
+        }
 
         regla_modelo = buscar_regla_modelo(
             relacion_modelos,
@@ -186,33 +234,138 @@ def calcular(
             lista_master=lista_master,
         )
         if umbral_info is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: no se pudo determinar el umbral para "
-                f"«{modo_fallo}» / {variable}{sufijo_fila}. "
-                "Revise Relación umbrales y curvas de daño vs activos "
-                f"(Umbral General o columna del Tipo UO, formulación con Dc).",
-                metadatos=meta_modelo,
+            motivo = (
+                f"No se pudo determinar el umbral para «{modo_fallo}» / {variable}"
+                f"{sufijo_fila}."
             )
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code="UMBRAL_FALTANTE",
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+            )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code="UMBRAL_FALTANTE",
+                inputs_usados=inputs_base,
+                pasos=pasos_err,
+            ))
+            continue
         umbral_txt, umbral_m = umbral_info
         if umbral_m is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: umbral no numérico para «{modo_fallo}» "
-                f"({umbral_txt}){sufijo_fila}.",
-                metadatos=meta_modelo,
+            motivo = f"Umbral no numérico ({umbral_txt}){sufijo_fila}."
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code="UMBRAL_NO_NUMERICO",
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+                umbral_txt=umbral_txt,
             )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code="UMBRAL_NO_NUMERICO",
+                inputs_usados={**inputs_base, "umbral": umbral_txt},
+                pasos=pasos_err,
+            ))
+            continue
 
         ind_nm = roles.get("nm")
         ind_h0 = roles.get("h0")
         ind_hsed = roles.get("hsedim")
         if ind_nm is None or ind_h0 is None or ind_hsed is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: se requieren 3 indicadores (NM, h0 y h sedimentacion) "
-                f"en Relacion_modelos_activos_e_indicadores para "
-                f"«{modo_fallo}» / {variable} / {estado_limite}{sufijo_fila}. "
-                f"Configure la fila del modelo con tipo de impacto {estado_limite}; "
-                "no se reutilizan reglas de otro tipo.",
-                metadatos=meta_modelo,
+            # Lazy: evita ciclo core.modelos.__init__ → registro → pi_calado → flujos
+            from core.modelos.flujos import resolver_motivo_y_codigo_diagrama_indicadores
+
+            motivo, error_code = resolver_motivo_y_codigo_diagrama_indicadores(
+                params.modelo_id,
+                "Faltan 3 indicadores (NM, h0 y h sedimentacion) en "
+                "Relacion_modelos_activos_e_indicadores.",
             )
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code=error_code,
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+                umbral_txt=umbral_txt,
+                umbral_m=umbral_m,
+            )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code=error_code,
+                inputs_usados={
+                    **inputs_base,
+                    "percentil": percentil,
+                    "origen_regla": regla_modelo.origen,
+                },
+                pasos=pasos_err,
+            ))
+            continue
 
         df_clima = dataframe_pestana(info_clima, ind_nm.pestaña or "Nivel del mar")
 
@@ -227,20 +380,126 @@ def calcular(
             df_hsed, nombre_indicador=ind_hsed.indicador, percentil=percentil
         )
         if fila_nm is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: no se encontró indicador 1 «{ind_nm.indicador}» ({percentil}).",
-                metadatos=meta_modelo,
+            motivo = f"No se encontró indicador 1 «{ind_nm.indicador}» ({percentil})."
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code="INDICADOR_NM_FALTANTE",
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+                umbral_txt=umbral_txt,
+                umbral_m=umbral_m,
             )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code="INDICADOR_NM_FALTANTE",
+                inputs_usados={**inputs_base, "indicador_nm": ind_nm.indicador, "percentil": percentil},
+                pasos=pasos_err,
+            ))
+            continue
         if fila_h0 is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: no se encontró indicador 2 «{ind_h0.indicador}» ({percentil}).",
-                metadatos=meta_modelo,
+            motivo = f"No se encontró indicador 2 «{ind_h0.indicador}» ({percentil})."
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code="INDICADOR_H0_FALTANTE",
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+                umbral_txt=umbral_txt,
+                umbral_m=umbral_m,
             )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code="INDICADOR_H0_FALTANTE",
+                inputs_usados={**inputs_base, "indicador_h0": ind_h0.indicador, "percentil": percentil},
+                pasos=pasos_err,
+            ))
+            continue
         if fila_hsed is None:
-            return ResultadoPICalado.error(
-                f"{nombre_modelo}: no se encontró indicador 3 «{ind_hsed.indicador}» ({percentil}).",
-                metadatos=meta_modelo,
+            motivo = f"No se encontró indicador 3 «{ind_hsed.indicador}» ({percentil})."
+            pasos_err = construir_pasos_modo_calado_error(
+                numero_iteracion=numero,
+                tipo_uo=tipo_uo,
+                activo_raw=activo_raw,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                etiqueta_im=etiqueta_im,
+                nombre_modelo=nombre_modelo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                n_relacion=n_rel,
+                calado_buque=params.calado_buque,
+                error_code="INDICADOR_HSED_FALTANTE",
+                motivo=motivo,
+                percentil=percentil,
+                origen_regla=regla_modelo.origen,
+                fila_excel=regla_modelo.fila,
+                num_indicadores=regla_modelo.num_indicadores,
+                indicadores=regla_modelo.indicadores,
+                umbral_txt=umbral_txt,
+                umbral_m=umbral_m,
             )
+            pasos_totales.extend(pasos_err)
+            ejecuciones.append(_ejecucion_error(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+                motivo=motivo,
+                error_code="INDICADOR_HSED_FALTANTE",
+                inputs_usados={
+                    **inputs_base,
+                    "indicador_hsed": ind_hsed.indicador,
+                    "percentil": percentil,
+                },
+                pasos=pasos_err,
+            ))
+            continue
 
         tabla = construir_tabla_calado(
             fila_nm=fila_nm,
@@ -254,7 +513,7 @@ def calcular(
         if hsedim_hist is None:
             hsedim_hist = valor_columna(fila_hsed, col_hist)
 
-        pasos_totales.extend(construir_pasos_modo_calado(
+        pasos_modo = construir_pasos_modo_calado(
             numero_iteracion=numero,
             tipo_uo=tipo_uo,
             activo_raw=activo_raw,
@@ -283,6 +542,40 @@ def calcular(
             columnas_fut=columnas_fut,
             tabla_resultado=tabla,
             indicadores_clima=est_nm + est_h0 + est_hsed,
+        )
+        pasos_totales.extend(pasos_modo)
+        pasos_ej = envolver_pasos(pasos_modo)
+
+        indicador_sel = f"h = NM − h₀ − h sedimentación | umbral {umbral_txt}"
+        inputs_ok = {
+            **inputs_base,
+            "umbral": umbral_txt,
+            "umbral_m": umbral_m,
+            "percentil": percentil,
+            "origen_regla": regla_modelo.origen,
+            "indicador_nm": ind_nm.indicador,
+            "indicador_h0": ind_h0.indicador,
+            "indicador_hsed": ind_hsed.indicador,
+        }
+
+        ejecuciones.append(IteracionEjecucion(
+            numero=numero,
+            activo=activo_resumen,
+            modo_fallo=etiqueta_im,
+            modo_fallo_excel=modo_fallo,
+            variable=variable,
+            tipo_impacto=estado_limite,
+            familia=familia_desde_tipo_impacto(estado_limite) or familia,
+            motor_id=params.modelo_id,
+            estado="ok",
+            umbral=umbral_txt,
+            percentil=percentil,
+            indicador_seleccionado=indicador_sel,
+            origen_regla=regla_modelo.origen,
+            inputs_usados=inputs_ok,
+            pasos=pasos_ej,
+            advertencias=[],
+            _tabla_resultado_df=tabla,
         ))
 
         iteraciones.append(IteracionResultado(
@@ -290,9 +583,7 @@ def calcular(
             modo_fallo=etiqueta_im,
             variable_climatica=variable,
             umbral=umbral_txt,
-            indicador_seleccionado=(
-                f"h = NM − h₀ − h sedimentación | umbral {umbral_txt}"
-            ),
+            indicador_seleccionado=indicador_sel,
             percentil=percentil,
             origen_regla=regla_modelo.origen,
             indicadores_evaluados=est_nm + est_h0 + est_hsed,
@@ -301,20 +592,26 @@ def calcular(
             _tabla_resultado_df=tabla,
         ))
 
+    meta_ejec = {
+        "activo": activo_resumen,
+        "tipo_uo": tipo_uo,
+        "impactos_asociados": len(impactos),
+        "modos_falta_calado": len(modos),
+        "modos_ok": sum(1 for e in ejecuciones if e.ok),
+        "modos_error": sum(1 for e in ejecuciones if e.estado == "error"),
+        "baseline_year": params.baseline_year,
+        "calado_buque": params.calado_buque,
+        "tipo_impacto": params.tipo_impacto,
+        "modelo_id": params.modelo_id,
+        "nombre_modelo": nombre_modelo,
+        "familia": familia,
+    }
+
     return ResultadoPICalado.desde_calculo(
         metadatos=meta_modelo,
-        metadatos_ejecucion={
-            "activo": activo_resumen,
-            "tipo_uo": tipo_uo,
-            "impactos_asociados": len(impactos),
-            "modos_falta_calado": len(iteraciones),
-            "baseline_year": params.baseline_year,
-            "calado_buque": params.calado_buque,
-            "tipo_impacto": params.tipo_impacto,
-            "modelo_id": params.modelo_id,
-            "nombre_modelo": nombre_modelo,
-        },
+        metadatos_ejecucion=meta_ejec,
         iteraciones=iteraciones,
+        ejecuciones=ejecuciones,
         resultados_por_pasos=ResultadosPorPasos(
             modelo_id=params.modelo_id,
             pasos=pasos_totales,

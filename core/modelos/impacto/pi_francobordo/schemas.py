@@ -19,7 +19,7 @@ MODELO_VERSION = "1.0.0"
 
 METADATOS = MetadatosModelo(
     id=MODELO_ID,
-    nombre="PI falta de francobordo (ELO / Nivel del mar)",
+    nombre="PI FALTA DE FRANCOBORDO",
     version=MODELO_VERSION,
     categoria="impacto",
     descripcion=(

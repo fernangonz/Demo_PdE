@@ -44,6 +44,7 @@ class ResultadoCalculoActivo:
     advertencias: list[str] = field(default_factory=list)
     resultado_agitacion: ResultadoPIAgitacion | None = None
     resultado_francobordo: ResultadoPIFrancobordo | None = None
+    resultado_calado_pi: ResultadoPICalado | None = None
     resultado_calado_opex: ResultadoPICalado | None = None
     resultado_calado_capex: ResultadoPICalado | None = None
     metadatos_ejecucion: dict[str, Any] = field(default_factory=dict)
@@ -54,8 +55,12 @@ class ResultadoCalculoActivo:
 
     @property
     def resultado_calado(self) -> ResultadoPICalado | None:
-        """Compatibilidad: OPEX (ELS)."""
-        return self.resultado_calado_opex
+        """Compatibilidad: primer calado disponible (PI / OPEX / CAPEX)."""
+        return (
+            self.resultado_calado_pi
+            or self.resultado_calado_opex
+            or self.resultado_calado_capex
+        )
 
 
 @dataclass
@@ -87,11 +92,15 @@ def _ejecutar_calado(
         incluir_pasos_comunes=incluir_pasos_comunes,
     )
     advertencias: list[str] = []
-    if not resultado.ok:
-        advertencias.append(resultado.error or f"Error en {etiqueta}.")
-        return None, advertencias
     if resultado.advertencias:
         advertencias.extend(resultado.advertencias)
+    if not resultado.ok:
+        if resultado.error:
+            advertencias.append(resultado.error)
+        # Conservar resultado si hay ejecuciones auditables (OK o ERROR por modo).
+        if getattr(resultado, "ejecuciones", None):
+            return resultado, advertencias
+        return None, advertencias or [f"Error en {etiqueta}."]
     return resultado, advertencias
 
 
@@ -100,8 +109,10 @@ def _activo_requiere_calado(
     activo_raw: str,
 ) -> bool:
     impactos = impactos_por_activo(df_relacion, activo_raw)
-    return bool(modos_falta_calado(impactos, tipo_impacto="ELO")) or bool(
-        modos_falta_calado(impactos, tipo_impacto="ELS")
+    return (
+        bool(modos_falta_calado(impactos, tipo_impacto="ELO"))
+        or bool(modos_falta_calado(impactos, tipo_impacto="ELS"))
+        or bool(modos_falta_calado(impactos, tipo_impacto="ELU"))
     )
 
 
@@ -154,6 +165,7 @@ def calcular_impactos_activo(
     advertencias: list[str] = []
     resultado_ag: ResultadoPIAgitacion | None = None
     resultado_fb: ResultadoPIFrancobordo | None = None
+    resultado_pi_cal: ResultadoPICalado | None = None
     resultado_opex: ResultadoPICalado | None = None
     resultado_capex: ResultadoPICalado | None = None
 
@@ -185,9 +197,11 @@ def calcular_impactos_activo(
             if df_relacion is not None and not df_relacion.empty
             else pd.DataFrame()
         )
+        incluir_pasos = True
 
+        # ELO -> PI / perdida de ingreso
         if modos_falta_calado(impactos_cal, tipo_impacto="ELO"):
-            resultado_opex, adv_opex = _ejecutar_calado(
+            resultado_pi_cal, adv_pi = _ejecutar_calado(
                 datos,
                 ParametrosCalado(
                     tipo_uo=params_calado.tipo_uo,
@@ -196,13 +210,16 @@ def calcular_impactos_activo(
                     baseline_year=params_calado.baseline_year,
                     tipo_impacto="ELO",
                 ),
-                etiqueta="OPEX falta de calado",
-                incluir_pasos_comunes=True,
+                etiqueta="PI FALTA DE CALADO",
+                incluir_pasos_comunes=incluir_pasos,
             )
-            advertencias.extend(adv_opex)
+            advertencias.extend(adv_pi)
+            if resultado_pi_cal is not None:
+                incluir_pasos = False
 
+        # ELS -> OPEX
         if modos_falta_calado(impactos_cal, tipo_impacto="ELS"):
-            resultado_capex, adv_capex = _ejecutar_calado(
+            resultado_opex, adv_opex = _ejecutar_calado(
                 datos,
                 ParametrosCalado(
                     tipo_uo=params_calado.tipo_uo,
@@ -211,14 +228,33 @@ def calcular_impactos_activo(
                     baseline_year=params_calado.baseline_year,
                     tipo_impacto="ELS",
                 ),
-                etiqueta="CAPEX falta de calado",
-                incluir_pasos_comunes=resultado_opex is None,
+                etiqueta="OPEX FALTA DE CALADO",
+                incluir_pasos_comunes=incluir_pasos,
+            )
+            advertencias.extend(adv_opex)
+            if resultado_opex is not None:
+                incluir_pasos = False
+
+        # ELU -> CAPEX
+        if modos_falta_calado(impactos_cal, tipo_impacto="ELU"):
+            resultado_capex, adv_capex = _ejecutar_calado(
+                datos,
+                ParametrosCalado(
+                    tipo_uo=params_calado.tipo_uo,
+                    activo=params_calado.activo,
+                    calado_buque=params_calado.calado_buque,
+                    baseline_year=params_calado.baseline_year,
+                    tipo_impacto="ELU",
+                ),
+                etiqueta="CAPEX FALTA DE CALADO",
+                incluir_pasos_comunes=incluir_pasos,
             )
             advertencias.extend(adv_capex)
 
     if (
         not incluir_agitacion
         and not incluir_francobordo
+        and resultado_pi_cal is None
         and resultado_opex is None
         and resultado_capex is None
     ):
@@ -231,6 +267,7 @@ def calcular_impactos_activo(
             advertencias=[],
             resultado_agitacion=None,
             resultado_francobordo=None,
+            resultado_calado_pi=None,
             resultado_calado_opex=None,
             resultado_calado_capex=None,
         )
@@ -240,16 +277,22 @@ def calcular_impactos_activo(
         meta.update(resultado_ag.metadatos_ejecucion)
     if resultado_fb and resultado_fb.ok:
         meta["francobordo"] = resultado_fb.metadatos_ejecucion
-    if resultado_opex and resultado_opex.ok:
+    if resultado_pi_cal:
+        meta["calado_pi"] = resultado_pi_cal.metadatos_ejecucion
+    if resultado_opex:
         meta["calado_opex"] = resultado_opex.metadatos_ejecucion
-    if resultado_capex and resultado_capex.ok:
+    if resultado_capex:
         meta["calado_capex"] = resultado_capex.metadatos_ejecucion
 
     ok = bool(
         (resultado_ag and resultado_ag.ok)
         or (resultado_fb and resultado_fb.ok)
+        or (resultado_pi_cal and resultado_pi_cal.ok)
         or (resultado_opex and resultado_opex.ok)
         or (resultado_capex and resultado_capex.ok)
+        or bool(getattr(resultado_pi_cal, "ejecuciones", None))
+        or bool(getattr(resultado_opex, "ejecuciones", None))
+        or bool(getattr(resultado_capex, "ejecuciones", None))
     )
 
     return ResultadoCalculoActivo(
@@ -260,8 +303,9 @@ def calcular_impactos_activo(
         advertencias=advertencias,
         resultado_agitacion=resultado_ag if resultado_ag and resultado_ag.ok else None,
         resultado_francobordo=resultado_fb if resultado_fb and resultado_fb.ok else None,
-        resultado_calado_opex=resultado_opex if resultado_opex and resultado_opex.ok else None,
-        resultado_calado_capex=resultado_capex if resultado_capex and resultado_capex.ok else None,
+        resultado_calado_pi=resultado_pi_cal,
+        resultado_calado_opex=resultado_opex,
+        resultado_calado_capex=resultado_capex,
         metadatos_ejecucion=meta,
     )
 

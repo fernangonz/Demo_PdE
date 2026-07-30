@@ -25,6 +25,8 @@ class PasoResultado:
     nombre: str
     excel: str
     tablas: list[TablaPaso] = field(default_factory=list)
+    # Texto de procedimiento auditable: "Entro a X, matcheo Y, saco Z"
+    procedimiento: str = ""
 
 
 @dataclass

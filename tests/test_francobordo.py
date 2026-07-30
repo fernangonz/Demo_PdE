@@ -15,7 +15,7 @@ from core.modelos.impacto.calculo_activo import calcular_impactos_puerto
 from core.modelos.impacto.vista_resultados import construir_vista_resultados_activo
 
 ACTIVOS_FRANCOBORDO = ("Muelle", "Pantal", "Duque de alba", "Rampa Ro-Ro")
-MODO_FB = "PI Falta de francobordo"
+MODO_FB = "PI FALTA DE FRANCOBORDO"
 
 
 def _activo_coincide(activo_raw: str, patron: str) -> bool:

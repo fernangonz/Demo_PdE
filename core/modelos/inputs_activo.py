@@ -60,7 +60,11 @@ INPUTS_FALTA_CALADO = INPUTS_CALADO_ACTIVO
 
 INDICADOR_HSEDIMENTACION = "Tasa de sedimentacion anual"
 
-IDS_MODOS_FALTA_CALADO = frozenset({"falta_calado_els", "falta_calado_elu"})
+IDS_MODOS_FALTA_CALADO = frozenset({
+    "falta_calado_elo",
+    "falta_calado_els",
+    "falta_calado_elu",
+})
 
 
 def es_modo_falta_calado(entrada_id: str) -> bool:

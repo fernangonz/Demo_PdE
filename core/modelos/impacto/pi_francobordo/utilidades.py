@@ -153,7 +153,7 @@ def buscar_umbral_francobordo(
 def _etiqueta_indicador_francobordo(referencia: float | None) -> str:
     if referencia is None:
         return "Inundacion costera en un atraque"
-    return f"Inundacion costera en un atraque >= {referencia:g} m"
+    return f"Inundacion costera en un atraque ≥ {referencia:g} m"
 
 
 def clasificar_indicadores_francobordo(

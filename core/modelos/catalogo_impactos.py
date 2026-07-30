@@ -9,6 +9,7 @@ from core.modelos.impacto.pi_agitacion.utilidades import match_modo_fallo_supera
 
 MOTOR_PI_SUPERACION = "PI_AGITACION"
 MOTOR_PI_FRANCOBORDO = "PI_FRANCOBORDO"
+MOTOR_PI_CALADO_ELO = "PI_CALADO_ELO"
 MOTOR_PI_CALADO_ELS = "PI_CALADO_ELS"
 MOTOR_PI_CALADO_ELU = "PI_CALADO_ELU"
 MOTOR_PI_CALADO = MOTOR_PI_CALADO_ELS
@@ -58,7 +59,7 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         variable="Oleaje",
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI superación de umbral",
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_SUPERACION,
@@ -73,15 +74,16 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         familia="PI",
         modo_fallo="Exceso de Oleaje",
         variable="Oleaje",
-        tipo_impacto="ELS",
+        tipo_impacto="ELO",
         motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI superación de umbral",
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_SUPERACION,
         descripcion=(
             "Iteración IM dentro del cálculo del activo. Percentil e indicador "
-            "desde Excel de relación modelos (paso 5b) o diagrama (umbral + P99)."
+            "desde Excel de relación modelos (paso 5b) o diagrama (umbral + P99). "
+            "Tipo ELO = interrupción operativa / PI."
         ),
         notas_inputs="Automático: Excel de relación modelos, umbrales e indicadores.",
     ),
@@ -92,7 +94,7 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         variable="Viento",
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI superación de umbral",
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_SUPERACION,
@@ -109,7 +111,7 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         variable="Corriente",
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI superación de umbral",
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_SUPERACION,
@@ -126,7 +128,7 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         variable="Visibilidad",
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI superación de umbral",
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_SUPERACION,
@@ -143,16 +145,35 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         variable="Nivel del mar",
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_FRANCOBORDO,
-        motor_nombre="PI falta de francobordo",
+        motor_nombre="PI FALTA DE FRANCOBORDO",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_FRANCOBORDO,
         descripcion=(
             "Referencia Fb o umbral; indicador de inundacion costera en un atraque "
-            "con valor >= referencia; variacion por escenario."
+            "con valor ≥ referencia; variacion por escenario."
         ),
         notas_inputs=(
             "Fb (m) opcional en Configuracion del puerto; si esta vacio se usa umbral."
+        ),
+    ),
+    EntradaCatalogoImpacto(
+        id="falta_calado_elo",
+        familia="PI",
+        modo_fallo="Falta de Calado",
+        variable="Nivel del mar",
+        tipo_impacto="ELO",
+        motor_id=MOTOR_PI_CALADO_ELO,
+        motor_nombre="PI FALTA DE CALADO",
+        implementado=True,
+        requiere_inputs_ui=False,
+        diagrama_modelo_id=MOTOR_PI_CALADO_ELO,
+        descripcion=(
+            "h = NM - h0 - h sedimentacion. Solo filas IM con tipo ELO "
+            "(interrupcion operativa / perdida de ingreso)."
+        ),
+        notas_inputs=(
+            "Calado del buque Dc (m) del activo en Configuracion del puerto."
         ),
     ),
     EntradaCatalogoImpacto(
@@ -160,15 +181,15 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         familia="OPEX",
         modo_fallo="Falta de Calado",
         variable="Nivel del mar",
-        tipo_impacto="ELO",
+        tipo_impacto="ELS",
         motor_id=MOTOR_PI_CALADO_ELS,
-        motor_nombre="OPEX falta de calado",
+        motor_nombre="OPEX FALTA DE CALADO",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_CALADO_ELS,
         descripcion=(
-            "h = NM - h0 - h sedimentacion; umbral desde Excel de umbrales "
-            "(p. ej. 1,5*Dc + 0,75). Solo filas IM con tipo de impacto ELO."
+            "h = NM - h0 - h sedimentacion. Solo filas IM con tipo ELS "
+            "(limitacion operativa / OPEX)."
         ),
         notas_inputs=(
             "Calado del buque Dc (m) del activo en Configuracion del puerto."
@@ -179,15 +200,15 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         familia="CAPEX",
         modo_fallo="Falta de Calado",
         variable="Nivel del mar",
-        tipo_impacto="ELS",
+        tipo_impacto="ELU",
         motor_id=MOTOR_PI_CALADO_ELU,
-        motor_nombre="CAPEX falta de calado",
+        motor_nombre="CAPEX FALTA DE CALADO",
         implementado=True,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_CALADO_ELU,
         descripcion=(
-            "Misma formulacion h = NM - h0 - h sedimentacion. Solo filas IM con "
-            "tipo de impacto ELS (CAPEX)."
+            "h = NM - h0 - h sedimentacion. Solo filas IM con tipo ELU "
+            "(fallo / CAPEX)."
         ),
         notas_inputs=(
             "Mismo Calado del buque Dc (m) del activo (Configuracion del puerto)."
@@ -196,9 +217,30 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
 )
 
 
+_PREFIXES_MODO_DISPLAY = frozenset({"PI", "OPEX", "CAPEX"})
+
+
+def titulo_modo_display(texto: str) -> str:
+    """Capitalización UI: prefijo PI/OPEX/CAPEX en mayúsculas + resto tipo frase.
+
+    Ej.: «PI FALTA DE CALADO» → «PI Falta de calado»;
+    «PI Exceso de Oleaje» → «PI Exceso de oleaje».
+    """
+    raw = (texto or "").strip()
+    if not raw:
+        return raw
+    partes = raw.split(None, 1)
+    prefijo = partes[0].upper()
+    if prefijo not in _PREFIXES_MODO_DISPLAY:
+        return raw
+    if len(partes) == 1:
+        return prefijo
+    return f"{prefijo} {partes[1].strip().capitalize()}"
+
+
 def titulo_modo_impacto(entrada: EntradaCatalogoImpacto) -> str:
-    """Etiqueta visible: familia + modo de fallo (p. ej. «PI Exceso de Oleaje»)."""
-    return f"{entrada.familia} {entrada.modo_fallo}"
+    """Etiqueta visible: familia + modo de fallo (p. ej. «PI Exceso de oleaje»)."""
+    return titulo_modo_display(f"{entrada.familia} {entrada.modo_fallo}")
 
 
 def es_modo_falta_calado(entrada_id: str) -> bool:

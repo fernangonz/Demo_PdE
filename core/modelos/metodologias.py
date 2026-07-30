@@ -14,6 +14,7 @@ import pandas as pd
 from core.fuentes_datos import FuenteExcel, fuente, nombre_archivo_display
 from core.modelos.catalogo_impactos import (
     CATALOGO_MODOS_IMPACTO,
+    MOTOR_PI_CALADO_ELO,
     MOTOR_PI_CALADO_ELS,
     MOTOR_PI_CALADO_ELU,
     MOTOR_PI_FRANCOBORDO,
@@ -80,7 +81,7 @@ _FUENTES_PI_CALADO = (
     _fuente(
         "relacion_ivc",
         hoja="ListRelacion impactos-indicador",
-        descripcion="modos Falta de Calado (OPEX ELO / CAPEX ELS)",
+        descripcion="modos Falta de Calado (PI ELO / OPEX ELS / CAPEX ELU)",
     ),
     _fuente(
         "umbrales",
@@ -119,24 +120,30 @@ _FUENTES_PI_FRANCOBORDO = (
 METODOLOGIAS_IMPACTO: dict[str, MetodologiaImpacto] = {
     MOTOR_PI_SUPERACION: MetodologiaImpacto(
         motor_id=MOTOR_PI_SUPERACION,
-        nombre="PI superacion de umbral",
+        nombre="PI SUPERACIÓN DE UMBRAL",
         fuentes=_FUENTES_PI_SUPERACION,
+    ),
+    MOTOR_PI_CALADO_ELO: MetodologiaImpacto(
+        motor_id=MOTOR_PI_CALADO_ELO,
+        nombre="PI FALTA DE CALADO",
+        fuentes=_FUENTES_PI_CALADO,
+        inputs_activo=INPUTS_CALADO_ACTIVO,
     ),
     MOTOR_PI_CALADO_ELS: MetodologiaImpacto(
         motor_id=MOTOR_PI_CALADO_ELS,
-        nombre="OPEX falta de calado",
+        nombre="OPEX FALTA DE CALADO",
         fuentes=_FUENTES_PI_CALADO,
         inputs_activo=INPUTS_CALADO_ACTIVO,
     ),
     MOTOR_PI_CALADO_ELU: MetodologiaImpacto(
         motor_id=MOTOR_PI_CALADO_ELU,
-        nombre="CAPEX falta de calado",
+        nombre="CAPEX FALTA DE CALADO",
         fuentes=_FUENTES_PI_CALADO,
         inputs_activo=INPUTS_CALADO_ACTIVO,
     ),
     MOTOR_PI_FRANCOBORDO: MetodologiaImpacto(
         motor_id=MOTOR_PI_FRANCOBORDO,
-        nombre="PI falta de francobordo",
+        nombre="PI FALTA DE FRANCOBORDO",
         fuentes=_FUENTES_PI_FRANCOBORDO,
     ),
 }
@@ -189,10 +196,13 @@ def resolver_motor_fila(
             variable=variable,
             tipo_impacto=tipo or None,
         )
-        if tipo and match_texto(tipo, "ELS"):
+        # ELO -> PI, ELS -> OPEX, ELU -> CAPEX
+        if tipo and match_texto(tipo, "ELU"):
             return MOTOR_PI_CALADO_ELU, entrada
-        if tipo and match_texto(tipo, "ELO"):
+        if tipo and match_texto(tipo, "ELS"):
             return MOTOR_PI_CALADO_ELS, entrada
+        if tipo and match_texto(tipo, "ELO"):
+            return MOTOR_PI_CALADO_ELO, entrada
         return None, entrada
 
     if es_modo_falta_francobordo(modo, variable, tipo):

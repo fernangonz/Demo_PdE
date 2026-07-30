@@ -73,12 +73,13 @@ def _parse_etiqueta_escenario(
 
 MODOS_FALLO_PLANTILLA = [
     "PI Exceso de Oleaje",
-    "PI Falta de francobordo",
+    "PI FALTA DE FRANCOBORDO",
+    "PI FALTA DE CALADO",
     "PI Exceso de Viento",
     "PI Exceso de Corriente",
     "PI Visibilidad reducida",
-    "OPEX Falta de Calado",
-    "CAPEX Falta de Calado",
+    "OPEX FALTA DE CALADO",
+    "CAPEX FALTA DE CALADO",
 ]
 
 PLANTILLA_FILAS_RESUMEN = [
@@ -121,6 +122,15 @@ class ResumenIteracion:
     advertencia_negativos: str | None = None
     resumen_cambios: ResumenCambios | None = None
     resultados_por_pasos: object | None = None
+    # Diagnóstico auditable (contrato IteracionEjecucion)
+    estado: str = "ok"
+    motivo: str | None = None
+    error_code: str | None = None
+    familia: str = ""
+    motor_id: str = ""
+    nombre_motor: str = ""
+    tipo_impacto: str = ""
+    pasos: list = field(default_factory=list)
 
 
 @dataclass
@@ -260,6 +270,13 @@ def construir_tabla_resumen_activo(
     baseline_year: int = BASELINE_YEAR,
 ) -> ResumenActivo | None:
     """Construye la plantilla fija del resumen del activo."""
+    # Solo modos calculados OK entran en la plantilla consolidada.
+    iteraciones = [
+        it for it in iteraciones
+        if getattr(it, "estado", "ok") == "ok"
+        and it.tabla_resultado is not None
+        and not it.tabla_resultado.empty
+    ]
     if not iteraciones:
         return None
 
@@ -451,6 +468,24 @@ def resumen_activo_desde_iteraciones(
     return construir_tabla_resumen_activo(iteraciones)
 
 
+def _motor_meta_desde_resultado(resultado) -> tuple[str, str, str, str]:
+    """(motor_id, familia, tipo_impacto, nombre_motor) desde metadatos / ficha."""
+    from core.modelos.fichas_modelo import ficha_por_motor, nombre_motor_display
+
+    meta_ej = getattr(resultado, "metadatos_ejecucion", None) or {}
+    meta = getattr(resultado, "metadatos", None)
+    motor_id = str(
+        meta_ej.get("modelo_id", "")
+        or getattr(meta, "id", "")
+        or ""
+    ).strip()
+    ficha = ficha_por_motor(motor_id)
+    familia = (ficha.familia if ficha else "") or "PI"
+    tipo_impacto = (ficha.tipo_impacto if ficha else "") or "ELO"
+    nombre = nombre_motor_display(motor_id, familia=familia, tipo_impacto=tipo_impacto)
+    return motor_id, familia, tipo_impacto, nombre
+
+
 def _iteracion_a_resumen(
     resultado: ResultadoPIAgitacion,
     it: object,
@@ -465,6 +500,7 @@ def _iteracion_a_resumen(
         for i in it.indicadores_evaluados
     ]
     advertencia = it.advertencias[0] if it.advertencias else None
+    motor_id, familia, tipo_impacto, nombre_motor = _motor_meta_desde_resultado(resultado)
     return ResumenIteracion(
         numero=it.numero,
         activo=activo,
@@ -481,6 +517,10 @@ def _iteracion_a_resumen(
         advertencia_negativos=advertencia,
         resumen_cambios=it.sintesis_cambios,
         resultados_por_pasos=resultados_por_pasos,
+        familia=familia,
+        motor_id=motor_id,
+        nombre_motor=nombre_motor,
+        tipo_impacto=tipo_impacto,
     )
 
 
@@ -534,27 +574,82 @@ def _iteracion_calado_a_resumen(
     tipo_uo: str,
     impactos_asociados: int,
 ) -> ResumenIteracion:
+    from core.modelos.fichas_modelo import nombre_motor_display
+
     indicadores = [
         IndicadorEstado(i.nombre, i.seleccionado, i.descartado)
-        for i in it.indicadores_evaluados
+        for i in getattr(it, "indicadores_evaluados", []) or []
     ]
+    motor_id = getattr(it, "motor_id", "") or str(
+        (resultado.metadatos_ejecucion or {}).get("modelo_id", "")
+    )
+    familia = getattr(it, "familia", "") or ""
+    tipo_impacto = getattr(it, "tipo_impacto", "") or str(
+        (resultado.metadatos_ejecucion or {}).get("tipo_impacto", "")
+    )
+    nombre_motor = nombre_motor_display(
+        motor_id,
+        familia=familia,
+        tipo_impacto=tipo_impacto,
+        modo_fallo=getattr(it, "modo_fallo", "") or "",
+    )
     return ResumenIteracion(
         numero=it.numero,
         activo=activo,
         tipo_uo=tipo_uo,
         modo_fallo=it.modo_fallo,
-        variable_climatica=it.variable_climatica,
-        umbral=it.umbral,
-        indicador_seleccionado=it.indicador_seleccionado,
-        percentil=it.percentil,
-        origen_regla=it.origen_regla,
+        variable_climatica=getattr(it, "variable_climatica", getattr(it, "variable", "")),
+        umbral=getattr(it, "umbral", "") or "",
+        indicador_seleccionado=getattr(it, "indicador_seleccionado", "") or "",
+        percentil=getattr(it, "percentil", "") or "",
+        origen_regla=getattr(it, "origen_regla", "") or "",
         indicadores=indicadores,
         tabla_resultado=it.tabla_resultado,
         impactos_asociados=impactos_asociados,
         advertencia_negativos=None,
         resumen_cambios=None,
         resultados_por_pasos=None,
+        estado=getattr(it, "estado", "ok") or "ok",
+        motivo=getattr(it, "motivo", None),
+        error_code=getattr(it, "error_code", None),
+        familia=familia,
+        motor_id=motor_id,
+        nombre_motor=nombre_motor,
+        tipo_impacto=tipo_impacto,
+        pasos=list(getattr(it, "pasos", []) or []),
     )
+
+
+def _ejecuciones_calado_a_resumenes(
+    resultado: ResultadoPICalado,
+    *,
+    activo: str,
+    tipo_uo: str,
+    impactos_asociados: int,
+) -> list[ResumenIteracion]:
+    """Prefiere ejecuciones auditables (incluye errores por modo)."""
+    ejecuciones = getattr(resultado, "ejecuciones", None) or []
+    if ejecuciones:
+        return [
+            _iteracion_calado_a_resumen(
+                resultado,
+                ej,
+                activo=activo,
+                tipo_uo=tipo_uo,
+                impactos_asociados=impactos_asociados,
+            )
+            for ej in ejecuciones
+        ]
+    return [
+        _iteracion_calado_a_resumen(
+            resultado,
+            it,
+            activo=activo,
+            tipo_uo=tipo_uo,
+            impactos_asociados=impactos_asociados,
+        )
+        for it in resultado.iteraciones
+    ]
 
 
 def iteraciones_desde_calculo_activo(resultado) -> list[ResumenIteracion]:
@@ -567,27 +662,29 @@ def iteraciones_desde_calculo_activo(resultado) -> list[ResumenIteracion]:
         resumenes.extend(iteraciones_para_ui(resultado.resultado_francobordo))
 
     calado_resultados = []
-    if getattr(resultado, "resultado_calado_opex", None) and resultado.resultado_calado_opex.ok:
-        calado_resultados.append(resultado.resultado_calado_opex)
-    elif getattr(resultado, "resultado_calado", None) and resultado.resultado_calado.ok:
-        calado_resultados.append(resultado.resultado_calado)
-    if getattr(resultado, "resultado_calado_capex", None) and resultado.resultado_calado_capex.ok:
-        calado_resultados.append(resultado.resultado_calado_capex)
+    for attr in ("resultado_calado_pi", "resultado_calado_opex", "resultado_calado", "resultado_calado_capex"):
+        res = getattr(resultado, attr, None)
+        if res is None:
+            continue
+        if res in calado_resultados:
+            continue
+        # Incluir también resultados con ejecuciones fallidas (diagnóstico).
+        if res.ok or getattr(res, "ejecuciones", None):
+            calado_resultados.append(res)
 
     offset = len(resumenes)
     for resultado_cal in calado_resultados:
-        meta = resultado_cal.metadatos_ejecucion
+        meta = resultado_cal.metadatos_ejecucion or {}
         activo = str(meta.get("activo", ""))
         tipo_uo = str(meta.get("tipo_uo", ""))
         impactos = int(meta.get("impactos_asociados", 0))
-        for idx, it in enumerate(resultado_cal.iteraciones, start=1):
-            resumen = _iteracion_calado_a_resumen(
-                resultado_cal,
-                it,
-                activo=activo,
-                tipo_uo=tipo_uo,
-                impactos_asociados=impactos,
-            )
+        bloque = _ejecuciones_calado_a_resumenes(
+            resultado_cal,
+            activo=activo,
+            tipo_uo=tipo_uo,
+            impactos_asociados=impactos,
+        )
+        for idx, resumen in enumerate(bloque, start=1):
             resumen.numero = offset + idx
             resumenes.append(resumen)
         offset = len(resumenes)

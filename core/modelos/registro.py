@@ -13,6 +13,7 @@ from core.modelos.impacto.pi_agitacion import (
 )
 from core.modelos.impacto.pi_calado import (
     METADATOS as PI_CALADO_ELS_META,
+    METADATOS_ELO as PI_CALADO_ELO_META,
     METADATOS_ELU as PI_CALADO_ELU_META,
     ParametrosEntrada as ParametrosCalado,
     ResultadoPICalado,
@@ -41,6 +42,11 @@ MODELOS_IMPACTO: dict[str, DefinicionModelo] = {
         metadatos=PI_AGITACION_META,
         calcular=calcular_pi_agitacion,
         parametros_tipo=ParametrosEntrada,
+    ),
+    PI_CALADO_ELO_META.id: DefinicionModelo(
+        metadatos=PI_CALADO_ELO_META,
+        calcular=calcular_pi_calado,
+        parametros_tipo=ParametrosCalado,
     ),
     PI_CALADO_ELS_META.id: DefinicionModelo(
         metadatos=PI_CALADO_ELS_META,
@@ -111,7 +117,7 @@ def ejecutar_pi_calado(
     params: ParametrosCalado | None = None,
     **kwargs: Any,
 ) -> ResultadoPICalado:
-    """Atajo tipado para PI_CALADO_ELS / PI_CALADO_ELU."""
+    """Atajo tipado para PI_CALADO_ELO / PI_CALADO_ELS / PI_CALADO_ELU."""
     if params is None:
         params = ParametrosCalado(**kwargs) if kwargs else ParametrosCalado()
     resultado = ejecutar_modelo_impacto(params.modelo_id, datos, params)

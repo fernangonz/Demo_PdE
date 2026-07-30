@@ -53,6 +53,7 @@ from core.impact_models import (
 )
 from core.modelos.catalogo_impactos import (
     CATALOGO_MODOS_IMPACTO,
+    titulo_modo_display,
     titulo_modo_impacto,
 )
 from core.modelos.flujos import buscar_diagrama
@@ -63,11 +64,16 @@ from core.modelos.impacto.validacion_puerto import (
     validar_puerto_antes_calculo,
 )
 from core.modelos.impacto.pi_agitacion import ParametrosEntrada
+from core.modelos.impacto.pi_agitacion.interpretacion import (
+    regla_variacion_cierre,
+    resolver_unidad_cierre,
+)
 from core.modelos.impacto.pi_agitacion.utilidades import (
     columna_por_patron,
     fila_configuracion,
     nombre_activo_resumen,
 )
+from core.modelos.fichas_modelo import FichaModelo, nombre_motor_display, resolver_ficha
 from core.modelos.impacto.vista_resultados import (
     construir_vista_resultados_activo,
     listar_activos_config,
@@ -416,7 +422,9 @@ def _botones_descarga(
 
 def _altura_tabla(n: int, altura_max: int = 560) -> int:
     """Altura del dataframe según nº de filas (compacta con pocas filas)."""
-    return min(max(n * 36 + 42, 110), altura_max)
+    # Sin suelo fijo de 110px: en tablas de 1–2 filas dejaba hueco vacío
+    # bajo la última fila (línea/artefacto en el borde redondeado).
+    return min(max(n * 36 + 42, 56), altura_max)
 
 
 def _column_config_relleno(cfg: dict, cols: list[str]) -> dict:
@@ -1517,8 +1525,83 @@ def _df_indicadores_ordenados(indicadores) -> pd.DataFrame:
     ])
 
 
-def _variable_usa_dias_cierre(variable: str) -> bool:
-    return str(variable).lower() in ("viento", "corriente", "visibilidad")
+def _unidad_cierre_iteracion(r) -> str | None:
+    """Unidad de cierre (horas|dias) desde variable/indicador de la iteración."""
+    return resolver_unidad_cierre(
+        variable=getattr(r, "variable_climatica", None),
+        indicador=getattr(r, "indicador_seleccionado", None),
+    )
+
+
+def _mostrar_valores_indicador_por_escenario(r) -> None:
+    """Tabla de valores del indicador por escenario (bajo el indicador seleccionado)."""
+    tabla = getattr(r, "tabla_resultado", None)
+    if tabla is None or getattr(tabla, "empty", True):
+        st.caption("Sin valores por escenario.")
+        return
+
+    ind_sel = str(getattr(r, "indicador_seleccionado", "") or "").strip()
+    if ind_sel:
+        st.caption(f"Indicador seleccionado: **{ind_sel}**")
+    else:
+        st.caption("Indicador seleccionado: —")
+
+    if "h" in tabla.columns and "NM" in tabla.columns:
+        st.caption(
+            "h = NM − h₀ − h sedimentación. "
+            "NM = MA + MM + SLR. "
+            "Si umbral ≤ h → es necesario dragar; si umbral > h → no es necesario dragar."
+        )
+        cols_tabla = [
+            "Escenario",
+            "NM",
+            "h sedimentacion",
+            "h0",
+            "h",
+            "Umbral",
+            "Interpretación",
+        ]
+        cfg = {
+            "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
+            "NM": st.column_config.NumberColumn("NM", format="%.3f"),
+            "h sedimentacion": st.column_config.NumberColumn("h sedimentación", format="%.3f"),
+            "h0": st.column_config.NumberColumn("h₀", format="%.3f"),
+            "h": st.column_config.NumberColumn("h", format="%.3f"),
+            "Umbral": st.column_config.NumberColumn("Umbral", format="%.3f"),
+            "Interpretación": st.column_config.TextColumn("Interpretación", width="medium"),
+        }
+    else:
+        st.caption(
+            "Indicador = valor físico del Excel. "
+            "Cambio = indicador del escenario − indicador histórico. "
+            + regla_variacion_cierre(_unidad_cierre_iteracion(r))
+        )
+        cols_tabla = [
+            "Escenario",
+            "Indicador",
+            "Cambio respecto al histórico",
+            "Interpretación",
+        ]
+        cfg = {
+            "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
+            "Indicador": st.column_config.NumberColumn("Indicador", format="%d"),
+            "Cambio respecto al histórico": st.column_config.NumberColumn(
+                "Cambio respecto al histórico",
+                format="%d",
+            ),
+            "Interpretación": st.column_config.TextColumn("Interpretación", width="small"),
+        }
+
+    cols_existentes = [c for c in cols_tabla if c in tabla.columns]
+    if not cols_existentes:
+        st.caption("La tabla de resultado no tiene columnas de escenario reconocibles.")
+        return
+    _mostrar_tabla(
+        tabla,
+        column_order=cols_existentes,
+        column_config={k: v for k, v in cfg.items() if k in cols_existentes},
+        altura_max=420,
+    )
 
 
 def _mostrar_resumen_iteracion(r, *, titulo: str | None = None) -> None:
@@ -1545,6 +1628,10 @@ def _mostrar_resumen_iteracion(r, *, titulo: str | None = None) -> None:
     ])
     _mostrar_tabla(campos, column_order=["Campo", "Valor"], altura_max=280)
 
+    # Valores del indicador por escenario (justo bajo el indicador seleccionado)
+    st.markdown("**Valores del indicador por escenario**")
+    _mostrar_valores_indicador_por_escenario(r)
+
     st.markdown("**Indicadores encontrados**")
     ind_df = _df_indicadores_ordenados(r.indicadores)
     _mostrar_tabla(ind_df, column_order=["Indicador", "Estado"], altura_max=220)
@@ -1552,64 +1639,12 @@ def _mostrar_resumen_iteracion(r, *, titulo: str | None = None) -> None:
     if r.advertencia_negativos:
         st.warning(r.advertencia_negativos)
 
-    st.markdown("**Resultado por escenario**")
-    if "h" in r.tabla_resultado.columns and "NM" in r.tabla_resultado.columns:
-        st.caption(
-            "h = NM − h₀ − h sedimentación. "
-            "Si umbral ≤ h → es necesario dragar; si umbral > h → no es necesario dragar."
-        )
-        cols_tabla = [
-            "Escenario",
-            "NM",
-            "h sedimentacion",
-            "h0",
-            "h",
-            "Umbral",
-            "Interpretación",
-        ]
-        cfg = {
-            "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
-            "NM": st.column_config.NumberColumn("NM", format="%.3f"),
-            "h sedimentacion": st.column_config.NumberColumn("h sedimentación", format="%.3f"),
-            "h0": st.column_config.NumberColumn("h₀", format="%.3f"),
-            "h": st.column_config.NumberColumn("h", format="%.3f"),
-            "Umbral": st.column_config.NumberColumn("Umbral", format="%.3f"),
-            "Interpretación": st.column_config.TextColumn("Interpretación", width="medium"),
-        }
-    else:
-        unidad = "días" if _variable_usa_dias_cierre(r.variable_climatica) else "horas"
-        st.caption(
-            "Indicador = valor físico del Excel. "
-            "Cambio = indicador del escenario − indicador histórico. "
-            f"Más {unidad} de cierre = empeora; menos {unidad} = mejora."
-        )
-        cols_tabla = [
-            "Escenario",
-            "Indicador",
-            "Cambio respecto al histórico",
-            "Interpretación",
-        ]
-        cfg = {
-            "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
-            "Indicador": st.column_config.NumberColumn("Indicador", format="%d"),
-            "Cambio respecto al histórico": st.column_config.NumberColumn(
-                "Cambio respecto al histórico",
-                format="%d",
-            ),
-            "Interpretación": st.column_config.TextColumn("Interpretación", width="small"),
-        }
-    _mostrar_tabla(
-        r.tabla_resultado,
-        column_order=cols_tabla,
-        column_config=cfg,
-        altura_max=420,
-    )
-
     rc = r.resumen_cambios
     if rc:
         st.markdown("**Síntesis de cambios**")
+        unidad = _unidad_cierre_iteracion(r)
+        sufijo = " d" if unidad == "dias" else " h" if unidad == "horas" else ""
         if rc.mayor_empeoramiento:
-            sufijo = " d" if _variable_usa_dias_cierre(r.variable_climatica) else " h"
             st.markdown(
                 f"- **Mayor empeoramiento:** {rc.mayor_empeoramiento} "
                 f"(cambio {rc.mayor_empeoramiento_cambio:+.0f}{sufijo})"
@@ -1617,7 +1652,6 @@ def _mostrar_resumen_iteracion(r, *, titulo: str | None = None) -> None:
         else:
             st.markdown("- **Mayor empeoramiento:** ningún escenario empeora")
         if rc.mayor_mejora:
-            sufijo = " d" if _variable_usa_dias_cierre(r.variable_climatica) else " h"
             st.markdown(
                 f"- **Mayor mejora:** {rc.mayor_mejora} "
                 f"(cambio {rc.mayor_mejora_cambio:+.0f}{sufijo})"
@@ -1667,7 +1701,7 @@ def _botones_descarga_resumen_activo(
 
 
 def _mostrar_resultados_por_pasos(pasos, *, usar_expander: bool = True) -> None:
-    """Trazabilidad paso a paso.
+    """Trazabilidad paso a paso (procedimiento auditable).
 
     Si `usar_expander` es False, cada paso se muestra en un contenedor con borde
     (sin expander) para poder anidarlo dentro de otro expander sin que Streamlit
@@ -1677,22 +1711,13 @@ def _mostrar_resultados_por_pasos(pasos, *, usar_expander: bool = True) -> None:
         st.caption("No hay pasos registrados.")
         return
 
-    modelo = getattr(pasos, "modelo_id", "")
-    if modelo in ("PI_CALADO_ELS", "PI_CALADO_ELU"):
-        st.caption(
-            "Abre cada paso en orden. En el paso 7 verás los indicadores seleccionados "
-            "y una tabla ancha por escenario (NM, h₀, h sedimentación) para comparar con tu cálculo manual."
-        )
-    else:
-        st.caption(
-            "Abre cada paso en orden. Los indicadores aparecen seleccionados primero y "
-            "descartados después cuando aplique."
-        )
+    st.caption(
+        "Cada paso: Procedimiento → Entrada → Match → Salida. "
+        "La fuente Excel aparece una sola vez por paso."
+    )
 
     for paso in pasos.pasos:
         titulo_paso = f"Paso {paso.numero} — {paso.nombre}"
-        if paso.excel and paso.excel != "-":
-            titulo_paso += f" ({paso.excel})"
 
         if usar_expander:
             contenedor = st.expander(titulo_paso, expanded=False)
@@ -1701,27 +1726,47 @@ def _mostrar_resultados_por_pasos(pasos, *, usar_expander: bool = True) -> None:
         with contenedor:
             if not usar_expander:
                 st.markdown(f"**{titulo_paso}**")
-            entradas = [t for t in paso.tablas if t.titulo and "input" in t.titulo.lower()]
-            salidas = [
-                t for t in paso.tablas
-                if t not in entradas and (not t.titulo or "input" not in t.titulo.lower())
-            ]
-            otras = [t for t in paso.tablas if t not in entradas and t not in salidas]
+
+            if paso.excel and paso.excel != "-":
+                st.caption(f"Fuente: {paso.excel}")
+
+            procedimiento = str(getattr(paso, "procedimiento", "") or "").strip()
+            if procedimiento:
+                st.markdown("**Procedimiento**")
+                st.code(procedimiento, language=None)
+
+            entradas: list = []
+            matches: list = []
+            salidas: list = []
+            otras: list = []
+            for t in paso.tablas:
+                titulo = (t.titulo or "").lower()
+                if any(k in titulo for k in ("entrada", "input", "clave")):
+                    entradas.append(t)
+                elif any(k in titulo for k in ("match", "accion", "acción")):
+                    matches.append(t)
+                elif any(k in titulo for k in ("salida", "output", "fallo", "resultado")):
+                    salidas.append(t)
+                else:
+                    otras.append(t)
 
             bloques = [
                 ("Entrada", entradas),
+                ("Match", matches),
                 ("Salida", salidas + otras),
             ]
             for etiqueta, tablas in bloques:
                 if not tablas:
                     continue
-                if len(bloques) > 1 and any(entradas) and any(salidas + otras):
-                    st.markdown(f"**{etiqueta}**")
+                st.markdown(f"**{etiqueta}**")
                 for tabla in tablas:
-                    if tabla.titulo and tabla not in entradas:
-                        st.markdown(f"**{tabla.titulo}**")
-                    elif tabla.titulo and tabla in entradas:
-                        st.caption(tabla.titulo)
+                    # Evitar repetir "1. Entrada…" / "3. Salida…" si ya está el bloque
+                    titulo_t = (tabla.titulo or "").strip()
+                    if titulo_t and not any(
+                        titulo_t.lower().startswith(p)
+                        for p in ("1. entrada", "2. match", "3. salida")
+                    ):
+                        st.caption(titulo_t)
                     if not tabla.filas:
                         st.caption("Sin datos.")
                         continue
@@ -1732,30 +1777,43 @@ def _mostrar_resultados_por_pasos(pasos, *, usar_expander: bool = True) -> None:
 
 
 def _mostrar_diagrama_flujo(modelo_id: str, *, compacto: bool = False) -> None:
-    """Muestra imagen o texto del diagrama desde ``Flujo de modelos/``."""
-    import html as html_lib
+    """Muestra el PDF esquemático; el TXT queda detrás del botón fijo «TXT»."""
+    from core.modelos.flujos import (
+        CARPETA_FLUJOS,
+        buscar_diagrama_pdf,
+        buscar_diagrama_texto,
+        mensaje_diagrama_faltante,
+        nombre_esperado_diagrama,
+    )
 
-    diagrama = buscar_diagrama(modelo_id)
-    if diagrama is None:
-        st.caption("Diagrama no disponible.")
+    pdf = buscar_diagrama_pdf(modelo_id)
+    txt = buscar_diagrama_texto(modelo_id)
+    if pdf is None and txt is None:
+        st.error(
+            f"{mensaje_diagrama_faltante(modelo_id)}. "
+            f"Prerrequisito del procedimiento de cálculo: se espera "
+            f"«{nombre_esperado_diagrama(modelo_id)}.pdf» (o .txt) en "
+            f"«{CARPETA_FLUJOS.name}/» (no se reutiliza el diagrama de otra familia)."
+        )
         return
-    if diagrama.tipo == "imagen":
-        st.image(str(diagrama.ruta), use_container_width=True)
+
+    if txt is not None:
+        mostrar_txt = st.toggle("TXT", value=False, key=f"diag_txt_{modelo_id}")
     else:
-        try:
-            contenido = diagrama.ruta.read_text(encoding="utf-8")
-        except OSError:
-            contenido = diagrama.ruta.read_text(encoding="latin-1")
-        if compacto:
-            texto = html_lib.escape(contenido)
-            st.markdown(
-                f'<pre style="max-height:280px;overflow:auto;margin:0;'
-                f'font-size:0.72rem;line-height:1.35;white-space:pre-wrap;">'
-                f"{texto}</pre>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.text(contenido)
+        mostrar_txt = False
+
+    if mostrar_txt and txt is not None:
+        _mostrar_txt_diagrama(txt.ruta)
+    elif pdf is not None:
+        _mostrar_pdf_en_frontend(
+            pdf.ruta,
+            height=360 if compacto else 520,
+            key=f"diag_pdf_{modelo_id}",
+        )
+    elif txt is not None:
+        st.warning("No hay PDF esquemático; se muestra el TXT.")
+        _mostrar_txt_diagrama(txt.ruta)
+
 
 
 def _mostrar_lista_pasos(pasos, *, modelo_id: str = "", usar_expander: bool = True) -> None:
@@ -1773,76 +1831,253 @@ def _plegable(titulo: str, key: str, *, expanded: bool = False):
 
     Streamlit no admite expanders anidados; este helper imita el comportamiento
     con un botón de cabecera y contenido condicional.
+
+    El toggle usa ``on_click`` para que abra/cierre a la primera pulsación
+    (asignar estado dentro de ``if st.button`` suele exigir doble clic).
     """
     state_key = f"pde_pleg_{key}"
     if state_key not in st.session_state:
         st.session_state[state_key] = expanded
 
+    def _toggle_plegable() -> None:
+        st.session_state[state_key] = not bool(st.session_state.get(state_key, False))
+
     abierto = bool(st.session_state[state_key])
     flecha = "▾" if abierto else "▸"
-    if st.button(
+    st.button(
         f"{flecha}  {titulo}",
         key=f"btn_{state_key}",
         use_container_width=True,
-    ):
-        st.session_state[state_key] = not abierto
-        abierto = not abierto
+        on_click=_toggle_plegable,
+    )
+    # Tras on_click, en este rerun el estado ya está actualizado.
+    yield bool(st.session_state[state_key])
 
-    yield abierto
+
+def _mostrar_campos_ficha(campos, *, etiqueta_fuente: str = "Fuente") -> None:
+    """Tabla compacta de inputs/outputs de una ficha de modelo."""
+    if not campos:
+        st.caption("Sin campos definidos.")
+        return
+    # Quitar filas sin símbolo ni unidad (se pintaban como "— | —");
+    # la regla de interpretación ya va en caption bajo la ecuación.
+    visibles = [
+        c for c in campos
+        if (c.simbolo or "").strip() or (c.unidad or "").strip()
+    ]
+    if not visibles:
+        st.caption("Sin campos definidos.")
+        return
+    filas = []
+    for c in visibles:
+        filas.append({
+            "Nombre": c.nombre,
+            "Símbolo": c.simbolo or "—",
+            "Unidad": c.unidad or "—",
+            etiqueta_fuente: c.fuente or "—",
+            "Descripción": c.descripcion or "—",
+        })
+    df = pd.DataFrame(filas)
+    cols = [c for c in ("Nombre", "Símbolo", "Unidad", etiqueta_fuente, "Descripción") if c in df.columns]
+    if etiqueta_fuente in df.columns and all(
+        (not str(c.fuente or "").strip()) for c in visibles
+    ):
+        cols = [c for c in cols if c != etiqueta_fuente]
+    _mostrar_tabla(df, column_order=cols, altura_max=min(280, 42 + 36 * len(filas)))
+
+
+def _mostrar_ficha_modelo(
+    ficha: FichaModelo,
+    *,
+    key: str,
+    expanded: bool = True,
+    unidad_cierre: str | None = None,
+    variable: str | None = None,
+    indicador: str | None = None,
+) -> None:
+    """Ficha del modelo: ecuación + inputs/outputs (plegable)."""
+    with _plegable(
+        f"Ficha del modelo · {titulo_modo_display(ficha.nombre)} ({ficha.motor_id})",
+        f"{key}_ficha",
+        expanded=expanded,
+    ) as abierta:
+        if not abierta:
+            return
+        st.caption(
+            f"{ficha.familia} · tipo {ficha.tipo_impacto}"
+            + (f" · {ficha.notas}" if ficha.notas else "")
+        )
+        from core.modelos.flujos import mensaje_diagrama_faltante, tiene_diagrama
+
+        if ficha.motor_id and not tiene_diagrama(ficha.motor_id):
+            st.warning(
+                "Prerrequisito del procedimiento: "
+                + mensaje_diagrama_faltante(ficha.motor_id)
+                + "."
+            )
+        st.markdown("**Ecuación**")
+        if ficha.ecuacion:
+            try:
+                st.latex(ficha.ecuacion)
+            except Exception:
+                st.code(ficha.ecuacion, language=None)
+        if getattr(ficha, "ecuacion_extra", ""):
+            try:
+                st.latex(ficha.ecuacion_extra)
+            except Exception:
+                st.code(ficha.ecuacion_extra, language=None)
+        if ficha.ecuacion_umbral:
+            try:
+                st.latex(ficha.ecuacion_umbral)
+            except Exception:
+                st.code(ficha.ecuacion_umbral, language=None)
+
+        regla = ficha.regla_interpretacion
+        if ficha.motor_id == "PI_AGITACION":
+            regla = regla_variacion_cierre(
+                unidad_cierre,
+                variable=variable,
+                indicador=indicador,
+            )
+        if regla:
+            st.caption(regla)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**Inputs**")
+            _mostrar_campos_ficha(ficha.inputs, etiqueta_fuente="Fuente")
+        with c2:
+            st.markdown("**Outputs**")
+            _mostrar_campos_ficha(ficha.outputs, etiqueta_fuente="Fuente")
 
 
 def _mostrar_vista_cp_im(vista) -> None:
-    """Resultados organizados: CP (activo) → IM (cada modo de fallo).
+    """Resultados organizados: CP (activo) → diagnóstico / detalle IM / resumen.
 
     Jerarquía plegada por defecto:
-      CP (expander) → Detalle / Resumen (plegables) → Pasos 3–4 e IM (plegables)
-      → cada paso (expander, solo visible al abrir su sección).
+      CP (expander) → Diagnóstico / Detalle (IM + ficha) / Resumen
+
+    Nota: la trazabilidad por pasos (Pasos 3–4 y procedimiento paso a paso)
+    se omite en el frontend; el backend sigue construyendo los pasos.
     """
     iter_por_modo = {it.modo_fallo: it for it in vista.iteraciones}
     cp_clave = f"cp{vista.cp_numero}"
+    n_ok = sum(1 for g in vista.modos if getattr(g, "estado", "ok") == "ok")
+    n_err = sum(1 for g in vista.modos if getattr(g, "estado", "ok") == "error")
 
     with st.expander(
         f"CP {vista.cp_numero}/{vista.cp_total} — {vista.activo}",
         expanded=False,
     ):
-        st.caption(
-            f"**{vista.tipo_uo}** · Flujo: Configuración del puerto → "
-            f"resolver {len(vista.modos)} modo(s) de fallo (IM) → "
-            f"{'siguiente activo (CP+1)' if vista.cp_numero < vista.cp_total else 'fin de activos'}."
-        )
+        diagnostico = getattr(vista, "diagnostico", None) or []
+        if diagnostico:
+            with _plegable(
+                "Diagnóstico por modo (estado / motivo)",
+                f"{cp_clave}_diagnostico",
+            ) as diag_abierto:
+                if diag_abierto:
+                    st.caption(f"{n_ok} OK / {n_err} error")
+                    st.dataframe(pd.DataFrame(diagnostico), use_container_width=True, hide_index=True)
 
         with _plegable(
-            f"Detalle del cálculo · pasos y {len(vista.modos)} modo(s) de fallo (IM)",
+            f"Detalle del cálculo · {len(vista.modos)} modo(s) de fallo (IM)",
             f"{cp_clave}_detalle",
         ) as detalle_abierto:
             if detalle_abierto:
-                if vista.pasos_comunes:
-                    with _plegable(
-                        "Pasos 3–4 · Activo e impactos (Configuración del puerto)",
-                        f"{cp_clave}_pasos34",
-                    ) as pasos34_abierto:
-                        if pasos34_abierto:
-                            _mostrar_lista_pasos(vista.pasos_comunes, usar_expander=True)
-
                 for im_num, grupo in enumerate(vista.modos, start=1):
                     it = iter_por_modo.get(grupo.modo_fallo)
+                    estado = getattr(grupo, "estado", "ok") or "ok"
+                    familia = getattr(grupo, "familia", "") or (
+                        getattr(it, "familia", "") if it is not None else ""
+                    )
+                    motor = getattr(grupo, "motor_id", "") or (
+                        getattr(it, "motor_id", "") if it is not None else ""
+                    )
+                    tipo_imp = getattr(grupo, "tipo_impacto", "") or (
+                        getattr(it, "tipo_impacto", "") if it is not None else ""
+                    )
+                    nombre_motor = titulo_modo_display(
+                        getattr(grupo, "nombre_motor", "")
+                        or (getattr(it, "nombre_motor", "") if it is not None else "")
+                        or nombre_motor_display(
+                            motor,
+                            familia=familia,
+                            tipo_impacto=tipo_imp,
+                            modo_fallo=grupo.modo_fallo,
+                            titulo=getattr(grupo, "titulo", "") or "",
+                            fallback=motor,
+                        )
+                    )
+                    etiqueta_estado = estado.upper()
+                    extras = " · ".join(
+                        x for x in (etiqueta_estado, familia, nombre_motor) if x
+                    )
+                    im_key = f"{cp_clave}_im_{im_num}"
                     with _plegable(
-                        f"IM {im_num} — {grupo.modo_fallo}",
-                        f"{cp_clave}_im_{im_num}",
+                        f"IM {im_num} — {grupo.modo_fallo} [{extras}]",
+                        im_key,
                     ) as im_abierto:
                         if not im_abierto:
                             continue
-                        if grupo.pasos:
+
+                        st.markdown(
+                            f"**Modo:** {grupo.modo_fallo}  \n"
+                            f"**Estado:** {etiqueta_estado}"
+                            + (f" · **Familia:** {familia}" if familia else "")
+                            + (f" · **Motor:** {nombre_motor}" if nombre_motor else "")
+                            + (f" · **Tipo:** {tipo_imp}" if tipo_imp else "")
+                        )
+
+                        ficha = resolver_ficha(
+                            motor_id=motor,
+                            familia=familia,
+                            tipo_impacto=tipo_imp,
+                            modo_fallo=grupo.modo_fallo,
+                            titulo=getattr(grupo, "titulo", "") or "",
+                        )
+                        if ficha is not None:
+                            var_it = (
+                                getattr(it, "variable_climatica", None)
+                                if it is not None
+                                else None
+                            ) or grupo.modo_fallo
+                            ind_it = (
+                                getattr(it, "indicador_seleccionado", None)
+                                if it is not None
+                                else None
+                            )
+                            _mostrar_ficha_modelo(
+                                ficha,
+                                key=im_key,
+                                expanded=True,
+                                variable=var_it,
+                                indicador=ind_it,
+                            )
+                        else:
+                            st.caption("Sin ficha de modelo para este motor.")
+
+                        motivo = getattr(grupo, "motivo", None) or (
+                            getattr(it, "motivo", None) if it is not None else None
+                        )
+                        if estado != "ok":
+                            codigo = getattr(grupo, "error_code", None) or (
+                                getattr(it, "error_code", None) if it is not None else None
+                            )
+                            msg = motivo or "No calculó"
+                            if codigo:
+                                msg = f"{msg} ({codigo})"
+                            st.error(msg)
+
+                        if (
+                            it is not None
+                            and estado == "ok"
+                            and it.tabla_resultado is not None
+                            and not it.tabla_resultado.empty
+                        ):
                             with _plegable(
-                                "Trazabilidad por pasos (IM)",
-                                f"{cp_clave}_im_{im_num}_pasos",
-                            ) as pasos_im_abierto:
-                                if pasos_im_abierto:
-                                    _mostrar_lista_pasos(grupo.pasos, usar_expander=True)
-                        if it is not None:
-                            with _plegable(
-                                "Resultado del modo de fallo",
-                                f"{cp_clave}_im_{im_num}_resultado",
+                                "Resultado del modo",
+                                f"{im_key}_resultado",
+                                expanded=True,
                             ) as resultado_abierto:
                                 if not resultado_abierto:
                                     continue
@@ -1859,12 +2094,16 @@ def _mostrar_vista_cp_im(vista) -> None:
                                         "Interpretación", "Texto auxiliar",
                                     ]
                                     prefijo = f"{cp_clave}_pi_im_{im_num}"
-                                _botones_descarga(
-                                    it.tabla_resultado[cols_dl],
-                                    prefijo,
-                                    hoja=grupo.modo_fallo[:31],
-                                    key_prefix=prefijo,
-                                )
+                                cols_existentes = [
+                                    c for c in cols_dl if c in it.tabla_resultado.columns
+                                ]
+                                if cols_existentes:
+                                    _botones_descarga(
+                                        it.tabla_resultado[cols_existentes],
+                                        prefijo,
+                                        hoja=grupo.modo_fallo[:31],
+                                        key_prefix=prefijo,
+                                    )
 
         if vista.resumen_activo is not None:
             with _plegable(
@@ -1953,43 +2192,192 @@ def _mostrar_modos_sin_modelo(modos) -> None:
             )
 
 
-def _tarjeta_modo_impacto(entrada) -> None:
-    """Marco negro por modelo: nombre + botón diagrama."""
-    titulo = titulo_modo_impacto(entrada)
+def _etiqueta_catalogo_modo(entrada) -> str:
+    """Etiqueta del catálogo: Flujo-style para calado/francobordo; resto familia+modo."""
+    if entrada.id in {
+        "falta_francobordo_elo",
+        "falta_calado_elo",
+        "falta_calado_els",
+        "falta_calado_elu",
+    }:
+        bruto = entrada.motor_nombre
+    else:
+        bruto = titulo_modo_impacto(entrada)
+    return titulo_modo_display(bruto)
 
-    with st.container(border=True):
-        col_nombre, col_diag = st.columns(
-            [4, 1.2],
-            gap="large",
-            vertical_alignment="center",
-        )
-        with col_nombre:
-            st.markdown(f"**{titulo}**")
-        with col_diag:
-            if entrada.diagrama_modelo_id:
-                with st.popover("Diagrama de flujo", use_container_width=True):
-                    _mostrar_diagrama_flujo(entrada.diagrama_modelo_id)
+
+
+def _mostrar_txt_diagrama(ruta, *, altura_max: int = 640) -> None:
+    """TXT del procedimiento como antes: bloque monoespaciado con saltos de línea."""
+    from core.modelos.flujos import leer_texto_diagrama
+
+    st.caption(f"Fuente: {ruta.name}")
+    contenido = leer_texto_diagrama(ruta)
+    # st.text conserva saltos de línea (no lo aplasta a párrafo).
+    st.text(contenido)
+
+
+def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
+    """Carga el PDF en el frontend (sin descarga)."""
+    st.caption(f"Diagrama: {ruta.name}")
+    data = ruta.read_bytes()
+    # Preferir bytes: rutas con acentos en Windows a veces fallan con st.pdf(path).
+    try:
+        st.pdf(data, height=height, key=key or None)
+        return
+    except TypeError:
+        # Firmas antiguas de st.pdf
+        try:
+            st.pdf(data, height=height)
+            return
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    # Fallback embebido (sin download): iframe con data URI.
+    import base64
+
+    from streamlit.components.v1 import html as components_html
+
+    b64 = base64.b64encode(data).decode("ascii")
+    components_html(
+        f'<iframe src="data:application/pdf;base64,{b64}#toolbar=1&navpanes=0" '
+        f'width="100%" height="{height}" '
+        f'style="border:1px solid #ddd;border-radius:8px;background:#fafafa" '
+        f'title="{ruta.name}"></iframe>',
+        height=height + 16,
+        scrolling=False,
+    )
+
+
+def _set_catalogo_modo(idx: int) -> None:
+    st.session_state["pde_catalogo_modo_sel"] = idx
+    st.session_state["pde_catalogo_vista"] = None
+
+
+def _set_catalogo_vista(vista: str) -> None:
+    st.session_state["pde_catalogo_vista"] = vista
+
+
+def _cerrar_vista_catalogo() -> None:
+    """Descarga el PDF/TXT del catálogo y libera espacio en la ventana."""
+    st.session_state["pde_catalogo_vista"] = None
 
 
 def _bloque_catalogo_modos_impacto() -> None:
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stVerticalBlockBorderWrapper"] {
-            border: 1px solid #000 !important;
-            padding: 0.75rem 1rem;
-            margin-bottom: 0.85rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+    """Catálogo compacto dentro de un desplegable (cerrado por defecto)."""
+    from core.modelos.flujos import (
+        buscar_diagrama,
+        buscar_diagrama_pdf,
+        buscar_diagrama_texto,
     )
-    with st.expander(
-        f"Catálogo de modos de impacto ({len(CATALOGO_MODOS_IMPACTO)})",
+
+    # _plegable conserva abierto/cerrado en session_state (st.expander con
+    # expanded=False se cierra en cada rerun al pulsar botones internos).
+    with _plegable(
+        "Catálogo de modos de impacto y diagrama de flujo",
+        "catalogo_modos_impacto",
         expanded=False,
-    ):
-        for entrada in CATALOGO_MODOS_IMPACTO:
-            _tarjeta_modo_impacto(entrada)
+    ) as abierto:
+        if not abierto:
+            return
+
+        etiquetas = [_etiqueta_catalogo_modo(e) for e in CATALOGO_MODOS_IMPACTO]
+        key_sel = "pde_catalogo_modo_sel"
+        key_vista = "pde_catalogo_vista"  # None | "pdf" | "txt"
+
+        n_cols = 3
+        for i in range(0, len(etiquetas), n_cols):
+            cols = st.columns(n_cols)
+            for j, col in enumerate(cols):
+                idx = i + j
+                if idx >= len(etiquetas):
+                    break
+                etiqueta = etiquetas[idx]
+                with col:
+                    st.button(
+                        etiqueta,
+                        key=f"pde_cat_btn_{idx}",
+                        use_container_width=True,
+                        on_click=_set_catalogo_modo,
+                        args=(idx,),
+                    )
+
+        idx_sel = st.session_state.get(key_sel)
+        if idx_sel is None:
+            st.caption("Pulsa un modo y luego PDF o TXT para ver el diagrama.")
+            return
+
+        try:
+            idx_sel = int(idx_sel)
+        except (TypeError, ValueError):
+            st.session_state.pop(key_sel, None)
+            return
+        if idx_sel < 0 or idx_sel >= len(CATALOGO_MODOS_IMPACTO):
+            st.session_state.pop(key_sel, None)
+            return
+
+        entrada = CATALOGO_MODOS_IMPACTO[idx_sel]
+        titulo = etiquetas[idx_sel]
+        modelo_id = entrada.diagrama_modelo_id
+
+        st.markdown(f"**{titulo}**")
+        if not modelo_id:
+            st.warning("Diagrama no disponible.")
+            return
+
+        pdf = buscar_diagrama_pdf(modelo_id)
+        txt = buscar_diagrama_texto(modelo_id)
+        vista = st.session_state.get(key_vista)
+
+        c_pdf, c_txt, c_cerrar, _ = st.columns([1, 1, 1, 3])
+        with c_pdf:
+            st.button(
+                "PDF",
+                key=f"pde_cat_pdf_btn_{idx_sel}",
+                use_container_width=True,
+                disabled=pdf is None,
+                on_click=_set_catalogo_vista,
+                args=("pdf",),
+            )
+        with c_txt:
+            st.button(
+                "TXT",
+                key=f"pde_cat_txt_btn_{idx_sel}",
+                use_container_width=True,
+                disabled=txt is None,
+                on_click=_set_catalogo_vista,
+                args=("txt",),
+            )
+        with c_cerrar:
+            if vista in ("pdf", "txt"):
+                st.button(
+                    "Cerrar",
+                    key=f"pde_cat_cerrar_{idx_sel}",
+                    use_container_width=True,
+                    on_click=_cerrar_vista_catalogo,
+                )
+
+        vista = st.session_state.get(key_vista)
+        if vista == "pdf" and pdf is not None:
+            _mostrar_pdf_en_frontend(
+                pdf.ruta,
+                height=640,
+                key=f"pde_cat_pdf_{idx_sel}",
+            )
+        elif vista == "txt" and txt is not None:
+            _mostrar_txt_diagrama(txt.ruta)
+        elif vista == "pdf" and pdf is None and txt is not None:
+            st.warning("No hay PDF esquemático.")
+        elif vista is None:
+            st.caption("Pulsa **PDF** o **TXT** para cargar el diagrama.")
+        else:
+            diagrama = buscar_diagrama(modelo_id)
+            if diagrama is not None and diagrama.tipo == "imagen" and vista == "pdf":
+                st.image(str(diagrama.ruta), use_container_width=True)
+            else:
+                st.warning("Diagrama no disponible.")
 
 
 def _resultados_impactos_puerto() -> None:
@@ -2048,6 +2436,7 @@ def _resultados_impactos_puerto() -> None:
         return
 
     cp_total = resultado_puerto.cp_total or len(resultados)
+    st.subheader("Activos")
     for resultado in resultados:
         iteraciones = iteraciones_desde_calculo_activo(resultado)
         fb_esperado = getattr(resultado, "resultado_francobordo", None) is not None
@@ -2085,7 +2474,7 @@ def _resultados_impactos_puerto() -> None:
 
 
 def _mostrar_informe_validacion_puerto(validacion: ResultadoValidacionPuerto) -> None:
-    """Muestra el informe de validacion automatica antes del calculo."""
+    """Muestra el resumen (banner) de validacion automatica antes del calculo."""
     stats = resumen_validacion(validacion)
     n_activos = stats["activos"]
     n_errores = stats["errores"]
@@ -2111,6 +2500,15 @@ def _mostrar_informe_validacion_puerto(validacion: ResultadoValidacionPuerto) ->
             f"Validacion: {n_activos} activo(s), {n_adv} aviso(s), "
             f"{n_sin_modelo} modo(s) sin metodologia implementada."
         )
+
+
+def _mostrar_detalle_validacion_puerto(validacion: ResultadoValidacionPuerto) -> None:
+    """Expander con el detalle de avisos/errores de validacion."""
+    stats = resumen_validacion(validacion)
+    n_errores = stats["errores"]
+    n_adv = stats["advertencias"]
+    if n_errores == 0 and n_adv == 0:
+        return
 
     with st.expander(
         f"Detalle de validacion ({n_errores} errores, {n_adv} avisos)",
@@ -2168,6 +2566,9 @@ def _seccion_modelos_impactos() -> None:
     st.session_state.cp_numero_actual = cp_num
     st.session_state.cp_total_activos = cp_total
 
+    # Orden UI: catálogo → Calcular → validación / resultados
+    _bloque_catalogo_modos_impacto()
+
     pulsar, params = _bloque_calculo_activo()
     if pulsar:
         try:
@@ -2185,6 +2586,7 @@ def _seccion_modelos_impactos() -> None:
                 "No se puede ejecutar el calculo: faltan archivos criticos o "
                 "no hay activos en Configuracion del puerto."
             )
+            _mostrar_detalle_validacion_puerto(validacion)
             return
 
         resultado_puerto = calcular_impactos_puerto(repo)
@@ -2199,7 +2601,8 @@ def _seccion_modelos_impactos() -> None:
             primer_ok.resultado_agitacion if primer_ok else None
         )
 
-    _bloque_catalogo_modos_impacto()
+    if pulsar:
+        _mostrar_detalle_validacion_puerto(validacion)
 
     _resultados_impactos_puerto()
 

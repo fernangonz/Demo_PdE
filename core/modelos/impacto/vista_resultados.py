@@ -15,6 +15,13 @@ class GrupoPasosIM:
     titulo: str
     modo_fallo: str
     pasos: list[Any] = field(default_factory=list)
+    estado: str = "ok"
+    motivo: str | None = None
+    error_code: str | None = None
+    familia: str = ""
+    motor_id: str = ""
+    nombre_motor: str = ""
+    tipo_impacto: str = ""
 
 
 @dataclass
@@ -29,6 +36,7 @@ class VistaResultadosActivo:
     modos: list[GrupoPasosIM]
     iteraciones: list[ResumenIteracion]
     resumen_activo: Any | None = None
+    diagnostico: list[dict[str, Any]] = field(default_factory=list)
 
 
 def pasos_comunes_desde_lista(pasos: list[Any]) -> list[Any]:
@@ -79,15 +87,19 @@ def _meta_activo(resultado) -> tuple[str, str]:
     meta: dict[str, Any] = {}
     if getattr(resultado, "resultado_agitacion", None) and resultado.resultado_agitacion.ok:
         meta.update(resultado.resultado_agitacion.metadatos_ejecucion)
+    if getattr(resultado, "resultado_calado_pi", None):
+        cal = resultado.resultado_calado_pi.metadatos_ejecucion
+        meta.setdefault("activo", cal.get("activo", ""))
+        meta.setdefault("tipo_uo", cal.get("tipo_uo", ""))
     if getattr(resultado, "resultado_calado", None) and resultado.resultado_calado.ok:
         cal = resultado.resultado_calado.metadatos_ejecucion
         meta.setdefault("activo", cal.get("activo", ""))
         meta.setdefault("tipo_uo", cal.get("tipo_uo", ""))
-    if getattr(resultado, "resultado_calado_opex", None) and resultado.resultado_calado_opex.ok:
+    if getattr(resultado, "resultado_calado_opex", None):
         cal = resultado.resultado_calado_opex.metadatos_ejecucion
         meta.setdefault("activo", cal.get("activo", ""))
         meta.setdefault("tipo_uo", cal.get("tipo_uo", ""))
-    if getattr(resultado, "resultado_calado_capex", None) and resultado.resultado_calado_capex.ok:
+    if getattr(resultado, "resultado_calado_capex", None):
         cal = resultado.resultado_calado_capex.metadatos_ejecucion
         meta.setdefault("activo", cal.get("activo", ""))
         meta.setdefault("tipo_uo", cal.get("tipo_uo", ""))
@@ -98,13 +110,31 @@ def _meta_activo(resultado) -> tuple[str, str]:
     return str(meta.get("activo", "")), str(meta.get("tipo_uo", ""))
 
 
+def _grupo_desde_iteracion(it: ResumenIteracion, pasos_fallback: list[Any] | None = None) -> GrupoPasosIM:
+    pasos = list(getattr(it, "pasos", None) or [])
+    if not pasos and pasos_fallback:
+        pasos = list(pasos_fallback)
+    return GrupoPasosIM(
+        titulo=f"IM — {it.modo_fallo}",
+        modo_fallo=it.modo_fallo,
+        pasos=pasos,
+        estado=getattr(it, "estado", "ok") or "ok",
+        motivo=getattr(it, "motivo", None),
+        error_code=getattr(it, "error_code", None),
+        familia=getattr(it, "familia", "") or "",
+        motor_id=getattr(it, "motor_id", "") or "",
+        nombre_motor=getattr(it, "nombre_motor", "") or "",
+        tipo_impacto=getattr(it, "tipo_impacto", "") or "",
+    )
+
+
 def _grupos_im_por_modo(
     grupos_agitacion: list[GrupoPasosIM],
     grupos_calado: list[GrupoPasosIM],
     grupos_francobordo: list[GrupoPasosIM],
     iteraciones: list[ResumenIteracion],
 ) -> list[GrupoPasosIM]:
-    """Une pasos IM de agitacion, francobordo y calado siguiendo el orden de iteraciones."""
+    """Une pasos IM siguiendo el orden de iteraciones; prioriza pasos embebidos."""
     por_modo_agit: dict[str, GrupoPasosIM] = {
         g.modo_fallo: g for g in grupos_agitacion
     }
@@ -122,6 +152,17 @@ def _grupos_im_por_modo(
         if modo in vistos:
             continue
         vistos.add(modo)
+        pasos_it = list(getattr(it, "pasos", None) or [])
+        if pasos_it or getattr(it, "estado", "ok") != "ok":
+            fallback = None
+            if modo in por_modo_cal:
+                fallback = por_modo_cal[modo].pasos
+            elif modo in por_modo_fb:
+                fallback = por_modo_fb[modo].pasos
+            elif modo in por_modo_agit:
+                fallback = por_modo_agit[modo].pasos
+            ordenados.append(_grupo_desde_iteracion(it, fallback))
+            continue
         if modo in por_modo_cal:
             ordenados.append(por_modo_cal[modo])
         elif modo in por_modo_fb:
@@ -133,6 +174,34 @@ def _grupos_im_por_modo(
         if g.modo_fallo not in vistos:
             ordenados.append(g)
     return ordenados
+
+
+def _diagnostico_desde_iteraciones(iteraciones: list[ResumenIteracion]) -> list[dict[str, Any]]:
+    from core.modelos.fichas_modelo import nombre_motor_display
+
+    filas: list[dict[str, Any]] = []
+    for it in iteraciones:
+        motor_id = getattr(it, "motor_id", "") or ""
+        familia = getattr(it, "familia", "") or ""
+        tipo = getattr(it, "tipo_impacto", "") or ""
+        nombre = getattr(it, "nombre_motor", "") or ""
+        if not nombre:
+            nombre = nombre_motor_display(
+                motor_id,
+                familia=familia,
+                tipo_impacto=tipo,
+                modo_fallo=it.modo_fallo,
+            )
+        filas.append({
+            "Modo": it.modo_fallo,
+            "Estado": getattr(it, "estado", "ok") or "ok",
+            "Familia": familia,
+            "Tipo": tipo,
+            "Motor": nombre,
+            "Motivo": getattr(it, "motivo", None) or "",
+            "Código": getattr(it, "error_code", None) or "",
+        })
+    return filas
 
 
 def construir_vista_resultados_activo(
@@ -168,12 +237,12 @@ def construir_vista_resultados_activo(
             pasos_fb = list(rp_fb.pasos)
 
     calado_resultados = []
-    if getattr(resultado, "resultado_calado_opex", None) and resultado.resultado_calado_opex.ok:
-        calado_resultados.append(resultado.resultado_calado_opex)
-    elif getattr(resultado, "resultado_calado", None) and resultado.resultado_calado.ok:
-        calado_resultados.append(resultado.resultado_calado)
-    if getattr(resultado, "resultado_calado_capex", None) and resultado.resultado_calado_capex.ok:
-        calado_resultados.append(resultado.resultado_calado_capex)
+    for attr in ("resultado_calado_pi", "resultado_calado_opex", "resultado_calado_capex"):
+        res = getattr(resultado, attr, None)
+        if res is None:
+            continue
+        if res.ok or getattr(res, "ejecuciones", None):
+            calado_resultados.append(res)
 
     for res_cal in calado_resultados:
         rp = res_cal.resultados_por_pasos
@@ -203,6 +272,7 @@ def construir_vista_resultados_activo(
         modos=modos,
         iteraciones=iteraciones,
         resumen_activo=resumen_activo,
+        diagnostico=_diagnostico_desde_iteraciones(iteraciones),
     )
 
 

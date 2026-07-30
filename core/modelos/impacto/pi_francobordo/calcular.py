@@ -6,7 +6,6 @@ from __future__ import annotations
 import pandas as pd
 
 from core.config_indicadores import ReglaIndicador
-from core.modelos.catalogo_impactos import titulo_desde_modo
 from core.modelos.inputs_activo import leer_inputs_config_activo_desde_fila
 from core.relacion_modelos import buscar_regla_modelo
 from core.modelos.impacto.pi_agitacion.interpretacion import (
@@ -150,6 +149,8 @@ def calcular(
         modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
         variable = str(fila_rel.get("Variable", "")).strip()
         estado_limite = str(fila_rel.get("Tipo de impacto", "")).strip() or None
+        from core.modelos.catalogo_impactos import titulo_desde_modo
+
         etiqueta_im = titulo_desde_modo(
             modo_fallo,
             variable=variable,
@@ -262,7 +263,7 @@ def calcular(
                 indicador_resumen = seleccionados[0].nombre
             elif referencia_m is not None:
                 indicador_resumen = (
-                    f"Inundacion costera en un atraque >= {referencia_m:g} m"
+                    f"Inundacion costera en un atraque ≥ {referencia_m:g} m"
                 )
             else:
                 indicador_resumen = etiqueta_indicador_corta(umbral_m, variable=variable)
@@ -285,6 +286,7 @@ def calcular(
         metadatos_ejecucion={
             "activo": activo_resumen,
             "tipo_uo": tipo_uo,
+            "modelo_id": MODELO_ID,
             "fb": fb_activo,
             "origen_reglas": {
                 it.variable_climatica: it.origen_regla for it in iteraciones

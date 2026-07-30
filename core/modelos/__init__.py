@@ -1,15 +1,6 @@
-"""Modelos de cálculo — impacto, económico y registro."""
+"""Modelos de cálculo — impacto, económico y registro.
 
-from core.modelos.registro import (
-    ejecutar_modelo_impacto,
-    ejecutar_pi_agitacion,
-    listar_modelos_economico,
-    listar_modelos_impacto,
-)
-
-__all__ = [
-    "ejecutar_modelo_impacto",
-    "ejecutar_pi_agitacion",
-    "listar_modelos_economico",
-    "listar_modelos_impacto",
-]
+No importar registro aquí: un import eager provoca ciclo
+pi_calado → calcular → core.modelos → registro → pi_calado.
+Importar desde core.modelos.registro (o submódulos) según haga falta.
+"""

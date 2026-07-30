@@ -479,6 +479,21 @@ div[data-testid="stAlert"][kind="warning"],
 div[data-testid="stIFrame"] iframe {{
     min-height: 560px;
 }}
+
+/* Streamlit 1.58: [data-testid=stDataFrameResizable] aplica
+   border:1px + border-radius en estilo inline, pero sin overflow:hidden,
+   así la rejilla Glide (.dvn-scroller) pinta una línea gris recta ~1px
+   bajo la esquina redondeada (ficha Outputs). */
+[data-testid="stDataFrame"] {{
+    overflow: hidden !important;
+}}
+[data-testid="stDataFrameResizable"] {{
+    overflow: hidden !important;
+}}
+[data-testid="stDataFrameResizable"] .stDataFrameGlideDataEditor,
+[data-testid="stDataFrameResizable"] .dvn-scroller {{
+    border-radius: inherit !important;
+}}
 </style>
         """,
         unsafe_allow_html=True,

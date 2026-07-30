@@ -75,12 +75,18 @@ def _modelo_aplica(celda_modelo: object, modelo_id: str, variable: str) -> bool:
         return True
     if "superacion" in texto and "umbral" in texto:
         return True
-    if "calado" in texto and ("pi_calado" in mid or "calado" in mid):
-        return True
     if "opex" in texto and "calado" in texto:
         return mid == "pi_calado_els" and var in ("nivel del mar", "calado")
     if "capex" in texto and "calado" in texto:
         return mid == "pi_calado_elu" and var in ("nivel del mar", "calado")
+    if "calado" in texto and (
+        "perdida" in texto
+        or "pi_calado_elo" in mid
+        or ("pi" in texto and "opex" not in texto and "capex" not in texto)
+    ):
+        return mid == "pi_calado_elo" and var in ("nivel del mar", "calado")
+    if "calado" in texto and ("pi_calado" in mid or "calado" in mid):
+        return True
     if "viento" in texto:
         return var == "viento"
     if "corriente" in texto:
