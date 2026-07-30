@@ -19,3 +19,11 @@ Thumbs.db
 # Local verify / extract scratch (not part of the demo)
 _guia_calado_*
 _verify_*
+_chk*/
+_chk_pdf/
+_fix_*
+_bump_*
+_final_*
+_nudge.py
+**/DIAGRAMA DE FLUJO UNICO.new.pdf
+Flujo de modelos/generar_*.py
