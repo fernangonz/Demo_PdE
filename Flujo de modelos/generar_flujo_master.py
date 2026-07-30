@@ -24,6 +24,15 @@ from generar_flujos_pdf import (  # noqa: E402
 PAGE_H_MASTER = 9800.0
 
 
+def _mid(box) -> float:
+    """Centro vertical de una caja (process_box no expone cy)."""
+    return (box["top"] + box["bottom"]) / 2.0
+
+
+def _gap(prev, amount: float = 36.0) -> float:
+    return prev["bottom"] - amount
+
+
 class MasterFlowPDF(FlowPDF):
     def __init__(self, path: Path, title: str):
         self.path = path
@@ -45,10 +54,6 @@ class MasterFlowPDF(FlowPDF):
         self.c.setStrokeColor(NAVY_STROKE)
         self.c.setLineWidth(2.5)
         self.c.rect(MARGIN, 6, PAGE_W - 2 * MARGIN, self._page_h - 12, stroke=1, fill=0)
-
-
-def _gap(prev, amount: float = 36.0) -> float:
-    return prev["bottom"] - amount
 
 
 def build_master(out_path: Path) -> None:
@@ -278,14 +283,13 @@ def build_master(out_path: Path) -> None:
             "Si es formulación (p. ej. con Dc): calcular y guardar umbral numérico.",
         ],
     )
-    # Conectar ambas ramas a 6 / o a continuación: skip6 también baja a 7, no_pred a 6
+    # Conectar rama NO-predefinido a 6; skip6 baja a bypass hacia 7
     pdf.polyline([
         (right_cx, b_no_pred["bottom"]),
         (right_cx, (b6["top"] + b_no_pred["bottom"]) / 2),
         (cx, (b6["top"] + b_no_pred["bottom"]) / 2),
         (cx, b6["top"] + 2),
     ])
-    # skip6 baja hacia el merge antes del 7 (bypass visual a paso 7)
     pdf.polyline([
         (left_cx, b_skip6["bottom"]),
         (left_cx, b6["bottom"] - 20),
@@ -391,7 +395,6 @@ def build_master(out_path: Path) -> None:
     # Merge a 11
     merge_bottom = min(b8c["bottom"], b8d["bottom"])
     y11 = merge_bottom - 55
-    b11_anchor = {"cx": cx, "bottom": merge_bottom, "top": merge_bottom}
 
     d11 = pdf.diamond(cx, y11 - 55, 360, 120, "11. ¿Quedan modos de fallo (IM) en el activo?")
     pdf.arrow_down(cx, merge_bottom - 2, d11["top"] + 2)
@@ -416,11 +419,13 @@ def build_master(out_path: Path) -> None:
     pdf.label(left_cx + 16, d11["cy"] + 12, "SÍ")
     # bucle hacia arriba a b5
     rail = MARGIN + 40
+    b5_mid = _mid(b5)
+    b11_mid = _mid(b11_si)
     pdf.polyline([
-        (b11_si["left"], (b11_si["top"] + b11_si["bottom"]) / 2),
-        (rail, (b11_si["top"] + b11_si["bottom"]) / 2),
-        (rail, b5["cy"] if "cy" in b5 else (b5["top"] + b5["bottom"]) / 2),
-        (b5["left"], (b5["top"] + b5["bottom"]) / 2),
+        (b11_si["left"], b11_mid),
+        (rail, b11_mid),
+        (rail, b5_mid),
+        (b5["left"], b5_mid),
     ])
     pdf.label(rail + 8, (b5["top"] + b11_si["bottom"]) / 2, "? paso 5")
 
@@ -449,11 +454,12 @@ def build_master(out_path: Path) -> None:
 
     # SÍ CP ? bucle a 3
     rail_r = PAGE_W - MARGIN - 40
+    b3_mid = _mid(b3)
     pdf.polyline([
         (d12["right"], d12["cy"]),
         (rail_r, d12["cy"]),
-        (rail_r, (b3["top"] + b3["bottom"]) / 2),
-        (b3["right"], (b3["top"] + b3["bottom"]) / 2),
+        (rail_r, b3_mid),
+        (b3["right"], b3_mid),
     ])
     pdf.label(rail_r - 70, d12["cy"] + 12, "SÍ ? paso 3")
 
@@ -471,10 +477,17 @@ def build_master(out_path: Path) -> None:
     pdf.label(
         MARGIN + 40,
         fin["bottom"] - 50,
-        "Tronco común CP/IM · ramas A/B/C/D solo donde el modelo diverge · bucles IM?5 y CP?3",
+        "Tronco común CP/IM — ramas A/B/C/D solo donde el modelo diverge — bucles IM?5 y CP?3",
         size=11,
         bold=False,
     )
+
+    # Aviso si el contenido se acerca al borde inferior (solapes / página corta)
+    if fin["bottom"] < 80:
+        print(
+            f"Aviso: FIN muy bajo (bottom={fin['bottom']:.1f}). "
+            "Considera subir PAGE_H_MASTER o compactar gaps."
+        )
 
     pdf.save()
     try:
@@ -531,6 +544,10 @@ def main() -> None:
     write_master_txt(txt_path)
     print(f"OK PDF: {pdf_path}")
     print(f"OK TXT: {txt_path}")
+    if pdf_path.exists():
+        print(f"PDF size: {pdf_path.stat().st_size} bytes")
+    if txt_path.exists():
+        print(f"TXT size: {txt_path.stat().st_size} bytes")
 
 
 if __name__ == "__main__":

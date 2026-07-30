@@ -10,3 +10,8 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# Excel lock/temp files (open workbooks)
+~$*
+**/~$*.xlsx
+*.tmp
