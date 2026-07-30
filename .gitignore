@@ -15,3 +15,7 @@ Thumbs.db
 ~$*
 **/~$*.xlsx
 *.tmp
+
+# Local verify / extract scratch (not part of the demo)
+_guia_calado_*
+_verify_*
