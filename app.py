@@ -2218,7 +2218,11 @@ def _mostrar_txt_diagrama(ruta, *, altura_max: int = 640) -> None:
 
 
 def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
-    """Carga el PDF en el frontend (sin descarga)."""
+    """Carga el PDF en el frontend con ``st.pdf`` (sin descarga ni data-URI).
+
+    Edge/Chrome bloquean iframes con ``data:application/pdf``; no usar ese
+    fallback. Requiere el extra ``streamlit[pdf]`` / paquete ``streamlit-pdf``.
+    """
     st.caption(f"Diagrama: {ruta.name}")
     data = ruta.read_bytes()
     # Preferir bytes: rutas con acentos en Windows a veces fallan con st.pdf(path).
@@ -2226,29 +2230,23 @@ def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
         st.pdf(data, height=height, key=key or None)
         return
     except TypeError:
-        # Firmas antiguas de st.pdf
+        # Firmas antiguas de st.pdf (sin key)
         try:
             st.pdf(data, height=height)
             return
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-    # Fallback embebido (sin download): iframe con data URI.
-    import base64
-
-    from streamlit.components.v1 import html as components_html
-
-    b64 = base64.b64encode(data).decode("ascii")
-    components_html(
-        f'<iframe src="data:application/pdf;base64,{b64}#toolbar=1&navpanes=0" '
-        f'width="100%" height="{height}" '
-        f'style="border:1px solid #ddd;border-radius:8px;background:#fafafa" '
-        f'title="{ruta.name}"></iframe>',
-        height=height + 16,
-        scrolling=False,
-    )
+        except Exception as exc:
+            st.error(
+                "No se pudo mostrar el PDF. Instala el visor: "
+                "`pip install streamlit[pdf]` "
+                f"({type(exc).__name__}: {exc})"
+            )
+            return
+    except Exception as exc:
+        st.error(
+            "No se pudo mostrar el PDF. Comprueba que esté instalado "
+            "`streamlit-pdf` (`pip install streamlit[pdf]`). "
+            f"Detalle: {type(exc).__name__}: {exc}"
+        )
 
 
 def _set_catalogo_modo(idx: int) -> None:
