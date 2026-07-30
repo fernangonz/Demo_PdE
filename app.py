@@ -2346,7 +2346,8 @@ def _mostrar_controles_diagrama_catalogo(
 
 def _bloque_catalogo_modos_impacto() -> None:
     """Catálogo compacto dentro de un desplegable (cerrado por defecto)."""
-    from core.modelos.flujos import ID_DIAGRAMA_FLUJO_UNICO
+    # Same id as core.modelos.flujos.ID_DIAGRAMA_FLUJO_UNICO (aliases resolve PDF/TXT).
+    id_diagrama_flujo_unico = "DIAGRAMA_FLUJO_UNICO"
 
     # _plegable conserva abierto/cerrado en session_state (st.expander con
     # expanded=False se cierra en cada rerun al pulsar botones internos).
@@ -2397,7 +2398,7 @@ def _bloque_catalogo_modos_impacto() -> None:
 
         if idx_sel == _CATALOGO_SEL_MAESTRO:
             _mostrar_controles_diagrama_catalogo(
-                modelo_id=ID_DIAGRAMA_FLUJO_UNICO,
+                modelo_id=id_diagrama_flujo_unico,
                 titulo="Diagrama de flujo único — Procedimiento maestro",
                 key_suffix="maestro",
             )
