@@ -18,15 +18,15 @@ INICIO
 5b. Regla en Relacion_modelos_activos_e_indicadores
 ?
 ¿Existe fila?  SÍ ? config Excel | NO ? P99 + lógica clásica
-Continuar
+? Continuar
 ¿Indicador predefinido?
-  SÍ ? omitir paso 6 ? paso 7 (bypass lateral ?)
+  SÍ ? omitir paso 6 ? paso 7 (bypass lateral)
   NO ? paso 6 (salvo Fb numérico en francobordo)
 ?
 7. Indicador: predefinido | por umbral | francobordo (? referencia)
 ?
-810. SOLO una rama A/B/C/D según modelo 2b
-Continuar
-11. ¿Quedan IM? SÍ ? paso 5 | NO ? 12
+8–10. SOLO una rama A/B/C/D según modelo 2b
+? Continuar
+11. ¿Quedan IM? SÍ ? ? paso 5 | NO ? 12
 ?
-12. ¿Quedan CP? SÍ ? paso 3 | NO ? FIN
+12. ¿Quedan CP? SÍ ? subir a paso 3 | NO ? FIN
