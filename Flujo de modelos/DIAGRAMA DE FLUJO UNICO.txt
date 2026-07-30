@@ -2,40 +2,31 @@ DIAGRAMA DE FLUJO ÚNICO
 Procedimiento maestro: PI Superación de Umbral | PI Falta de Francobordo | OPEX Falta de Calado | CAPEX Falta de Calado
 
 INICIO
-↓
-1. Cargar archivos (data_modelos): Configuración del puerto, Umbrales, Indicadores climáticos, Relacion_modelos, Relación impactos.
-↓
-2. Configuración del cálculo: percentil y selección de indicador se resuelven en 5b (por IM).
-↓
-2b. Identificar modelo → Rama A / B / C / D.
-↓
-3. Iteración CP (activos). Extraer Activo + Tipo UO (+ Fb o Dc según rama).
-↓
-4. Buscar impactos del activo (filtro según rama).
-↓
-5. Iteración IM (modos de fallo).
-↓
-5b. Regla en Relacion_modelos_activos_e_indicadores (match explícito).
-↓
-¿Existe fila?
-  SÍ → Usar configuración del Excel (percentil / selección)
-  NO → P99 + lógica clásica
-  ↓ (ambas se fusionan sin etiqueta)
+?
+1. Cargar archivos (data_modelos)
+?
+2. Configuración del cálculo (percentil/selección ? en 5b por IM)
+?
+2b. Identificar modelo ? Rama A / B / C / D
+?
+3. Iteración CP (activos)
+?
+4. Buscar impactos (filtro según rama)
+?
+5. Iteración IM (modos de fallo)
+?
+5b. Regla en Relacion_modelos_activos_e_indicadores
+?
+¿Existe fila?  SÍ ? config Excel | NO ? P99 + lógica clásica
+? Continuar
 ¿Indicador predefinido?
-  SÍ → omitir paso 6 → paso 7 (bypass lateral)
-  NO → según modelo: A/C/D a paso 6; B Francobordo: Fb numérico omite 6, si no → paso 6
-↓
-6. Umbral (si aplica): Tipo UO o Umbral General; formular si procede.
-↓
-7. Indicador: predefinido | por umbral | francobordo (inundación costera, ≥ referencia)
-   + filtro Tipo UO + criterio espacial si hay varios
-↓
-8–10. Según modelo de 2b — aplicar SOLO una rama:
-  A → Variación = escenario − histórico; Empeora / Mejora / Sin cambios
-  B → igual que A (horas/días)
-  C → h = NM − h0 − hsedim; umbral ≤ h → dragar; umbral > h → no dragar (OPEX)
-  D → misma fórmula h; filas ELU (CAPEX)
-  ↓ (fusión)
-11. ¿Quedan IM? SÍ → IM+1 → paso 5 | NO → 12
-↓
-12. ¿Quedan CP? SÍ → CP+1 → paso 3 | NO → FIN
+  SÍ ? omitir paso 6 ? paso 7 (bypass lateral)
+  NO ? paso 6 (salvo Fb numérico en francobordo)
+?
+7. Indicador: predefinido | por umbral | francobordo (? referencia)
+?
+8–10. SOLO una rama A/B/C/D según modelo 2b
+? Continuar
+11. ¿Quedan IM? SÍ ? ? paso 5 | NO ? 12
+?
+12. ¿Quedan CP? SÍ ? subir a paso 3 | NO ? FIN
