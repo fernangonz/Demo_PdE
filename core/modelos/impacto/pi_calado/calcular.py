@@ -34,8 +34,14 @@ from core.modelos.impacto.pi_calado.utilidades import (
     resolver_indicadores_calado,
     valor_columna,
 )
+from core.modelos.impacto.impactos_no_factibles import (
+    CODIGO_NO_FACTIBLE,
+    MOTIVO_NO_FACTIBLE,
+    debe_omitir_im,
+)
 from core.schemas.ejecucion import (
     IteracionEjecucion,
+    PasoEjecucion,
     envolver_pasos,
     familia_desde_tipo_impacto,
 )
@@ -77,6 +83,45 @@ def _ejecucion_error(
         error_code=error_code,
         inputs_usados=dict(inputs_usados or {}),
         pasos=pasos_ej,
+    )
+
+
+def _ejecucion_omitida(
+    *,
+    numero: int,
+    activo: str,
+    modo_fallo: str,
+    modo_fallo_excel: str,
+    variable: str,
+    tipo_impacto: str,
+    motor_id: str,
+) -> IteracionEjecucion:
+    paso = PasoEjecucion(
+        numero=5,
+        nombre=f"Identificar IM (iteracion {numero}) — omitido",
+        excel="Configuración de impactos no factibles",
+        step_id="definir_im",
+        status="skipped",
+        error_code=CODIGO_NO_FACTIBLE,
+        procedimiento=(
+            f"Paso 5 / IM={numero}: {MOTIVO_NO_FACTIBLE}\n"
+            f"Activo={activo} | Tipo impacto={tipo_impacto} | "
+            f"Modo={modo_fallo_excel}"
+        ),
+    )
+    return IteracionEjecucion(
+        numero=numero,
+        activo=activo,
+        modo_fallo=modo_fallo,
+        modo_fallo_excel=modo_fallo_excel,
+        variable=variable,
+        tipo_impacto=tipo_impacto,
+        familia=familia_desde_tipo_impacto(tipo_impacto),
+        motor_id=motor_id,
+        estado="skipped",
+        motivo=MOTIVO_NO_FACTIBLE,
+        error_code=CODIGO_NO_FACTIBLE,
+        pasos=[paso],
     )
 
 
@@ -200,6 +245,22 @@ def calcular(
             variable=variable,
             tipo_impacto=estado_limite,
         )
+        if debe_omitir_im(
+            datos,
+            activo=activo_raw,
+            tipo_impacto=estado_limite,
+            modo_fallo=modo_fallo,
+        ):
+            ejecuciones.append(_ejecucion_omitida(
+                numero=numero,
+                activo=activo_resumen,
+                modo_fallo=etiqueta_im,
+                modo_fallo_excel=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite,
+                motor_id=params.modelo_id,
+            ))
+            continue
         n_rel = int(fila_rel["Nº"]) if pd.notna(fila_rel.get("Nº")) else None
         sufijo_fila = _mensaje_fila_excel(n_rel, estado_limite)
         tipo_activo_servicio = str(fila_rel.get("Tipo activo/servicio", "")).strip() or tipo_activo_cfg
@@ -599,6 +660,9 @@ def calcular(
         "modos_falta_calado": len(modos),
         "modos_ok": sum(1 for e in ejecuciones if e.ok),
         "modos_error": sum(1 for e in ejecuciones if e.estado == "error"),
+        "modos_omitidos_no_factibles": sum(
+            1 for e in ejecuciones if e.estado == "skipped"
+        ),
         "baseline_year": params.baseline_year,
         "calado_buque": params.calado_buque,
         "tipo_impacto": params.tipo_impacto,

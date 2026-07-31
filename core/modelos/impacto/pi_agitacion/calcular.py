@@ -15,21 +15,10 @@ from __future__ import annotations
 import pandas as pd
 
 from core.relacion_modelos import buscar_regla_modelo
+from core.config_indicadores import ReglaIndicador
 from core.modelos.impacto.pi_agitacion.interpretacion import (
     advertencia_valores_negativos,
     sintesis_cambios,
-)
-from core.modelos.impacto.pi_agitacion.pasos import (
-    ResultadosPorPasos,
-    construir_pasos_activo,
-    construir_pasos_modo_fallo,
-)
-from core.modelos.impacto.pi_agitacion.schemas import (
-    METADATOS,
-    MODELO_ID,
-    IteracionResultado,
-    ParametrosEntrada,
-    ResultadoPIAgitacion,
 )
 from core.modelos.impacto.pi_agitacion.utilidades import (
     buscar_umbral_umbrales,
@@ -42,6 +31,24 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
     modos_superacion_umbral,
     nombre_activo_resumen,
     tabla_resultado_indicador,
+)
+from core.modelos.impacto.impactos_no_factibles import (
+    MOTIVO_NO_FACTIBLE,
+    debe_omitir_im,
+)
+from core.modelos.impacto.pi_agitacion.pasos import (
+    PasoResultado,
+    ResultadosPorPasos,
+    TablaPaso,
+    construir_pasos_activo,
+    construir_pasos_modo_fallo,
+)
+from core.modelos.impacto.pi_agitacion.schemas import (
+    METADATOS,
+    MODELO_ID,
+    IteracionResultado,
+    ParametrosEntrada,
+    ResultadoPIAgitacion,
 )
 
 
@@ -157,6 +164,7 @@ def calcular(
     )
     pasos_totales: list = list(pasos_comunes)
     iteraciones: list[IteracionResultado] = []
+    omitidos_no_factibles: list[dict[str, str]] = []
     relacion_modelos = getattr(datos, "relacion_modelos", None)
 
     for numero, fila_rel in enumerate(modos, start=1):
@@ -170,6 +178,33 @@ def calcular(
             variable=variable,
             tipo_impacto=estado_limite,
         )
+        if debe_omitir_im(
+            datos,
+            activo=activo_raw,
+            tipo_impacto=estado_limite or "",
+            modo_fallo=modo_fallo,
+        ):
+            omitidos_no_factibles.append({
+                "activo": activo_raw,
+                "tipo_impacto": estado_limite or "",
+                "modo_fallo": modo_fallo,
+            })
+            pasos_totales.append(PasoResultado(
+                numero=5,
+                nombre=f"Iteración por Modos de fallo (IM={numero}) — omitido",
+                excel="Configuración de impactos no factibles",
+                procedimiento=MOTIVO_NO_FACTIBLE,
+                tablas=[TablaPaso(
+                    titulo="Omitido (no factible)",
+                    columnas=["Activo", "Tipo de impacto", "Modos de fallo / Modos de parada"],
+                    filas=[{
+                        "Activo": activo_raw,
+                        "Tipo de impacto": estado_limite or "",
+                        "Modos de fallo / Modos de parada": modo_fallo,
+                    }],
+                )],
+            ))
+            continue
         n_rel = int(fila_rel["Nº"]) if pd.notna(fila_rel.get("Nº")) else None
         tipo_activo_servicio = str(fila_rel.get("Tipo activo/servicio", "")).strip() or tipo_activo_cfg
 
@@ -281,23 +316,40 @@ def calcular(
             _tabla_resultado_df=tabla,
         ))
 
-    return ResultadoPIAgitacion.desde_calculo(
-        metadatos_ejecucion={
-            "activo": activo_resumen,
-            "tipo_uo": tipo_uo,
-            "modelo_id": MODELO_ID,
-            "origen_reglas": {
-                it.variable_climatica: it.origen_regla for it in iteraciones
-            },
-            "fuente_percentil_indicador": (
-                datos.rutas.get("relacion_modelos", "")
-                if hasattr(datos, "rutas")
-                else ""
-            ),
-            "impactos_asociados": len(impactos),
-            "modos_superacion_umbral": len(iteraciones),
-            "baseline_year": params.baseline_year,
+    meta_ejec = {
+        "activo": activo_resumen,
+        "tipo_uo": tipo_uo,
+        "modelo_id": MODELO_ID,
+        "origen_reglas": {
+            it.variable_climatica: it.origen_regla for it in iteraciones
         },
+        "fuente_percentil_indicador": (
+            datos.rutas.get("relacion_modelos", "")
+            if hasattr(datos, "rutas")
+            else ""
+        ),
+        "impactos_asociados": len(impactos),
+        "modos_superacion_umbral": len(iteraciones),
+        "modos_omitidos_no_factibles": omitidos_no_factibles,
+        "baseline_year": params.baseline_year,
+    }
+    if not iteraciones:
+        # Todos los modos aplicables estaban marcados como no factibles.
+        return ResultadoPIAgitacion(
+            metadatos=METADATOS,
+            ok=True,
+            error="",
+            iteraciones=[],
+            metadatos_ejecucion={
+                **meta_ejec,
+                "activo_raw": activo_raw,
+                "omitido": "todos_impactos_no_factibles",
+            },
+            resultados_por_pasos=ResultadosPorPasos(pasos=pasos_totales),
+        )
+
+    return ResultadoPIAgitacion.desde_calculo(
+        metadatos_ejecucion=meta_ejec,
         iteraciones=iteraciones,
         resultados_por_pasos=ResultadosPorPasos(pasos=pasos_totales),
     )

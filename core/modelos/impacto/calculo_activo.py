@@ -23,6 +23,7 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
     modos_superacion_umbral,
     nombre_activo_resumen,
 )
+from core.modelos.impacto.impactos_no_factibles import FiltroImpactosNoFactibles
 from core.modelos.impacto.vista_resultados import listar_activos_config
 from core.modelos.inputs_activo import (
     INPUTS_CALADO_ACTIVO,
@@ -317,8 +318,11 @@ def calcular_impactos_puerto(
     incluir_agitacion: bool = True,
     incluir_francobordo: bool = True,
     incluir_calado: bool = True,
+    filtro_impactos_no_factibles: FiltroImpactosNoFactibles | None = None,
 ) -> ResultadoCalculoPuerto:
     """Itera CP (paso 3 del diagrama) sobre todos los activos de Configuración del puerto."""
+    if filtro_impactos_no_factibles is not None:
+        setattr(datos, "filtro_impactos_no_factibles", filtro_impactos_no_factibles)
     config_puerto = getattr(datos, "config_puerto", None)
     df_relacion = getattr(datos, "relacion_impactos", None)
 

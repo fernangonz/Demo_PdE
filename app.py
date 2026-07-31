@@ -59,6 +59,7 @@ from core.modelos.catalogo_impactos import (
 )
 from core.modelos.flujos import buscar_diagrama
 from core.modelos.impacto.calculo_activo import calcular_impactos_puerto
+from core.modelos.impacto.impactos_no_factibles import FiltroImpactosNoFactibles
 from core.modelos.impacto.validacion_puerto import (
     ResultadoValidacionPuerto,
     resumen_validacion,
@@ -1466,7 +1467,7 @@ def _seccion_preguntar_impactos() -> None:
             "ruta": info["ruta"],
             "detalle": (
                 f"Hoja «{info.get('hoja', '—')}» · {info.get('total', 0)} filas · "
-                "marque/desmarque los impactos a calcular"
+                "marque los impactos no factibles (no se calcularán)"
             ),
         }],
         key="preguntar_impactos",
@@ -1508,8 +1509,8 @@ def _seccion_preguntar_impactos() -> None:
 
     cfg_cols: dict = {
         _COL_SELECCIONAR_IMPACTO: st.column_config.CheckboxColumn(
-            "Seleccionar",
-            help="Marcar o desmarcar este impacto",
+            "No factible",
+            help="Marcado = impacto no factible (no se calcula). Desmarcado = se puede calcular.",
             default=True,
             width="small",
         ),
@@ -1532,8 +1533,12 @@ def _seccion_preguntar_impactos() -> None:
 
     seleccion = [bool(v) for v in editados[_COL_SELECCIONAR_IMPACTO].tolist()]
     st.session_state[_KEY_IMPACTOS_SELECCION] = seleccion
-    n_sel = sum(seleccion)
-    st.caption(f"{n_sel} de {n} impactos seleccionados para calcular")
+    n_no_factibles = sum(seleccion)
+    n_disponibles = n - n_no_factibles
+    st.caption(
+        f"{n_no_factibles} de {n} marcados como no factibles (no se calcularán) · "
+        f"{n_disponibles} disponibles para calcular"
+    )
 
 
 def _seccion_relacion_modelos() -> None:
@@ -2284,6 +2289,16 @@ def _activo_calculo_actual(config_df: pd.DataFrame, *, activo_raw: str | None = 
     return nombre_activo_resumen(activo_txt)
 
 
+def _filtro_impactos_no_factibles_sesion() -> FiltroImpactosNoFactibles:
+    """Construye el filtro desde Excel + casillas de sesión (marcado = no calcular)."""
+    try:
+        df, _info = _obtener_preguntar_impactos(_firma_datos_excel())
+    except FileNotFoundError:
+        return FiltroImpactosNoFactibles.vacio()
+    seleccion = st.session_state.get(_KEY_IMPACTOS_SELECCION)
+    return FiltroImpactosNoFactibles.desde_dataframe(df, seleccion)
+
+
 def _bloque_calculo_activo() -> tuple[bool, ParametrosEntrada]:
     """Botón de cálculo CP sobre todos los activos del puerto."""
     params = ParametrosEntrada()
@@ -2750,7 +2765,10 @@ def _seccion_modelos_impactos() -> None:
             _mostrar_detalle_validacion_puerto(validacion)
             return
 
-        resultado_puerto = calcular_impactos_puerto(repo)
+        resultado_puerto = calcular_impactos_puerto(
+            repo,
+            filtro_impactos_no_factibles=_filtro_impactos_no_factibles_sesion(),
+        )
         st.session_state.resultado_calculo_puerto = resultado_puerto
         st.session_state.cp_total_activos = resultado_puerto.cp_total
         primer_ok = next(

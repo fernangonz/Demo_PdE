@@ -137,7 +137,12 @@ class ResultadoPICalado(ResultadoModelo):
         hsedimentacion_historico: float | None = None,
     ) -> ResultadoPICalado:
         ejecuciones = list(ejecuciones or [])
-        if not iteraciones and not any(e.ok for e in ejecuciones):
+        solo_omitidos = (
+            not iteraciones
+            and bool(ejecuciones)
+            and all(e.estado == "skipped" for e in ejecuciones)
+        )
+        if not iteraciones and not any(e.ok for e in ejecuciones) and not solo_omitidos:
             motivos = [e.motivo for e in ejecuciones if e.motivo]
             return cls.error(
                 motivos[0] if motivos else "No se genero ninguna iteracion de falta de calado.",
@@ -158,8 +163,8 @@ class ResultadoPICalado(ResultadoModelo):
 
         return cls(
             metadatos=metadatos,
-            ok=bool(iteraciones),
-            error=None if iteraciones else (
+            ok=bool(iteraciones) or solo_omitidos,
+            error=None if (iteraciones or solo_omitidos) else (
                 ejecuciones[0].motivo if ejecuciones else "Sin iteraciones OK"
             ),
             advertencias=advertencias,
