@@ -25,6 +25,7 @@ from core.modelos.impacto.pi_francobordo import ParametrosEntrada as ParametrosF
 from core.modelos.impacto.pi_francobordo import ResultadoPIFrancobordo
 from core.modelos.impacto.pi_francobordo.utilidades import modos_falta_francobordo
 from core.modelos.impacto.pi_agitacion.utilidades import (
+    es_modo_inundacion_costera,
     impactos_por_activo,
     modos_superacion_umbral,
     nombre_activo_resumen,
@@ -159,6 +160,24 @@ def _activo_requiere_francobordo(
 ) -> bool:
     impactos = impactos_por_activo(df_relacion, activo_raw)
     return bool(modos_falta_francobordo(impactos))
+
+
+def _activo_usa_fb(
+    df_relacion: pd.DataFrame,
+    activo_raw: str,
+) -> bool:
+    """Fb se usa en Falta de francobordo o en Inundación costera (PI superación)."""
+    impactos = impactos_por_activo(df_relacion, activo_raw)
+    if modos_falta_francobordo(impactos):
+        return True
+    for _, row in impactos.iterrows():
+        if es_modo_inundacion_costera(
+            row.get("Modos de fallo / Modos de parada"),
+            row.get("Variable"),
+            row.get("Tipo de impacto"),
+        ):
+            return True
+    return False
 
 
 def _es_aviso_sin_modos_agitacion(texto: str) -> bool:
@@ -426,12 +445,17 @@ def calcular_impactos_puerto(
         )
         inputs_cfg = leer_inputs_config_activo_desde_fila(fila_cfg, columnas)
         fb_activo = inputs_cfg.get("francobordo")
-        if fb_activo is not None and not requiere_francobordo:
+        if (
+            fb_activo is not None
+            and df_relacion is not None
+            and not df_relacion.empty
+            and not _activo_usa_fb(df_relacion, activo_raw)
+        ):
             advertencias.append(
                 f"CP {cp_num} — {nombre_activo_resumen(activo_raw)}: "
                 f"tiene Fb={fb_activo:g} m en Configuracion del puerto pero "
-                f"no hay modo «Falta de francobordo» asociado a este activo "
-                f"en la matriz de impactos."
+                f"no hay modo «Falta de francobordo» ni «Inundación costera» "
+                f"asociado a este activo en la matriz de impactos."
             )
         override = overrides_calado.get(activo_raw)
         calado_buque = (

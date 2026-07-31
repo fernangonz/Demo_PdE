@@ -121,10 +121,16 @@ def construir_pasos_modo_fallo(
     col_hist: ColumnaEscenario,
     columnas_fut: list[ColumnaEscenario],
     tabla_variacion: pd.DataFrame,
+    seleccion_especial: str | None = None,
+    nota_paso6: str | None = None,
 ) -> list[PasoResultado]:
     """Pasos 5–8 para una iteración IM (modo de fallo)."""
     pasos: list[PasoResultado] = []
     umbral_mostrar = umbral_m if umbral_m is not None else umbral_txt
+    modo_seleccion = (
+        "Predefinido" if indicador_predefinido
+        else (seleccion_especial or "Por umbral")
+    )
 
     pasos.append(PasoResultado(
         numero=5,
@@ -145,7 +151,7 @@ def construir_pasos_modo_fallo(
         {"Campo": "Percentil", "Valor": percentil.upper()},
         {
             "Campo": "Selección indicador",
-            "Valor": "Predefinido" if indicador_predefinido else "Por umbral",
+            "Valor": modo_seleccion,
         },
     ]
     if fila_excel is not None:
@@ -179,6 +185,18 @@ def construir_pasos_modo_fallo(
         ],
     ))
 
+    filas_paso6_out = [{
+        "Modos de fallo / Modos de parada": modo_fallo,
+        "Variable": variable,
+        "Activo físico u Operacional": activo_raw,
+        "Umbral": umbral_mostrar,
+        "Nota": (
+            "No aplica: indicador predefinido en Excel (paso 5b)"
+            if indicador_predefinido and origen_regla == "excel"
+            else (nota_paso6 or "")
+        ),
+    }]
+
     pasos.append(PasoResultado(
         numero=6,
         nombre="Buscar el umbral correspondiente",
@@ -208,17 +226,7 @@ def construir_pasos_modo_fallo(
                     "Umbral",
                     "Nota",
                 ],
-                filas=[{
-                    "Modos de fallo / Modos de parada": modo_fallo,
-                    "Variable": variable,
-                    "Activo físico u Operacional": activo_raw,
-                    "Umbral": umbral_mostrar,
-                    "Nota": (
-                        "No aplica: indicador predefinido en Excel (paso 5b)"
-                        if indicador_predefinido and origen_regla == "excel"
-                        else ""
-                    ),
-                }],
+                filas=filas_paso6_out,
             ),
         ],
     ))
@@ -251,7 +259,7 @@ def construir_pasos_modo_fallo(
                     "Origen regla": _etiqueta_origen_regla(origen_regla),
                     "Modo selección": (
                         "Predefinido (Excel)" if indicador_predefinido
-                        else "Por umbral"
+                        else (seleccion_especial or "Por umbral")
                     ),
                 }],
             ),

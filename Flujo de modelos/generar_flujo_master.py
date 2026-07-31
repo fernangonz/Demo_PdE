@@ -84,7 +84,7 @@ def _merge_down_to_top(pdf: FlowPDF, left_box, right_box, target_cx: float, targ
         arrow_end=False,
     )
     pdf.arrow_down(target_cx, join_y, target_top + 2)
-    _label_clear_of_vline(pdf, target_cx, join_y, target_top, "Continuar ↓")
+    _label_clear_of_vline(pdf, target_cx, join_y, target_top, "Continuar â")
 
 
 def _merge_four_to_top(pdf: FlowPDF, boxes, target_cx: float, target_top: float) -> None:
@@ -102,7 +102,7 @@ def _merge_four_to_top(pdf: FlowPDF, boxes, target_cx: float, target_top: float)
             arrow_end=False,
         )
     pdf.arrow_down(target_cx, join_y, target_top + 2)
-    _label_clear_of_vline(pdf, target_cx, join_y, target_top, "Continuar ↓")
+    _label_clear_of_vline(pdf, target_cx, join_y, target_top, "Continuar â")
 
 
 class MasterFlowPDF(FlowPDF):
@@ -131,7 +131,7 @@ class MasterFlowPDF(FlowPDF):
 def build_master(out_path: Path) -> None:
     pdf = MasterFlowPDF(
         out_path,
-        "DIAGRAMA DE FLUJO ÚNICO — Procedimiento maestro",
+        "DIAGRAMA DE FLUJO ÃNICO â Procedimiento maestro",
     )
     cx = CX
     w = 1180
@@ -145,38 +145,39 @@ def build_master(out_path: Path) -> None:
         "1. Cargar los archivos de entrada",
         [
             "Entrar en la carpeta data_modelos y cargar:",
-            "• 1_Configuración_del_puerto",
-            "• 2_Relación_umbrales_y_curvas_de_daño_vs_activos",
-            "• 3_Indicadores_climáticos",
-            "• 4_Relación_modelos_activos_e_indicadores",
-            "• Relación_impactos_variables_climáticas",
+            "â¢ 1_ConfiguraciÃ³n_del_puerto",
+            "â¢ 2_RelaciÃ³n_umbrales_y_curvas_de_daÃ±o_vs_activos",
+            "â¢ 3_Indicadores_climÃ¡ticos",
+            "â¢ 4_RelaciÃ³n_modelos_activos_e_indicadores",
+            "â¢ RelaciÃ³n_impactos_variables_climÃ¡ticas",
         ],
     )
     connect_vertical(pdf, inicio, b1)
 
     b2 = pdf.process_box(
         cx, _gap(b1), w,
-        "2. Configuración del cálculo",
+        "2. ConfiguraciÃ³n del cÃ¡lculo",
         [
-            "El percentil y el modo de selección del indicador NO se fijan de forma global.",
-            "Se resuelven en el paso 5b, dentro de cada iteración IM.",
+            "El percentil y el modo de selecciÃ³n del indicador NO se fijan de forma global.",
+            "Se resuelven en el paso 5b, dentro de cada iteraciÃ³n IM.",
             "Cada modo de fallo puede tener: percentil distinto, indicador predefinido,",
-            "indicador por umbral, o regla específica de falta de francobordo.",
+            "indicador por umbral, o regla especÃ­fica de falta de francobordo.",
         ],
     )
     connect_vertical(pdf, b1, b2)
 
     b2b = pdf.process_box(
         cx, _gap(b2), w,
-        "2b. Identificar el modelo que se está ejecutando",
+        "2b. Identificar el modelo que se estÃ¡ ejecutando",
         [
-            "##Rama A — PI Superación de Umbral",
+            "##Rama A  PI Superación de Umbral",
             "Variación futura de un indicador climático (por umbral o predefinido).",
-            "##Rama B — PI Falta de Francobordo",
+            "Caso especial ELO Inundación costera: selección por Fb (>= atraque), no por texto de umbral.",
+            "##Rama B  PI Falta de Francobordo",
             "Indicador de inundación costera en atraque usando Fb o umbral.",
-            "##Rama C — OPEX Falta de Calado",
+            "##Rama C  OPEX Falta de Calado",
             "Falta de calado en filas OPEX (p. ej. ELO / ELS).",
-            "##Rama D — CAPEX Falta de Calado",
+            "##Rama D  CAPEX Falta de Calado",
             "Falta de calado solo en filas ELU (CAPEX).",
             "La rama determina campos, filtros, selección de indicador y cálculo.",
         ],
@@ -185,14 +186,14 @@ def build_master(out_path: Path) -> None:
 
     b3 = pdf.process_box(
         cx, _gap(b2b), w,
-        "3. Iteración por Activos (CP)",
+        "3. IteraciÃ³n por Activos (CP)",
         [
-            "EXCEL|1_Configuración_del_puerto",
-            "Recorrer cada Activo Físico u Operacional. Inicializar CP = 1.",
+            "EXCEL|1_ConfiguraciÃ³n_del_puerto",
+            "Recorrer cada Activo FÃ­sico u Operacional. Inicializar CP = 1.",
             "Extraer siempre: Activo + Tipo de UO.",
-            "##Campos específicos por rama",
-            "A Superación: sin campo numérico adicional.",
-            "B Francobordo: extraer Fb (numérico o vacío).",
+            "##Campos especÃ­ficos por rama",
+            "A SuperaciÃ³n: sin campo numÃ©rico adicional.",
+            "B Francobordo: extraer Fb (numÃ©rico o vacÃ­o).",
             "C OPEX Calado: extraer Dc (calado del buque).",
             "D CAPEX Calado: extraer Dc (calado del buque).",
         ],
@@ -203,10 +204,10 @@ def build_master(out_path: Path) -> None:
         cx, _gap(b3), w,
         "4. Buscar impactos asociados al activo",
         [
-            "EXCEL|Relación_impactos_variables_climáticas",
-            "Buscar: Activo Físico u Operacional = activo de la iteración CP.",
+            "EXCEL|RelaciÃ³n_impactos_variables_climÃ¡ticas",
+            "Buscar: Activo FÃ­sico u Operacional = activo de la iteraciÃ³n CP.",
             "##Filtro por rama",
-            "A Superación: todas las filas coincidentes del activo.",
+            "A SuperaciÃ³n: todas las filas coincidentes del activo.",
             "B Francobordo: filas del activo (incl. Falta de Francobordo).",
             "C OPEX Calado: solo Falta de Calado + impacto OPEX (ELO/ELS).",
             "D CAPEX Calado: solo Falta de Calado + tipo ELU (CAPEX).",
@@ -216,7 +217,7 @@ def build_master(out_path: Path) -> None:
 
     b5 = pdf.process_box(
         cx, _gap(b4), w,
-        "5. Iteración por Modos de fallo (IM)",
+        "5. IteraciÃ³n por Modos de fallo (IM)",
         [
             "Inicializar IM = 1. Recorrer filas del paso 4.",
             "Por cada fila extraer: Modo de fallo / Modo de parada, Variable, Tipo de impacto.",
@@ -230,10 +231,10 @@ def build_master(out_path: Path) -> None:
         cx, _gap(b5), w,
         "5b. Buscar regla en Relacion_modelos_activos_e_indicadores",
         [
-            "EXCEL|4_Relación_modelos_activos_e_indicadores",
-            "Revisar No indicadores (informativo; no cambia sola la selección).",
-            "Match explícito: Modelo + Activo (si está) + Modo + Variable + Tipo (si está).",
-            "Modo y Variable deben ser explícitos (sin comodines).",
+            "EXCEL|4_RelaciÃ³n_modelos_activos_e_indicadores",
+            "Revisar No indicadores (informativo; no cambia sola la selecciÃ³n).",
+            "Match explÃ­cito: Modelo + Activo (si estÃ¡) + Modo + Variable + Tipo (si estÃ¡).",
+            "Modo y Variable deben ser explÃ­citos (sin comodines).",
         ],
     )
     connect_vertical(pdf, b5, b5b)
@@ -242,58 +243,58 @@ def build_master(out_path: Path) -> None:
     right_cx = cx + 500
 
     y_d = b5b["bottom"] - 80
-    d_fila = pdf.diamond(cx, y_d, 340, 120, "¿Existe fila definida en Excel 4?")
+    d_fila = pdf.diamond(cx, y_d, 340, 120, "Â¿Existe fila definida en Excel 4?")
     pdf.arrow_down(cx, b5b["bottom"] - 2, d_fila["top"] + 2)
 
     branch_top = d_fila["bottom"] - 55
-    branch_from_diamond(pdf, d_fila, left_cx, right_cx, branch_top, "SÍ", "NO")
+    branch_from_diamond(pdf, d_fila, left_cx, right_cx, branch_top, "SÃ", "NO")
 
     b_si = pdf.process_box(
         left_cx, branch_top, 540,
-        "SÍ — Usar configuración del Excel",
+        "SÃ â Usar configuraciÃ³n del Excel",
         [
-            "Usar percentil y selección del indicador del Excel.",
-            "Selección posible: Predefinido / Por umbral /",
+            "Usar percentil y selecciÃ³n del indicador del Excel.",
+            "SelecciÃ³n posible: Predefinido / Por umbral /",
             "No predefinido (francobordo).",
         ],
         font_size=11,
     )
     b_no = pdf.process_box(
         right_cx, branch_top, 540,
-        "NO — Lógica clásica del diagrama",
+        "NO â LÃ³gica clÃ¡sica del diagrama",
         [
             "Percentil por defecto: P99.",
-            "A/C/D: selección por umbral ? paso 6.",
+            "A/C/D: selecciÃ³n por umbral ? paso 6.",
             "B Francobordo: no predefinido; aplicar Fb/umbral.",
         ],
         font_size=11,
     )
 
     pred_cy = min(b_si["bottom"], b_no["bottom"]) - 110
-    d_pred = pdf.diamond(cx, pred_cy, 360, 130, "¿Indicador predefinido?")
+    d_pred = pdf.diamond(cx, pred_cy, 360, 130, "Â¿Indicador predefinido?")
     _merge_down_to_top(pdf, b_si, b_no, cx, d_pred["top"])
 
     out_top = d_pred["bottom"] - 55
-    branch_from_diamond(pdf, d_pred, left_cx, right_cx, out_top, "SÍ", "NO")
+    branch_from_diamond(pdf, d_pred, left_cx, right_cx, out_top, "SÃ", "NO")
 
     b_skip6 = pdf.process_box(
         left_cx, out_top, 540,
-        "SÍ — Omitir paso 6 ? ir a paso 7",
+        "SÃ â Omitir paso 6 ? ir a paso 7",
         [
             "Usar indicador fijado en Excel 4.",
-            "No buscar umbral numérico.",
+            "No buscar umbral numÃ©rico.",
             "Francobordo: no usar Fb ni umbral alternativo.",
         ],
         font_size=11,
     )
     b_no_pred = pdf.process_box(
         right_cx, out_top, 540,
-        "NO — Continuar según modelo",
+        "NO â Continuar segÃºn modelo",
         [
             "A/C/D ? paso 6 (buscar umbral).",
-            "B Francobordo: ¿Fb numérico?",
-            "  · SÍ ? omitir 6; referencia = Fb.",
-            "  · NO ? paso 6; referencia = umbral.",
+            "B Francobordo: Â¿Fb numÃ©rico?",
+            "  Â· SÃ ? omitir 6; referencia = Fb.",
+            "  Â· NO ? paso 6; referencia = umbral.",
         ],
         font_size=11,
     )
@@ -303,11 +304,11 @@ def build_master(out_path: Path) -> None:
         cx, y6, w,
         "6. Buscar el umbral correspondiente (si aplica)",
         [
-            "Se omite si: indicador predefinido, o (francobordo) Fb tiene valor numérico.",
-            "EXCEL|2_Relación_umbrales_y_curvas_de_daño_vs_activos",
+            "Se omite si: indicador predefinido, o Fb numerico (francobordo o Inundacion costera).",
+            "EXCEL|2_RelaciÃ³n_umbrales_y_curvas_de_daÃ±o_vs_activos",
             "Filtros: Activo + Modo de fallo.",
             "Umbral: columna Tipo UO si tiene valor; si no ? Umbral General.",
-            "Si es formulación (p. ej. con Dc): calcular y guardar umbral numérico.",
+            "Si es formulaciÃ³n (p. ej. con Dc): calcular y guardar umbral numÃ©rico.",
         ],
     )
 
@@ -331,21 +332,22 @@ def build_master(out_path: Path) -> None:
         ],
         arrow_end=False,
     )
-    _label_beside_vline(pdf, skip_rail, _mid(b6), "omitir 6 ↓ paso 7", right=True)
+    _label_beside_vline(pdf, skip_rail, _mid(b6), "omitir 6 â paso 7", right=True)
 
     b7 = pdf.process_box(
         cx, _gap(b6, 60), w,
-        "7. Buscar el indicador climático",
+        "7. Buscar el indicador climÃ¡tico",
         [
-            "EXCEL|3_Indicadores_climáticos",
-            "Filtros: Variable climática (IM) + Percentil (5b o P99).",
-            "##Opción 1 — Predefinido (cualquiera de las 4 ramas)",
+            "EXCEL|3_Indicadores_climÃ¡ticos",
+            "Filtros: Variable climÃ¡tica (IM) + Percentil (5b o P99).",
+            "##OpciÃ³n 1 â Predefinido (cualquiera de las 4 ramas)",
             "Usar indicador de Excel 4. No umbral / no Fb.",
-            "##Opción 2 — Por umbral (A, C, D)",
+            "##OpciÃ³n 2 â Por umbral (A, C, D)",
             "Candidato = indicador que contenga el umbral del paso 6.",
-            "##Opción 3 — Francobordo (B, no predefinido)",
-            "Referencia = Fb (si hay) o umbral (si Fb vacío).",
-            "Buscar «inundación costera en un atraque».",
+            "Excepcion A Inundacion costera (ELO): NO por texto umbral; referencia = Fb (o umbral si Fb vacio) + inundacion costera en atraque (menor valor >= referencia).",
+            "##OpciÃ³n 3 â Francobordo (B, no predefinido)",
+            "Referencia = Fb (si hay) o umbral (si Fb vacÃ­o).",
+            "Buscar Â«inundaciÃ³n costera en un atraqueÂ».",
             "Elegir el menor valor de los candidatos con valor ? referencia.",
         ],
     )
@@ -361,20 +363,20 @@ def build_master(out_path: Path) -> None:
 
     b72 = pdf.process_box(
         cx, _gap(b7), w,
-        "7.2 / 7.3. Desempate y extracción de valores",
+        "7.2 / 7.3. Desempate y extracciÃ³n de valores",
         [
-            "Si hay varios candidatos ? 2º filtro: contiene Tipo de UO.",
-            "Si aún hay varios ? criterio espacial: Lon/Lat más cercana al centroide del activo.",
-            "Extraer: valor Histórico + todos los escenarios futuros (SSP2-4.5, SSP5-8.5, …).",
+            "Si hay varios candidatos ? 2Âº filtro: contiene Tipo de UO.",
+            "Si aÃºn hay varios ? criterio espacial: Lon/Lat mÃ¡s cercana al centroide del activo.",
+            "Extraer: valor HistÃ³rico + todos los escenarios futuros (SSP2-4.5, SSP5-8.5, â¦).",
         ],
     )
     connect_vertical(pdf, b7, b72)
 
     b_split = pdf.process_box(
         cx, _gap(b72, 50), w,
-        "8–10. Según modelo identificado en 2b — aplicar SOLO una rama",
+        "8â10. SegÃºn modelo identificado en 2b â aplicar SOLO una rama",
         [
-            "Elegir la rama del modelo en ejecución (A, B, C o D).",
+            "Elegir la rama del modelo en ejecuciÃ³n (A, B, C o D).",
             "No ejecutar las cuatro en paralelo: solo la que corresponda al modelo.",
         ],
     )
@@ -401,29 +403,29 @@ def build_master(out_path: Path) -> None:
 
     b8a = pdf.process_box(
         cols[0], y8, box_w,
-        "Rama A — PI Superación de Umbral",
+        "Rama A â PI SuperaciÃ³n de Umbral",
         [
-            "8A Variación = Indicador_escenario ? Histórico",
-            "   (Histórico ? Variación = 0)",
-            "9A Tabla: Escenario | Indicador | Variación",
-            "10A >0 Empeora · <0 Mejora · =0 Sin cambios",
+            "8A VariaciÃ³n = Indicador_escenario ? HistÃ³rico",
+            "   (HistÃ³rico ? VariaciÃ³n = 0)",
+            "9A Tabla: Escenario | Indicador | VariaciÃ³n",
+            "10A >0 Empeora Â· <0 Mejora Â· =0 Sin cambios",
         ],
         font_size=10,
     )
     b8b = pdf.process_box(
         cols[1], y8, box_w,
-        "Rama B — PI Falta de Francobordo",
+        "Rama B â PI Falta de Francobordo",
         [
-            "8B Variación = Indicador_escenario ? Histórico",
-            "   (Histórico ? Variación = 0)",
-            "9B Tabla: Escenario | Indicador | Variación",
-            "10B >0 Empeora · <0 Mejora · =0 Sin cambios",
+            "8B VariaciÃ³n = Indicador_escenario ? HistÃ³rico",
+            "   (HistÃ³rico ? VariaciÃ³n = 0)",
+            "9B Tabla: Escenario | Indicador | VariaciÃ³n",
+            "10B >0 Empeora Â· <0 Mejora Â· =0 Sin cambios",
         ],
         font_size=10,
     )
     b8c = pdf.process_box(
         cols[2], y8, box_w,
-        "Rama C — OPEX Falta de Calado",
+        "Rama C â OPEX Falta de Calado",
         [
             "8C h = NM ? h0 ? hsedim (por escenario)",
             "9C Tabla: Escenario | NM | h sed | h0 | h",
@@ -434,7 +436,7 @@ def build_master(out_path: Path) -> None:
     )
     b8d = pdf.process_box(
         cols[3], y8, box_w,
-        "Rama D — CAPEX Falta de Calado",
+        "Rama D â CAPEX Falta de Calado",
         [
             "8D h = NM ? h0 ? hsedim (por escenario)",
             "9D Tabla: Escenario | NM | h sed | h0 | h",
@@ -446,12 +448,12 @@ def build_master(out_path: Path) -> None:
 
     merge_bottom = min(b8a["bottom"], b8b["bottom"], b8c["bottom"], b8d["bottom"])
     d11_cy = merge_bottom - 130
-    d11 = pdf.diamond(cx, d11_cy, 380, 130, "11. ¿Quedan modos de fallo (IM) en el activo?")
+    d11 = pdf.diamond(cx, d11_cy, 380, 130, "11. Â¿Quedan modos de fallo (IM) en el activo?")
     _merge_four_to_top(pdf, [b8a, b8b, b8c, b8d], cx, d11["top"])
 
     b11_si = pdf.process_box(
         left_cx, d11["bottom"] - 50, 520,
-        "SÍ — Continuar iteración IM",
+        "SÃ â Continuar iteraciÃ³n IM",
         [
             "IM = IM + 1. Volver al paso 5.",
             "Nuevo modo / variable / tipo.",
@@ -467,7 +469,7 @@ def build_master(out_path: Path) -> None:
             (left_cx, b11_si["top"] + 2),
         ]
     )
-    _label_above_hline(pdf, left_cx + 16, d11["cy"], "SÍ ↓")
+    _label_above_hline(pdf, left_cx + 16, d11["cy"], "SÃ â")
 
     rail = MARGIN + 40
     b5_mid = _mid(b5)
@@ -480,14 +482,14 @@ def build_master(out_path: Path) -> None:
             (b5["left"], b5_mid),
         ]
     )
-    _label_beside_vline(pdf, rail, (b5_mid + b11_mid) / 2, "↑ volver a paso 5", right=True)
+    _label_beside_vline(pdf, rail, (b5_mid + b11_mid) / 2, "â volver a paso 5", right=True)
 
     b12 = pdf.process_box(
         right_cx, d11["bottom"] - 50, 520,
-        "NO ? 12. ¿Quedan activos (CP)?",
+        "NO ? 12. Â¿Quedan activos (CP)?",
         [
-            "SÍ: CP = CP + 1 ? volver al paso 3.",
-            "Extraer activo, Tipo UO, Fb/Dc según modelo.",
+            "SÃ: CP = CP + 1 ? volver al paso 3.",
+            "Extraer activo, Tipo UO, Fb/Dc segÃºn modelo.",
             "Continuar desde el paso 4.",
             "NO: FIN.",
         ],
@@ -500,9 +502,9 @@ def build_master(out_path: Path) -> None:
             (right_cx, b12["top"] + 2),
         ]
     )
-    _label_above_hline(pdf, right_cx - 48, d11["cy"], "NO ↓")
+    _label_above_hline(pdf, right_cx - 48, d11["cy"], "NO â")
 
-    d12 = pdf.diamond(right_cx, b12["bottom"] - 75, 300, 110, "¿Quedan activos CP?")
+    d12 = pdf.diamond(right_cx, b12["bottom"] - 75, 300, 110, "Â¿Quedan activos CP?")
     pdf.arrow_down(right_cx, b12["bottom"] - 2, d12["top"] + 2)
 
     rail_r = PAGE_W - MARGIN - 40
@@ -527,7 +529,7 @@ def build_master(out_path: Path) -> None:
         pdf,
         rail_r,
         (d12["cy"] + b3_mid) / 2,
-        "SÍ ↑ paso 3",
+        "SÃ â paso 3",
         right=False,
     )
 
@@ -541,12 +543,12 @@ def build_master(out_path: Path) -> None:
             (cx, fin["top"] + 2),
         ]
     )
-    _label_above_hline(pdf, cx + 20, d12["cy"], "NO → FIN")
+    _label_above_hline(pdf, cx + 20, d12["cy"], "NO â FIN")
 
     pdf.label(
         MARGIN + 40,
         fin["bottom"] - 50,
-        "Tronco común CP/IM — ramas A/B/C/D solo donde el modelo diverge — bucles IM?5 y CP?3",
+        "Tronco comÃºn CP/IM â ramas A/B/C/D solo donde el modelo diverge â bucles IM?5 y CP?3",
         size=11,
         bold=False,
     )
@@ -565,38 +567,38 @@ def build_master(out_path: Path) -> None:
 
 
 def write_master_txt(out_path: Path) -> None:
-    texto = """DIAGRAMA DE FLUJO ÚNICO
-Procedimiento maestro: PI Superación de Umbral | PI Falta de Francobordo | OPEX Falta de Calado | CAPEX Falta de Calado
+    texto = """DIAGRAMA DE FLUJO ÃNICO
+Procedimiento maestro: PI SuperaciÃ³n de Umbral | PI Falta de Francobordo | OPEX Falta de Calado | CAPEX Falta de Calado
 
 INICIO
 ?
 1. Cargar archivos (data_modelos)
 ?
-2. Configuración del cálculo (percentil/selección ? en 5b por IM)
+2. ConfiguraciÃ³n del cÃ¡lculo (percentil/selecciÃ³n ? en 5b por IM)
 ?
 2b. Identificar modelo ? Rama A / B / C / D
 ?
-3. Iteración CP (activos)
+3. IteraciÃ³n CP (activos)
 ?
-4. Buscar impactos (filtro según rama)
+4. Buscar impactos (filtro segÃºn rama)
 ?
-5. Iteración IM (modos de fallo)
+5. IteraciÃ³n IM (modos de fallo)
 ?
 5b. Regla en Relacion_modelos_activos_e_indicadores
 ?
-¿Existe fila?  SÍ ? config Excel | NO ? P99 + lógica clásica
+Â¿Existe fila?  SÃ ? config Excel | NO ? P99 + lÃ³gica clÃ¡sica
 ? Continuar
-¿Indicador predefinido?
-  SÍ ? omitir paso 6 ? paso 7 (bypass lateral)
-  NO ? paso 6 (salvo Fb numérico en francobordo)
+Â¿Indicador predefinido?
+  SÃ ? omitir paso 6 ? paso 7 (bypass lateral)
+  NO ? paso 6 (salvo Fb numÃ©rico en francobordo)
 ?
 7. Indicador: predefinido | por umbral | francobordo (? referencia)
 ?
-8–10. SOLO una rama A/B/C/D según modelo 2b
+8â10. SOLO una rama A/B/C/D segÃºn modelo 2b
 ? Continuar
-11. ¿Quedan IM? SÍ ? ? paso 5 | NO ? 12
+11. Â¿Quedan IM? SÃ ? ? paso 5 | NO ? 12
 ?
-12. ¿Quedan CP? SÍ ? subir a paso 3 | NO ? FIN
+12. Â¿Quedan CP? SÃ ? subir a paso 3 | NO ? FIN
 """
     out_path.write_text(texto, encoding="utf-8")
 

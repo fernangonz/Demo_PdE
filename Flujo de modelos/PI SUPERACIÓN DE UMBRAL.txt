@@ -351,7 +351,35 @@ Desde diagrama (sin fila en 5b)
 
 
 
+CASO GENERAL (oleaje / viento / corriente / visibilidad):
+
 Indicador que contenga el umbral obtenido en el paso 6
+
+
+
+↓
+
+
+
+CASO ESPECIAL — Inundación costera (ELO):
+
+NO usar la selección clásica «por umbral» del texto del Excel 2.
+
+Referencia numérica = Fb del activo (Configuración del puerto).
+
+Si Fb está vacío → paso 6 (umbral Excel 2, hoja Inundación costera)
+
+y usar ese umbral como referencia (mismo criterio que francobordo).
+
+Buscar en la pestaña «Inundacion costera» indicadores que mencionen
+
+«inundación costera» (normalizar acentos/mayúsculas; en la práctica
+
+«inundación costera en un atraque»).
+
+Elegir el menor valor de francobordo del indicador ≥ referencia (Fb o umbral).
+
+Si Excel 4 fijó indicador predefinido → respetarlo (omitir esta regla).
 
 
 

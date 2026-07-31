@@ -636,12 +636,38 @@ def match_modo_fallo_superacion(
     """True si dos modos de fallo son equivalentes para PI superación (p. ej. Agitación ↔ Exceso de Oleaje)."""
     if match_texto(modo_a, modo_b):
         return True
-    if _normalizar(variable) != "oleaje":
+    var_n = _normalizar(variable)
+    if "inundacion" in var_n:
+        if tipo_impacto is not None and not es_tipo_impacto_pi_operacional(tipo_impacto):
+            return False
+        a_n = _normalizar(modo_a)
+        b_n = _normalizar(modo_b)
+        if "francobordo" in a_n or "francobordo" in b_n:
+            return False
+        return "inundacion" in a_n and "inundacion" in b_n
+    if var_n != "oleaje":
         return False
     if tipo_impacto is not None and not es_tipo_impacto_pi_operacional(tipo_impacto):
         return False
     oleaje_pi = {"agitacion", "exceso de oleaje"}
     return _normalizar(modo_a) in oleaje_pi and _normalizar(modo_b) in oleaje_pi
+
+
+def es_modo_inundacion_costera(
+    modo: object,
+    variable: object,
+    tipo_impacto: object | None = None,
+) -> bool:
+    """ELO + Inundación costera (rama especial de PI superación de umbral con Fb)."""
+    if tipo_impacto is not None and not es_tipo_impacto_pi_operacional(tipo_impacto):
+        return False
+    modo_n = _normalizar(modo)
+    var_n = _normalizar(variable)
+    if "francobordo" in modo_n:
+        return False
+    if "inundacion" not in modo_n:
+        return False
+    return "inundacion" in var_n
 
 
 def es_modo_superacion_umbral(
@@ -652,6 +678,9 @@ def es_modo_superacion_umbral(
     """Modos PI superación de umbral (solo ELO; ELS/ELU reservados a OPEX/CAPEX)."""
     if tipo_impacto is not None and not es_tipo_impacto_pi_operacional(tipo_impacto):
         return False
+
+    if es_modo_inundacion_costera(modo, variable, tipo_impacto):
+        return True
 
     modo_n = _normalizar(modo)
     var_n = _normalizar(variable)
@@ -724,6 +753,15 @@ def hoja_umbrales_variable(
                 df
                 for nombre, df in por_hoja.items()
                 if "visibilidad" in _normalizar(nombre)
+            ),
+            None,
+        )
+    if "inundacion" in var_n:
+        return next(
+            (
+                df
+                for nombre, df in por_hoja.items()
+                if "inundacion" in _normalizar(nombre)
             ),
             None,
         )

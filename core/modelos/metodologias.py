@@ -62,18 +62,29 @@ def _fuente(
 
 
 _FUENTES_PI_SUPERACION = (
-    _fuente("config_puerto", descripcion="fila del activo (tipo UO, activo)"),
+    _fuente(
+        "config_puerto",
+        descripcion="fila del activo (tipo UO, activo; Fb si Inundación costera)",
+    ),
     _fuente(
         "relacion_ivc",
         hoja="ListRelacion impactos-indicador",
         descripcion="modos de fallo del activo",
     ),
-    _fuente("umbrales", descripcion="umbral por variable y modo de fallo"),
+    _fuente(
+        "umbrales",
+        descripcion="umbral por variable (si Fb vacío en Inundación costera)",
+    ),
     _fuente(
         "relacion_modelos",
         descripcion="percentil e indicador climatico (paso 5b)",
     ),
-    _fuente("clima", descripcion="series del indicador por variable climatica"),
+    _fuente(
+        "clima",
+        descripcion=(
+            "series del indicador; hoja Inundacion costera para modo Inundación costera"
+        ),
+    ),
 )
 
 _FUENTES_PI_CALADO = (

@@ -139,6 +139,26 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         notas_inputs="Automático: Excel de relación modelos, umbrales e indicadores.",
     ),
     EntradaCatalogoImpacto(
+        id="inundacion_costera_elo",
+        familia="PI",
+        modo_fallo="Inundación costera",
+        variable="Inundación costera",
+        tipo_impacto="ELO",
+        motor_id=MOTOR_PI_SUPERACION,
+        motor_nombre="PI SUPERACIÓN DE UMBRAL",
+        implementado=True,
+        requiere_inputs_ui=False,
+        diagrama_modelo_id=MOTOR_PI_SUPERACION,
+        descripcion=(
+            "Misma cadena PI superación de umbral; paso 7 especial: indicador de "
+            "inundación costera en un atraque con valor ≥ Fb (o umbral si Fb vacío)."
+        ),
+        notas_inputs=(
+            "Fb (m) en Configuración del puerto; si está vacío se usa umbral "
+            "del Excel 2 (hoja Inundación costera) como referencia."
+        ),
+    ),
+    EntradaCatalogoImpacto(
         id="falta_francobordo_elo",
         familia="PI",
         modo_fallo="Falta de francobordo",

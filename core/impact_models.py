@@ -78,6 +78,7 @@ MODOS_FALLO_PLANTILLA = [
     "PI Exceso de Viento",
     "PI Exceso de Corriente",
     "PI Visibilidad reducida",
+    "PI Inundación costera",
     "OPEX FALTA DE CALADO",
     "CAPEX FALTA DE CALADO",
 ]

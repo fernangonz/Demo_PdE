@@ -249,9 +249,9 @@ def clasificar_indicadores_francobordo(
 
 
 def variable_clima_francobordo(variable: str) -> str:
-    """Pestana de indicadores climaticos para falta de francobordo."""
+    """Pestana de indicadores climaticos para francobordo / inundacion costera."""
     var_n = _normalizar(variable)
-    if var_n in ("nivel del mar", "calado"):
+    if var_n in ("nivel del mar", "calado") or "inundacion" in var_n:
         return "Inundacion costera"
     return variable
 

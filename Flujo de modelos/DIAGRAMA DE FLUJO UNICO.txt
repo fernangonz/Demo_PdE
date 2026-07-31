@@ -8,6 +8,7 @@ INICIO
 2. Configuración del cálculo (percentil/selección ? en 5b por IM)
 ?
 2b. Identificar modelo ? Rama A / B / C / D
+    (A incluye caso especial ELO Inundacion costera: seleccion por Fb)
 ?
 3. Iteración CP (activos)
 ?
@@ -21,9 +22,9 @@ INICIO
 ? Continuar
 ¿Indicador predefinido?
   SÍ ? omitir paso 6 ? paso 7 (bypass lateral)
-  NO ? paso 6 (salvo Fb numérico en francobordo)
+  NO ? paso 6 (salvo Fb numerico en francobordo o Inundacion costera)
 ?
-7. Indicador: predefinido | por umbral | francobordo (? referencia)
+7. Indicador: predefinido | por umbral | francobordo/Inundacion costera (Fb o umbral como referencia)
 ?
 8–10. SOLO una rama A/B/C/D según modelo 2b
 ? Continuar

@@ -33,6 +33,7 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
     clasificar_indicadores_umbral,
     columna_por_patron,
     columnas_oleaje,
+    es_modo_inundacion_costera,
     es_modo_superacion_umbral,
     fila_configuracion,
     impactos_por_activo,
@@ -244,6 +245,8 @@ def _validar_fila_agitacion(
     lista_master: pd.DataFrame | None,
     info_clima: dict,
     baseline_year: int,
+    fila_cfg: pd.Series | None = None,
+    columnas_cfg: list[str] | None = None,
 ) -> bool:
     modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
     variable = str(fila_rel.get("Variable", "")).strip()
@@ -258,6 +261,12 @@ def _validar_fila_agitacion(
         tipo_impacto=estado_limite,
     )
     motor_id = MOTOR_PI_SUPERACION
+    es_inundacion = es_modo_inundacion_costera(modo_fallo, variable, estado_limite)
+
+    fb_activo = None
+    if es_inundacion and fila_cfg is not None and columnas_cfg is not None:
+        inputs_cfg = leer_inputs_config_activo_desde_fila(fila_cfg, columnas_cfg)
+        fb_activo = inputs_cfg.get("francobordo")
 
     regla_modelo = buscar_regla_modelo(
         relacion_modelos,
@@ -272,117 +281,147 @@ def _validar_fila_agitacion(
 
     umbral_m: float | None = None
     if not (regla_modelo.desde_excel and regla_ind.usa_predefinido):
-        if por_hoja_umbrales is None:
-            resultado.avisos.append(
-                _aviso(
-                    nivel="error",
-                    codigo="UMBRAL_FALTANTE",
-                    activo=activo_resumen,
-                    activo_raw=activo_raw,
-                    modo_fallo=modo_fallo,
-                    variable=variable,
-                    tipo_impacto=estado_limite or "",
-                    motor_id=motor_id,
-                    input_faltante="umbral",
-                    archivo=etiqueta_archivo_fuente("umbrales"),
-                    hoja=variable,
-                    mensaje=(
-                        f"{activo_resumen} - {etiqueta_im}: no hay datos de umbrales "
-                        f"para {variable}."
-                    ),
-                    n_relacion=n_rel,
-                )
-            )
-            return False
-
-        umbral_info = buscar_umbral_umbrales(
-            por_hoja_umbrales,
-            n_relacion=n_rel,
-            tipo_uo=tipo_uo,
-            activo=activo_raw,
-            modo_fallo=modo_fallo,
-            variable=variable,
-            tipo_impacto=estado_limite,
-            tipo_activo_servicio=tipo_activo_servicio,
-            lista_master=lista_master,
-        )
-        if umbral_info is None and not regla_ind.usa_predefinido:
-            resultado.avisos.append(
-                _aviso(
-                    nivel="error",
-                    codigo="UMBRAL_FALTANTE",
-                    activo=activo_resumen,
-                    activo_raw=activo_raw,
-                    modo_fallo=modo_fallo,
-                    variable=variable,
-                    tipo_impacto=estado_limite or "",
-                    motor_id=motor_id,
-                    input_faltante="umbral",
-                    archivo=etiqueta_archivo_fuente("umbrales"),
-                    hoja=variable,
-                    mensaje=(
-                        f"{activo_resumen} - {etiqueta_im}: no se encontro umbral para "
-                        f"'{modo_fallo}' / {variable}."
-                    ),
-                    n_relacion=n_rel,
-                )
-            )
-            return False
-        if umbral_info is not None:
-            _, umbral_m = umbral_info
-            if umbral_m is None and not regla_ind.usa_predefinido:
-                var_n = variable.lower()
-                if var_n not in ("viento", "corriente", "visibilidad"):
-                    resultado.avisos.append(
-                        _aviso(
-                            nivel="error",
-                            codigo="UMBRAL_NO_NUMERICO",
-                            activo=activo_resumen,
-                            activo_raw=activo_raw,
-                            modo_fallo=modo_fallo,
-                            variable=variable,
-                            tipo_impacto=estado_limite or "",
-                            motor_id=motor_id,
-                            input_faltante="umbral numerico",
-                            archivo=etiqueta_archivo_fuente("umbrales"),
-                            hoja=variable,
-                            mensaje=(
-                                f"{activo_resumen} - {etiqueta_im}: el umbral no es "
-                                f"numerico en {etiqueta_archivo_fuente('umbrales')}."
-                            ),
-                            n_relacion=n_rel,
-                        )
+        if es_inundacion and fb_activo is not None:
+            umbral_m = fb_activo
+        else:
+            if por_hoja_umbrales is None:
+                resultado.avisos.append(
+                    _aviso(
+                        nivel="error",
+                        codigo="UMBRAL_FALTANTE",
+                        activo=activo_resumen,
+                        activo_raw=activo_raw,
+                        modo_fallo=modo_fallo,
+                        variable=variable,
+                        tipo_impacto=estado_limite or "",
+                        motor_id=motor_id,
+                        input_faltante="Fb o umbral" if es_inundacion else "umbral",
+                        archivo=etiqueta_archivo_fuente("umbrales"),
+                        hoja=variable,
+                        mensaje=(
+                            f"{activo_resumen} - {etiqueta_im}: no hay datos de umbrales "
+                            f"para {variable}"
+                            + (
+                                " y Fb está vacío en Configuración del puerto."
+                                if es_inundacion
+                                else "."
+                            )
+                        ),
+                        n_relacion=n_rel,
                     )
-                    return False
+                )
+                return False
 
-    por_variable = info_clima.get("por_variable", {})
-    if variable not in por_variable:
-        resultado.avisos.append(
-            _aviso(
-                nivel="error",
-                codigo="CLIMA_VARIABLE_FALTANTE",
-                activo=activo_resumen,
-                activo_raw=activo_raw,
+            umbral_info = buscar_umbral_umbrales(
+                por_hoja_umbrales,
+                n_relacion=n_rel,
+                tipo_uo=tipo_uo,
+                activo=activo_raw,
                 modo_fallo=modo_fallo,
                 variable=variable,
-                tipo_impacto=estado_limite or "",
-                motor_id=motor_id,
-                input_faltante=f"variable climatica '{variable}'",
-                archivo=etiqueta_archivo_fuente("clima"),
-                hoja=variable,
-                mensaje=(
-                    f"{activo_resumen} - {etiqueta_im}: no hay pestana de "
-                    f"'{variable}' en Indicadores climaticos."
-                ),
-                n_relacion=n_rel,
+                tipo_impacto=estado_limite,
+                tipo_activo_servicio=tipo_activo_servicio,
+                lista_master=lista_master,
             )
-        )
-        return False
+            if umbral_info is None and not regla_ind.usa_predefinido:
+                resultado.avisos.append(
+                    _aviso(
+                        nivel="error",
+                        codigo="UMBRAL_FALTANTE",
+                        activo=activo_resumen,
+                        activo_raw=activo_raw,
+                        modo_fallo=modo_fallo,
+                        variable=variable,
+                        tipo_impacto=estado_limite or "",
+                        motor_id=motor_id,
+                        input_faltante="Fb o umbral" if es_inundacion else "umbral",
+                        archivo=etiqueta_archivo_fuente("umbrales"),
+                        hoja=variable,
+                        mensaje=(
+                            f"{activo_resumen} - {etiqueta_im}: no se encontro "
+                            + (
+                                "referencia (Fb vacío y sin umbral) "
+                                if es_inundacion
+                                else "umbral "
+                            )
+                            + f"para '{modo_fallo}' / {variable}."
+                        ),
+                        n_relacion=n_rel,
+                    )
+                )
+                return False
+            if umbral_info is not None:
+                _, umbral_m = umbral_info
+                if umbral_m is None and not regla_ind.usa_predefinido:
+                    var_n = variable.lower()
+                    if var_n not in ("viento", "corriente", "visibilidad"):
+                        resultado.avisos.append(
+                            _aviso(
+                                nivel="error",
+                                codigo="UMBRAL_NO_NUMERICO",
+                                activo=activo_resumen,
+                                activo_raw=activo_raw,
+                                modo_fallo=modo_fallo,
+                                variable=variable,
+                                tipo_impacto=estado_limite or "",
+                                motor_id=motor_id,
+                                input_faltante=(
+                                    "Fb o umbral numerico"
+                                    if es_inundacion
+                                    else "umbral numerico"
+                                ),
+                                archivo=etiqueta_archivo_fuente("umbrales"),
+                                hoja=variable,
+                                mensaje=(
+                                    f"{activo_resumen} - {etiqueta_im}: "
+                                    + (
+                                        "Fb vacío y el umbral no es numérico "
+                                        if es_inundacion
+                                        else "el umbral no es numérico "
+                                    )
+                                    + f"en {etiqueta_archivo_fuente('umbrales')}."
+                                ),
+                                n_relacion=n_rel,
+                            )
+                        )
+                        return False
 
-    df_clima = por_variable.get(variable, {}).get("df", pd.DataFrame())
-    col_hist, columnas_fut = columnas_oleaje(
-        info_clima, baseline_year, variable=variable
-    )
+    if es_inundacion:
+        df_clima, pestana_clima = pestana_clima_francobordo(info_clima, variable)
+        col_hist, columnas_fut = columnas_oleaje(
+            info_clima, baseline_year, variable=pestana_clima
+        )
+        hoja_clima = pestana_clima
+    else:
+        por_variable = info_clima.get("por_variable", {})
+        if variable not in por_variable:
+            resultado.avisos.append(
+                _aviso(
+                    nivel="error",
+                    codigo="CLIMA_VARIABLE_FALTANTE",
+                    activo=activo_resumen,
+                    activo_raw=activo_raw,
+                    modo_fallo=modo_fallo,
+                    variable=variable,
+                    tipo_impacto=estado_limite or "",
+                    motor_id=motor_id,
+                    input_faltante=f"variable climatica '{variable}'",
+                    archivo=etiqueta_archivo_fuente("clima"),
+                    hoja=variable,
+                    mensaje=(
+                        f"{activo_resumen} - {etiqueta_im}: no hay pestana de "
+                        f"'{variable}' en Indicadores climaticos."
+                    ),
+                    n_relacion=n_rel,
+                )
+            )
+            return False
+        df_clima = por_variable.get(variable, {}).get("df", pd.DataFrame())
+        col_hist, columnas_fut = columnas_oleaje(
+            info_clima, baseline_year, variable=variable
+        )
+        hoja_clima = variable
+
     if col_hist is None or not columnas_fut:
         resultado.avisos.append(
             _aviso(
@@ -396,29 +435,45 @@ def _validar_fila_agitacion(
                 motor_id=motor_id,
                 input_faltante="columnas de escenario climatico",
                 archivo=etiqueta_archivo_fuente("clima"),
-                hoja=variable,
+                hoja=hoja_clima,
                 mensaje=(
                     f"{activo_resumen} - {etiqueta_im}: faltan columnas climaticas "
-                    f"para {variable} (historico o futuro)."
+                    f"para {hoja_clima} (historico o futuro)."
                 ),
                 n_relacion=n_rel,
             )
         )
         return False
 
-    fila_ind, _ = clasificar_indicadores_umbral(
-        df_clima,
-        umbral_m,
-        percentil=percentil,
-        variable=variable,
-        regla=regla_ind,
-    )
-    if fila_ind is None:
-        indicador_txt = (
-            regla_ind.indicador
-            if regla_ind.usa_predefinido
-            else f"indicador para umbral {umbral_m}"
+    if es_inundacion:
+        fila_ind, _ = clasificar_indicadores_francobordo(
+            df_clima,
+            umbral_m,
+            percentil=percentil,
+            tipo_uo=tipo_uo,
+            regla=regla_ind,
         )
+    else:
+        fila_ind, _ = clasificar_indicadores_umbral(
+            df_clima,
+            umbral_m,
+            percentil=percentil,
+            variable=variable,
+            regla=regla_ind,
+        )
+    if fila_ind is None:
+        if es_inundacion:
+            indicador_txt = (
+                regla_ind.indicador
+                if regla_ind.usa_predefinido
+                else f"inundacion costera en un atraque ≥ {umbral_m}"
+            )
+        else:
+            indicador_txt = (
+                regla_ind.indicador
+                if regla_ind.usa_predefinido
+                else f"indicador para umbral {umbral_m}"
+            )
         resultado.avisos.append(
             _aviso(
                 nivel="error",
@@ -431,7 +486,7 @@ def _validar_fila_agitacion(
                 motor_id=motor_id,
                 input_faltante=indicador_txt or "indicador climatico",
                 archivo=etiqueta_archivo_fuente("clima"),
-                hoja=variable,
+                hoja=hoja_clima,
                 mensaje=(
                     f"{activo_resumen} - {etiqueta_im}: no se encontro el indicador "
                     f"'{indicador_txt}' ({percentil}) en {etiqueta_archivo_fuente('clima')} "
@@ -1210,6 +1265,8 @@ def validar_puerto_antes_calculo(
                 lista_master=lista_master,
                 info_clima=info_clima,
                 baseline_year=baseline_year,
+                fila_cfg=fila_cfg,
+                columnas_cfg=columnas_cfg,
             ):
                 activo_tiene_calculable = True
 
