@@ -10,7 +10,9 @@ Ejecutar desde VSCode / terminal:
 """
 
 from contextlib import contextmanager
+from copy import copy
 from dataclasses import dataclass
+from hashlib import sha1
 
 import io
 
@@ -211,14 +213,21 @@ def _firma_datos_excel() -> str:
     return firma_cache_excel()
 
 
+def _limpiar_resultados_calculo() -> None:
+    """Elimina resultados de cálculo en sesión (fuerza vista fresca)."""
+    st.session_state.pop("resultado_pi", None)
+    st.session_state.pop("resultado_calculo_activo", None)
+    st.session_state.pop("resultado_calculo_puerto", None)
+    st.session_state.pop("ultima_validacion_puerto", None)
+    st.session_state.pop("_huella_filtro_nf_resultado", None)
+
+
 def _invalidar_resultados_si_cambian_excel() -> None:
     """Borra resultados de modelos si el usuario ha actualizado los Excel."""
     firma = _firma_datos_excel()
     if st.session_state.get("_firma_excel") != firma:
         st.session_state["_firma_excel"] = firma
-        st.session_state.pop("resultado_pi", None)
-        st.session_state.pop("resultado_calculo_activo", None)
-        st.session_state.pop("resultado_calculo_puerto", None)
+        _limpiar_resultados_calculo()
 
 
 def _mensaje_excel_no_encontrado(meta) -> str:
@@ -656,9 +665,7 @@ def _seccion_herramienta() -> None:
     st.subheader("Excels de entrada")
     if st.button("Recargar datos Excel", use_container_width=True, key="recargar_excel"):
         st.cache_data.clear()
-        st.session_state.pop("resultado_pi", None)
-        st.session_state.pop("resultado_calculo_activo", None)
-        st.session_state.pop("resultado_calculo_puerto", None)
+        _limpiar_resultados_calculo()
         st.session_state.pop("_firma_excel", None)
         st.rerun()
     _mostrar_alerta_estado_excel()
@@ -1533,6 +1540,8 @@ def _seccion_preguntar_impactos() -> None:
 
     seleccion = [bool(v) for v in editados[_COL_SELECCIONAR_IMPACTO].tolist()]
     st.session_state[_KEY_IMPACTOS_SELECCION] = seleccion
+    # Si el filtro ya no coincide con el último cálculo, ocultar resultados viejos.
+    _invalidar_resultados_si_cambia_filtro_no_factibles()
     n_no_factibles = sum(seleccion)
     n_disponibles = n - n_no_factibles
     st.caption(
@@ -2299,6 +2308,34 @@ def _filtro_impactos_no_factibles_sesion() -> FiltroImpactosNoFactibles:
     return FiltroImpactosNoFactibles.desde_dataframe(df, seleccion)
 
 
+def _huella_filtro_no_factibles(
+    filtro: FiltroImpactosNoFactibles | None = None,
+) -> str:
+    """Huella estable de la selección actual (invalida resultados al cambiar)."""
+    if filtro is None:
+        filtro = _filtro_impactos_no_factibles_sesion()
+    seleccion = st.session_state.get(_KEY_IMPACTOS_SELECCION)
+    if seleccion is None:
+        flags = "default"
+    else:
+        flags = "".join("1" if bool(v) else "0" for v in seleccion)
+    triples = "\n".join(
+        sorted(
+            f"{t.activo}|{t.tipo_impacto}|{t.modo_fallo}" for t in filtro.marcados
+        )
+    )
+    return sha1(f"{flags}\n{triples}".encode("utf-8")).hexdigest()
+
+
+def _invalidar_resultados_si_cambia_filtro_no_factibles() -> None:
+    """Si cambian las casillas de no factibles, no reutilizar el último cálculo."""
+    huella_resultado = st.session_state.get("_huella_filtro_nf_resultado")
+    if not huella_resultado:
+        return
+    if huella_resultado != _huella_filtro_no_factibles():
+        _limpiar_resultados_calculo()
+
+
 def _bloque_calculo_activo() -> tuple[bool, ParametrosEntrada]:
     """Botón de cálculo CP sobre todos los activos del puerto."""
     params = ParametrosEntrada()
@@ -2747,13 +2784,17 @@ def _seccion_modelos_impactos() -> None:
 
     pulsar, params = _bloque_calculo_activo()
     if pulsar:
+        # Siempre recomputar: no reutilizar resultado_calculo_* de un filtro anterior.
+        _limpiar_resultados_calculo()
         try:
-            repo = _obtener_repositorio(_firma_datos_excel())
+            # Copia superficial: evita mutar el objeto cacheado por @st.cache_data.
+            repo = copy(_obtener_repositorio(_firma_datos_excel()))
         except FileNotFoundError as exc:
             st.error(str(exc))
             return
 
         filtro_nf = _filtro_impactos_no_factibles_sesion()
+        huella_nf = _huella_filtro_no_factibles(filtro_nf)
         validacion = validar_puerto_antes_calculo(
             repo,
             filtro_impactos_no_factibles=filtro_nf,
@@ -2774,6 +2815,7 @@ def _seccion_modelos_impactos() -> None:
             filtro_impactos_no_factibles=filtro_nf,
         )
         st.session_state.resultado_calculo_puerto = resultado_puerto
+        st.session_state._huella_filtro_nf_resultado = huella_nf
         st.session_state.cp_total_activos = resultado_puerto.cp_total
         primer_ok = next(
             (r for r in resultado_puerto.resultados_por_activo if r.ok),
@@ -2799,6 +2841,7 @@ def _seccion_modelos_economicos() -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     _invalidar_resultados_si_cambian_excel()
+    _invalidar_resultados_si_cambia_filtro_no_factibles()
     vista = _cabecera_branding_y_menu()
     _render_vista(vista)
     mostrar_pie_branding()

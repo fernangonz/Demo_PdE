@@ -160,5 +160,33 @@ class TestEloCaladoSinMetodologia(unittest.TestCase):
         self.assertEqual(avisos_muelle_calado, [])
 
 
+class TestRecalculoCambiaFiltro(unittest.TestCase):
+    def test_filtro_vacio_no_omite(self) -> None:
+        filtro = FiltroImpactosNoFactibles.vacio()
+        self.assertFalse(
+            debe_omitir_im(
+                SimpleNamespace(filtro_impactos_no_factibles=filtro),
+                activo="Muelle",
+                tipo_impacto="ELO",
+                modo_fallo="Falta de Calado",
+            )
+        )
+
+    def test_desde_dataframe_desmarcar_deja_vacio(self) -> None:
+        df = pd.DataFrame(
+            {
+                COL_ACTIVO: ["Muelle"],
+                COL_TIPO: ["ELO"],
+                COL_DESC: ["Interrupcion operativa"],
+                COL_MODO: ["Falta de Calado"],
+            }
+        )
+        marcado = FiltroImpactosNoFactibles.desde_dataframe(df, [True])
+        libre = FiltroImpactosNoFactibles.desde_dataframe(df, [False])
+        self.assertTrue(marcado.es_no_factible("Muelle", "ELO", "Falta de Calado"))
+        self.assertFalse(libre.es_no_factible("Muelle", "ELO", "Falta de Calado"))
+        self.assertEqual(libre.marcados, ())
+
+
 if __name__ == "__main__":
     unittest.main()

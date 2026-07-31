@@ -627,7 +627,13 @@ def _ejecuciones_calado_a_resumenes(
     tipo_uo: str,
     impactos_asociados: int,
 ) -> list[ResumenIteracion]:
-    """Prefiere ejecuciones auditables (incluye errores por modo)."""
+    """Prefiere ejecuciones auditables (incluye errores por modo).
+
+    Las omitidas como impacto no factible no se listan como IM calculadas
+    (mismo criterio que agitación/francobordo: continue sin iteración).
+    """
+    from core.modelos.impacto.impactos_no_factibles import CODIGO_NO_FACTIBLE
+
     ejecuciones = getattr(resultado, "ejecuciones", None) or []
     if ejecuciones:
         return [
@@ -639,6 +645,10 @@ def _ejecuciones_calado_a_resumenes(
                 impactos_asociados=impactos_asociados,
             )
             for ej in ejecuciones
+            if not (
+                getattr(ej, "estado", "") == "skipped"
+                and getattr(ej, "error_code", None) == CODIGO_NO_FACTIBLE
+            )
         ]
     return [
         _iteracion_calado_a_resumen(
