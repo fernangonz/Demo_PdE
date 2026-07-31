@@ -2753,7 +2753,11 @@ def _seccion_modelos_impactos() -> None:
             st.error(str(exc))
             return
 
-        validacion = validar_puerto_antes_calculo(repo)
+        filtro_nf = _filtro_impactos_no_factibles_sesion()
+        validacion = validar_puerto_antes_calculo(
+            repo,
+            filtro_impactos_no_factibles=filtro_nf,
+        )
         _mostrar_informe_validacion_puerto(validacion)
         st.session_state.ultima_validacion_puerto = validacion
 
@@ -2767,7 +2771,7 @@ def _seccion_modelos_impactos() -> None:
 
         resultado_puerto = calcular_impactos_puerto(
             repo,
-            filtro_impactos_no_factibles=_filtro_impactos_no_factibles_sesion(),
+            filtro_impactos_no_factibles=filtro_nf,
         )
         st.session_state.resultado_calculo_puerto = resultado_puerto
         st.session_state.cp_total_activos = resultado_puerto.cp_total

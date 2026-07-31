@@ -247,33 +247,19 @@ CODIGO_PROCEDIMIENTO_FLUJO_FALTANTE = "PROCEDIMIENTO_FLUJO_FALTANTE"
 CODIGO_INDICADORES_MODELO_FALTANTES = "INDICADORES_MODELO_FALTANTES"
 
 
-def _motivo_ya_habla_de_diagrama(texto: str) -> bool:
-    t = (texto or "").lower()
-    return "flujo de modelos" in t and (
-        "falta el diagrama" in t
-        or "checklist incompleta" in t
-        or "no hay procedimiento" in t
-        or "no se puede seguir el procedimiento" in t
-    )
-
-
 def resolver_motivo_y_codigo_diagrama_indicadores(
     modelo_id: str,
     motivo_indicadores: str,
 ) -> tuple[str, str]:
     """Motivo y Codigo coherentes cuando faltan diagrama y/o indicadores del modelo.
 
-    - Solo diagrama -> ``PROCEDIMIENTO_FLUJO_FALTANTE``
-    - Solo indicadores -> ``INDICADORES_MODELO_FALTANTES``
-    - Ambos -> codigo de diagrama (primario) y Motivo con ambos problemas
+    - Solo diagrama / metodologia no definida -> ``PROCEDIMIENTO_FLUJO_FALTANTE``
+      (sin inventar checklist de indicadores de otra rama).
+    - Solo indicadores (diagrama presente) -> ``INDICADORES_MODELO_FALTANTES``
     """
     falta_diagrama = not tiene_diagrama(modelo_id)
-    texto_ind = (motivo_indicadores or "").strip()
-    if falta_diagrama and texto_ind:
-        if _motivo_ya_habla_de_diagrama(texto_ind):
-            return texto_ind, CODIGO_PROCEDIMIENTO_FLUJO_FALTANTE
-        aviso = mensaje_diagrama_faltante(modelo_id)
-        return f"{aviso}. Además: {texto_ind}", CODIGO_PROCEDIMIENTO_FLUJO_FALTANTE
     if falta_diagrama:
+        # Procedimiento indefinido: no fabricar requisitos de indicadores.
         return mensaje_diagrama_faltante(modelo_id), CODIGO_PROCEDIMIENTO_FLUJO_FALTANTE
+    texto_ind = (motivo_indicadores or "").strip()
     return texto_ind, CODIGO_INDICADORES_MODELO_FALTANTES

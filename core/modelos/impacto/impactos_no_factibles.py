@@ -88,11 +88,15 @@ class FiltroImpactosNoFactibles:
         if col_activo is None or col_tipo is None or col_modo is None:
             return cls.vacio()
 
+        # Blank Activo cells (merged Excel rows) inherit the previous value.
+        serie_activo = df[col_activo].ffill()
+
         marcados: list[TripleNoFactible] = []
         for i, (_, row) in enumerate(df.iterrows()):
             if not flags[i]:
                 continue
-            activo = _texto_celda(row.get(col_activo))
+            # Match Tipo de impacto (ELO/ELS/ELU), never the Descripcion column.
+            activo = _texto_celda(serie_activo.iloc[i])
             tipo = _texto_celda(row.get(col_tipo))
             modo = _texto_celda(row.get(col_modo))
             if not activo or not tipo or not modo:

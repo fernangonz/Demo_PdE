@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from core.modelos.catalogo_impactos import entrada_catalogo, titulo_desde_modo
+from core.modelos.flujos import tiene_diagrama
 from core.modelos.impacto.pi_agitacion.utilidades import (
     es_modo_superacion_umbral,
     impactos_por_activo,
@@ -14,6 +15,7 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
 )
 from core.modelos.impacto.pi_calado.utilidades import es_modo_falta_calado
 from core.modelos.impacto.pi_francobordo.utilidades import es_modo_falta_francobordo
+from core.modelos.metodologias import motor_registrado, resolver_motor_fila
 
 
 @dataclass(frozen=True)
@@ -36,25 +38,45 @@ class ModoSinModelo:
         )
 
 
+def _motor_con_procedimiento(motor_id: str | None) -> bool:
+    """True solo si el motor esta registrado y tiene diagrama de procedimiento."""
+    if not motor_id or not motor_registrado(motor_id):
+        return False
+    return tiene_diagrama(motor_id)
+
+
 def fila_tiene_modelo_implementado(row: pd.Series) -> bool:
-    """True si existe un motor que procese esta fila IM."""
+    """True si existe un motor con procedimiento definido que procese esta fila IM.
+
+    Sin diagrama de metodologia (p. ej. PI FALTA DE CALADO / ELO) -> False:
+    se reporta como sin metodologia, no se inventan inputs del procedimiento.
+    """
     modo = str(row.get("Modos de fallo / Modos de parada", "")).strip()
     variable = str(row.get("Variable", "")).strip()
     tipo = str(row.get("Tipo de impacto", "")).strip()
 
     if es_modo_superacion_umbral(modo, variable, tipo):
-        return True
+        from core.modelos.catalogo_impactos import MOTOR_PI_SUPERACION
+
+        return _motor_con_procedimiento(MOTOR_PI_SUPERACION)
+
     if es_modo_falta_calado(modo, variable):
-        return True
+        motor_id, _entrada = resolver_motor_fila(row)
+        return _motor_con_procedimiento(motor_id)
+
     if es_modo_falta_francobordo(modo, variable, tipo):
-        return True
+        from core.modelos.catalogo_impactos import MOTOR_PI_FRANCOBORDO
+
+        return _motor_con_procedimiento(MOTOR_PI_FRANCOBORDO)
 
     entrada = entrada_catalogo(
         modo_fallo=modo,
         variable=variable,
         tipo_impacto=tipo or None,
     )
-    return entrada is not None and entrada.implementado
+    if entrada is None or not entrada.implementado:
+        return False
+    return _motor_con_procedimiento(entrada.motor_id)
 
 
 def modos_sin_modelo_activo(

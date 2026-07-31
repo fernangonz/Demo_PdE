@@ -165,15 +165,16 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         tipo_impacto="ELO",
         motor_id=MOTOR_PI_CALADO_ELO,
         motor_nombre="PI FALTA DE CALADO",
-        implementado=True,
+        implementado=False,
         requiere_inputs_ui=False,
         diagrama_modelo_id=MOTOR_PI_CALADO_ELO,
         descripcion=(
-            "h = NM - h0 - h sedimentacion. Solo filas IM con tipo ELO "
-            "(interrupcion operativa / perdida de ingreso)."
+            "Metodologia no definida: falta el diagrama "
+            "«PI FALTA DE CALADO» en Flujo de modelos. "
+            "No calcular ni exigir indicadores hasta definir el procedimiento."
         ),
         notas_inputs=(
-            "Calado del buque Dc (m) del activo en Configuracion del puerto."
+            "Pendiente de metodologia. No usar inputs de OPEX/CAPEX como sustituto."
         ),
     ),
     EntradaCatalogoImpacto(

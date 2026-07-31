@@ -23,6 +23,10 @@ from core.modelos.impacto.auditoria import (
     fila_tiene_modelo_implementado,
     modos_sin_modelo_puerto,
 )
+from core.modelos.impacto.impactos_no_factibles import (
+    FiltroImpactosNoFactibles,
+    debe_omitir_im,
+)
 from core.modelos.impacto.pi_agitacion.schemas import BASELINE_YEAR
 from core.modelos.impacto.pi_agitacion.utilidades import (
     buscar_umbral_umbrales,
@@ -57,7 +61,7 @@ from core.modelos.inputs_activo import (
     leer_inputs_config_activo_desde_fila,
     validar_inputs_positivos,
 )
-from core.modelos.flujos import resolver_motivo_y_codigo_diagrama_indicadores
+from core.modelos.flujos import resolver_motivo_y_codigo_diagrama_indicadores, tiene_diagrama
 from core.modelos.metodologias import (
     etiqueta_archivo_fuente,
     metodologia,
@@ -120,6 +124,33 @@ class ResultadoValidacionPuerto:
     @property
     def puede_calcular(self) -> bool:
         return not self.bloquea_calculo
+
+
+def _tipo_y_modo_fila(fila_rel: pd.Series | object) -> tuple[str, str]:
+    """Tipo de impacto (ELO/ELS/ELU) y modo de fallo de una fila de relación."""
+    if isinstance(fila_rel, pd.Series):
+        tipo = str(fila_rel.get("Tipo de impacto", "")).strip()
+        modo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
+    else:
+        tipo = str(getattr(fila_rel, "tipo_impacto", "") or "").strip()
+        modo = str(getattr(fila_rel, "modo_fallo", "") or "").strip()
+    return tipo, modo
+
+
+def _omitir_modo_no_factible(
+    datos: object,
+    *,
+    activo_raw: str,
+    fila_rel: pd.Series | object,
+) -> bool:
+    """True si el triple está marcado en Configuración de impactos no factibles."""
+    tipo, modo = _tipo_y_modo_fila(fila_rel)
+    return debe_omitir_im(
+        datos,
+        activo=activo_raw,
+        tipo_impacto=tipo,
+        modo_fallo=modo,
+    )
 
 
 def _aviso(
@@ -883,6 +914,7 @@ def _validar_fila_calado(
 def _validar_modos_catalogo_extra(
     resultado: ResultadoValidacionPuerto,
     *,
+    datos: object,
     activo_raw: str,
     activo_resumen: str,
     impactos: pd.DataFrame,
@@ -890,6 +922,8 @@ def _validar_modos_catalogo_extra(
     calculable = False
     for _, fila_rel in impactos.iterrows():
         if not fila_tiene_modelo_implementado(fila_rel):
+            continue
+        if _omitir_modo_no_factible(datos, activo_raw=activo_raw, fila_rel=fila_rel):
             continue
         if es_modo_superacion_umbral(
             fila_rel.get("Modos de fallo / Modos de parada"),
@@ -964,7 +998,19 @@ def validar_puerto_antes_calculo(
     datos: object,
     *,
     baseline_year: int = BASELINE_YEAR,
+    filtro_impactos_no_factibles: FiltroImpactosNoFactibles | None = None,
 ) -> ResultadoValidacionPuerto:
+    """Valida inputs/diagramas solo para modos que se van a calcular.
+
+    Orden:
+    1. Comprobar datos requeridos de modos que sí correrán.
+    2. Si el triple (Activo, Tipo impacto, Modo) está marcado como no factible,
+       no validar diagrama/procedimiento ni contarlo como error de cálculo.
+    3. Solo entonces exigir diagrama de cálculo / indicadores.
+    """
+    if filtro_impactos_no_factibles is not None:
+        setattr(datos, "filtro_impactos_no_factibles", filtro_impactos_no_factibles)
+
     resultado = ResultadoValidacionPuerto()
 
     _validar_fuentes_excel(resultado)
@@ -1028,7 +1074,12 @@ def validar_puerto_antes_calculo(
         )
         return resultado
 
-    resultado.modos_sin_modelo = modos_sin_modelo_puerto(df_relacion, activos)
+    modos_sin = modos_sin_modelo_puerto(df_relacion, activos)
+    resultado.modos_sin_modelo = [
+        modo
+        for modo in modos_sin
+        if not _omitir_modo_no_factible(datos, activo_raw=modo.activo_raw, fila_rel=modo)
+    ]
     for modo in resultado.modos_sin_modelo:
         n_rel = f"N {modo.n_relacion}" if modo.n_relacion is not None else "-"
         resultado.avisos.append(
@@ -1107,11 +1158,25 @@ def validar_puerto_antes_calculo(
         calado_vals = leer_calado_activo_desde_fila(fila_cfg, columnas_cfg)
         meta_calado = metodologia(MOTOR_PI_CALADO_ELS) or metodologia(MOTOR_PI_CALADO_ELO)
         inputs_calado = meta_calado.inputs_activo if meta_calado else ()
-        requiere_calado = bool(
-            modos_falta_calado(impactos, tipo_impacto="ELO")
-            or modos_falta_calado(impactos, tipo_impacto="ELS")
-            or modos_falta_calado(impactos, tipo_impacto="ELU")
-        )
+        modos_calado_a_validar: list[tuple[str, object]] = []
+        for tipo_imp, motor_calado in (
+            ("ELO", MOTOR_PI_CALADO_ELO),
+            ("ELS", MOTOR_PI_CALADO_ELS),
+            ("ELU", MOTOR_PI_CALADO_ELU),
+        ):
+            if not motor_registrado(motor_calado):
+                continue
+            # Sin diagrama = metodologia indefinida: no validar inputs inventados
+            # (p. ej. NM/h0/hsedim). Se reporta como sin metodologia mas arriba.
+            if not tiene_diagrama(motor_calado):
+                continue
+            for fila_rel in modos_falta_calado(impactos, tipo_impacto=tipo_imp):
+                if _omitir_modo_no_factible(
+                    datos, activo_raw=activo_raw, fila_rel=fila_rel
+                ):
+                    continue
+                modos_calado_a_validar.append((motor_calado, fila_rel))
+        requiere_calado = bool(modos_calado_a_validar)
         calado_buque = calado_vals.get("calado_buque")
         if requiere_calado:
             for msg in validar_inputs_positivos(calado_vals, inputs_calado):
@@ -1131,6 +1196,8 @@ def validar_puerto_antes_calculo(
         activo_tiene_calculable = False
 
         for fila_rel in modos_superacion_umbral(impactos):
+            if _omitir_modo_no_factible(datos, activo_raw=activo_raw, fila_rel=fila_rel):
+                continue
             if _validar_fila_agitacion(
                 resultado,
                 activo_raw=activo_raw,
@@ -1146,33 +1213,30 @@ def validar_puerto_antes_calculo(
             ):
                 activo_tiene_calculable = True
 
-        for tipo_imp, motor_calado in (
-            ("ELO", MOTOR_PI_CALADO_ELO),
-            ("ELS", MOTOR_PI_CALADO_ELS),
-            ("ELU", MOTOR_PI_CALADO_ELU),
-        ):
-            if not motor_registrado(motor_calado):
-                continue
-            for fila_rel in modos_falta_calado(impactos, tipo_impacto=tipo_imp):
-                if _validar_fila_calado(
-                    resultado,
-                    activo_raw=activo_raw,
-                    activo_resumen=activo_resumen,
-                    tipo_uo=tipo_uo,
-                    tipo_activo_cfg=tipo_activo_cfg,
-                    fila_rel=fila_rel,
-                    motor_id=motor_calado,
-                    calado_buque=calado_buque,
-                    relacion_modelos=relacion_modelos,
-                    por_hoja_umbrales=por_hoja_umbrales,
-                    lista_master=lista_master,
-                    info_clima=info_clima,
-                    baseline_year=baseline_year,
-                ):
-                    activo_tiene_calculable = True
+        for motor_calado, fila_rel in modos_calado_a_validar:
+            if _validar_fila_calado(
+                resultado,
+                activo_raw=activo_raw,
+                activo_resumen=activo_resumen,
+                tipo_uo=tipo_uo,
+                tipo_activo_cfg=tipo_activo_cfg,
+                fila_rel=fila_rel,
+                motor_id=motor_calado,
+                calado_buque=calado_buque,
+                relacion_modelos=relacion_modelos,
+                por_hoja_umbrales=por_hoja_umbrales,
+                lista_master=lista_master,
+                info_clima=info_clima,
+                baseline_year=baseline_year,
+            ):
+                activo_tiene_calculable = True
 
         if motor_registrado(MOTOR_PI_FRANCOBORDO):
             for fila_rel in modos_falta_francobordo(impactos):
+                if _omitir_modo_no_factible(
+                    datos, activo_raw=activo_raw, fila_rel=fila_rel
+                ):
+                    continue
                 if _validar_fila_francobordo(
                     resultado,
                     activo_raw=activo_raw,
@@ -1192,6 +1256,7 @@ def validar_puerto_antes_calculo(
 
         if _validar_modos_catalogo_extra(
             resultado,
+            datos=datos,
             activo_raw=activo_raw,
             activo_resumen=activo_resumen,
             impactos=impactos,

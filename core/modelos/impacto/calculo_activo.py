@@ -7,7 +7,13 @@ from typing import Any
 
 import pandas as pd
 
-from core.modelos.catalogo_impactos import CATALOGO_MODOS_IMPACTO
+from core.modelos.catalogo_impactos import (
+    CATALOGO_MODOS_IMPACTO,
+    MOTOR_PI_CALADO_ELO,
+    MOTOR_PI_CALADO_ELS,
+    MOTOR_PI_CALADO_ELU,
+)
+from core.modelos.flujos import tiene_diagrama
 from core.modelos.impacto.auditoria import ModoSinModelo, modos_sin_modelo_puerto
 from core.modelos.impacto.pi_agitacion import ParametrosEntrada as ParametrosAgitacion
 from core.modelos.impacto.pi_agitacion import ResultadoPIAgitacion, calcular as calcular_agitacion
@@ -31,6 +37,19 @@ from core.modelos.inputs_activo import (
     leer_inputs_config_activo_desde_fila,
 )
 from core.modelos.registro import ejecutar_pi_agitacion, ejecutar_pi_francobordo
+
+
+def _calado_con_procedimiento(tipo_impacto: str) -> bool:
+    """True si el motor de esa familia tiene diagrama (metodologia definida)."""
+    mapa = {
+        "ELO": MOTOR_PI_CALADO_ELO,
+        "ELS": MOTOR_PI_CALADO_ELS,
+        "ELU": MOTOR_PI_CALADO_ELU,
+    }
+    motor_id = mapa.get(tipo_impacto.upper() if tipo_impacto else "")
+    if not motor_id:
+        return False
+    return tiene_diagrama(motor_id)
 
 
 @dataclass
@@ -111,9 +130,18 @@ def _activo_requiere_calado(
 ) -> bool:
     impactos = impactos_por_activo(df_relacion, activo_raw)
     return (
-        bool(modos_falta_calado(impactos, tipo_impacto="ELO"))
-        or bool(modos_falta_calado(impactos, tipo_impacto="ELS"))
-        or bool(modos_falta_calado(impactos, tipo_impacto="ELU"))
+        (
+            bool(modos_falta_calado(impactos, tipo_impacto="ELO"))
+            and _calado_con_procedimiento("ELO")
+        )
+        or (
+            bool(modos_falta_calado(impactos, tipo_impacto="ELS"))
+            and _calado_con_procedimiento("ELS")
+        )
+        or (
+            bool(modos_falta_calado(impactos, tipo_impacto="ELU"))
+            and _calado_con_procedimiento("ELU")
+        )
     )
 
 
@@ -200,8 +228,11 @@ def calcular_impactos_activo(
         )
         incluir_pasos = True
 
-        # ELO -> PI / perdida de ingreso
-        if modos_falta_calado(impactos_cal, tipo_impacto="ELO"):
+        # ELO -> PI / perdida de ingreso (solo si hay diagrama PI FALTA DE CALADO)
+        if (
+            modos_falta_calado(impactos_cal, tipo_impacto="ELO")
+            and _calado_con_procedimiento("ELO")
+        ):
             resultado_pi_cal, adv_pi = _ejecutar_calado(
                 datos,
                 ParametrosCalado(
@@ -217,9 +248,17 @@ def calcular_impactos_activo(
             advertencias.extend(adv_pi)
             if resultado_pi_cal is not None:
                 incluir_pasos = False
+        elif modos_falta_calado(impactos_cal, tipo_impacto="ELO"):
+            advertencias.append(
+                "PI FALTA DE CALADO (ELO): metodologia no definida "
+                "(falta diagrama en Flujo de modelos). No se calcula."
+            )
 
         # ELS -> OPEX
-        if modos_falta_calado(impactos_cal, tipo_impacto="ELS"):
+        if (
+            modos_falta_calado(impactos_cal, tipo_impacto="ELS")
+            and _calado_con_procedimiento("ELS")
+        ):
             resultado_opex, adv_opex = _ejecutar_calado(
                 datos,
                 ParametrosCalado(
@@ -237,7 +276,10 @@ def calcular_impactos_activo(
                 incluir_pasos = False
 
         # ELU -> CAPEX
-        if modos_falta_calado(impactos_cal, tipo_impacto="ELU"):
+        if (
+            modos_falta_calado(impactos_cal, tipo_impacto="ELU")
+            and _calado_con_procedimiento("ELU")
+        ):
             resultado_capex, adv_capex = _ejecutar_calado(
                 datos,
                 ParametrosCalado(

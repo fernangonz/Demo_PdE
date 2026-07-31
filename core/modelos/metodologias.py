@@ -126,6 +126,7 @@ METODOLOGIAS_IMPACTO: dict[str, MetodologiaImpacto] = {
     MOTOR_PI_CALADO_ELO: MetodologiaImpacto(
         motor_id=MOTOR_PI_CALADO_ELO,
         nombre="PI FALTA DE CALADO",
+        # Fuentes orientativas; no usar hasta existir diagrama PI FALTA DE CALADO.
         fuentes=_FUENTES_PI_CALADO,
         inputs_activo=INPUTS_CALADO_ACTIVO,
     ),

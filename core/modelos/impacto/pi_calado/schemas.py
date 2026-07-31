@@ -34,8 +34,9 @@ METADATOS_ELO = MetadatosModelo(
     version=MODELO_VERSION,
     categoria="impacto",
     descripcion=(
-        "h = NM - h0 - h sedimentacion. Solo filas IM con tipo de impacto ELO "
-        "(interrupcion operativa / perdida de ingreso)."
+        "Motor reservado para filas IM con tipo ELO (interrupcion operativa). "
+        "Metodologia/diagrama «PI FALTA DE CALADO» pendiente en Flujo de modelos; "
+        "no calcular hasta definirlo."
     ),
 )
 
