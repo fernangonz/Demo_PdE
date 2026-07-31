@@ -219,10 +219,16 @@ def calcular_impactos_activo(
 
     if incluir_agitacion:
         resultado_ag = ejecutar_pi_agitacion(datos, params=params_agitacion)
+        for adv in getattr(resultado_ag, "advertencias", None) or []:
+            if adv and adv not in advertencias:
+                advertencias.append(adv)
         if not resultado_ag.ok:
             error_ag = resultado_ag.error or "Error en PI superación de umbral."
             # Activos sin modos PI (p. ej. diques) no deben generar aviso confuso.
-            if not _es_aviso_sin_modos_agitacion(error_ag):
+            if (
+                not _es_aviso_sin_modos_agitacion(error_ag)
+                and error_ag not in advertencias
+            ):
                 advertencias.append(error_ag)
 
     if incluir_francobordo:
@@ -335,9 +341,9 @@ def calcular_impactos_activo(
         )
 
     meta: dict[str, Any] = {}
-    if resultado_ag and resultado_ag.ok:
+    if resultado_ag and (resultado_ag.ok or resultado_ag.iteraciones):
         meta.update(resultado_ag.metadatos_ejecucion)
-    if resultado_fb and resultado_fb.ok:
+    if resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None)):
         meta["francobordo"] = resultado_fb.metadatos_ejecucion
     if resultado_pi_cal:
         meta["calado_pi"] = resultado_pi_cal.metadatos_ejecucion
@@ -347,8 +353,8 @@ def calcular_impactos_activo(
         meta["calado_capex"] = resultado_capex.metadatos_ejecucion
 
     ok = bool(
-        (resultado_ag and resultado_ag.ok)
-        or (resultado_fb and resultado_fb.ok)
+        (resultado_ag and (resultado_ag.ok or resultado_ag.iteraciones))
+        or (resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None)))
         or (resultado_pi_cal and resultado_pi_cal.ok)
         or (resultado_opex and resultado_opex.ok)
         or (resultado_capex and resultado_capex.ok)
@@ -363,8 +369,16 @@ def calcular_impactos_activo(
         activo_raw=activo_raw,
         cp_numero=cp_numero,
         advertencias=advertencias,
-        resultado_agitacion=resultado_ag if resultado_ag and resultado_ag.ok else None,
-        resultado_francobordo=resultado_fb if resultado_fb and resultado_fb.ok else None,
+        resultado_agitacion=(
+            resultado_ag
+            if resultado_ag and (resultado_ag.ok or resultado_ag.iteraciones)
+            else None
+        ),
+        resultado_francobordo=(
+            resultado_fb
+            if resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None))
+            else None
+        ),
         resultado_calado_pi=resultado_pi_cal,
         resultado_calado_opex=resultado_opex,
         resultado_calado_capex=resultado_capex,

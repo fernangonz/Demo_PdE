@@ -66,6 +66,9 @@ class IteracionResultado:
     indicadores_evaluados: list[IndicadorEvaluado] = field(default_factory=list)
     sintesis_cambios: SintesisCambios | None = None
     advertencias: list[str] = field(default_factory=list)
+    estado: str = "ok"
+    motivo: str | None = None
+    error_code: str | None = None
     _tabla_resultado_df: pd.DataFrame = field(
         default_factory=pd.DataFrame,
         repr=False,
@@ -123,21 +126,34 @@ class ResultadoPIAgitacion(ResultadoModelo):
         if not iteraciones:
             return cls.error("No se generó ninguna iteración.")
 
-        primera = iteraciones[0]
+        ok_iters = [it for it in iteraciones if (it.estado or "ok") == "ok"]
+        err_msgs = [
+            (f"{it.modo_fallo}: {it.motivo}" if it.motivo else it.modo_fallo)
+            for it in iteraciones
+            if (it.estado or "ok") == "error"
+        ]
+        primera = ok_iters[0] if ok_iters else iteraciones[0]
         advertencias = [
             adv
             for it in iteraciones
             for adv in it.advertencias
         ]
+        for msg in err_msgs:
+            if msg and msg not in advertencias:
+                advertencias.append(msg)
         tablas = {
             f"resultado_escenarios_iter_{it.numero}": dataframe_a_registros(it.tabla_resultado)
             for it in iteraciones
+            if not it.tabla_resultado.empty
         }
         sintesis = primera.sintesis_cambios or SintesisCambios()
+        ok = bool(ok_iters)
+        error = None if ok else (err_msgs[0] if err_msgs else "Ningún modo pudo calcularse.")
 
         return cls(
             metadatos=METADATOS,
-            ok=True,
+            ok=ok,
+            error=error,
             advertencias=advertencias,
             metadatos_ejecucion=metadatos_ejecucion,
             tablas=tablas,
@@ -165,6 +181,9 @@ class ResultadoPIAgitacion(ResultadoModelo):
                 "indicador_seleccionado": it.indicador_seleccionado,
                 "percentil": it.percentil,
                 "origen_regla": it.origen_regla,
+                "estado": it.estado,
+                "motivo": it.motivo,
+                "error_code": it.error_code,
                 "tabla_resultado": dataframe_a_registros(it.tabla_resultado),
             }
             for it in self.iteraciones

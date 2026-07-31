@@ -23,6 +23,7 @@ from core.modelos.impacto.pi_francobordo.utilidades import es_modo_falta_francob
 MODO = "Inundaci\u00f3n costera"
 MODO_CORTO = "Inundaci\u00f3n"
 TITULO = "PI Inundaci\u00f3n costera"
+EXCEL_CLIMA = "3_Indicadores_clim\u00e1ticos.xlsx"
 
 
 class TestInundacionCostera(unittest.TestCase):
@@ -76,6 +77,40 @@ class TestInundacionCostera(unittest.TestCase):
         self.assertIsNone(r.resultado_francobordo)
         self.assertIn("0.6", inund[0].indicador_seleccionado.replace(",", "."))
         self.assertTrue(str(inund[0].umbral).startswith("Fb"))
+        iters_ui = iteraciones_desde_calculo_activo(r)
+        self.assertTrue(any("inund" in i.modo_fallo.lower() for i in iters_ui))
+
+    def test_edificios_inundacion_no_silenciada_por_viento(self) -> None:
+        """Si viento falla, Inundacion costera debe seguir apareciendo."""
+        activo = (
+            "Edificios de servicios generales "
+            "(Oficinas, Aduanas, PIF, Control de accesos, etc.)"
+        )
+        r = calcular_impactos_activo(
+            self.repo,
+            params_agitacion=ParametrosEntrada(activo=activo),
+            incluir_francobordo=False,
+            incluir_calado=False,
+        )
+        self.assertIsNotNone(r.resultado_agitacion)
+        assert r.resultado_agitacion is not None
+        modos = [it.modo_fallo.lower() for it in r.resultado_agitacion.iteraciones]
+        self.assertTrue(any("inund" in m for m in modos), modos)
+        inund = [
+            it
+            for it in r.resultado_agitacion.iteraciones
+            if "inund" in it.modo_fallo.lower()
+        ]
+        self.assertEqual(inund[0].estado, "ok")
+        viento = [
+            it
+            for it in r.resultado_agitacion.iteraciones
+            if "viento" in it.modo_fallo.lower()
+        ]
+        if viento:
+            self.assertEqual(viento[0].estado, "error")
+            self.assertIn(EXCEL_CLIMA, viento[0].motivo or "")
+            self.assertIn("Viento", viento[0].motivo or "")
         iters_ui = iteraciones_desde_calculo_activo(r)
         self.assertTrue(any("inund" in i.modo_fallo.lower() for i in iters_ui))
 

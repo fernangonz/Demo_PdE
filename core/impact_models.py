@@ -518,6 +518,9 @@ def _iteracion_a_resumen(
         advertencia_negativos=advertencia,
         resumen_cambios=it.sintesis_cambios,
         resultados_por_pasos=resultados_por_pasos,
+        estado=getattr(it, "estado", "ok") or "ok",
+        motivo=getattr(it, "motivo", None),
+        error_code=getattr(it, "error_code", None),
         familia=familia,
         motor_id=motor_id,
         nombre_motor=nombre_motor,
@@ -526,9 +529,9 @@ def _iteracion_a_resumen(
 
 
 def _adaptar_resultado(resultado: ResultadoPIAgitacion) -> ResultadosImpacto:
-    if not resultado.ok:
+    if not resultado.iteraciones:
         return ResultadosImpacto(
-            comentario=resultado.error or "Error desconocido.",
+            comentario=resultado.error or ("Error desconocido." if not resultado.ok else ""),
             resultado=resultado,
         )
 
@@ -553,6 +556,7 @@ def _adaptar_resultado(resultado: ResultadoPIAgitacion) -> ResultadosImpacto:
         resumen_iteracion=resumenes[0] if resumenes else None,
         resumenes_iteracion=resumenes,
         resumen_activo=resumen_activo_desde_iteraciones(resumenes),
+        comentario=resultado.error or "",
         resultado=resultado,
     )
 
@@ -666,11 +670,13 @@ def _ejecuciones_calado_a_resumenes(
 def iteraciones_desde_calculo_activo(resultado) -> list[ResumenIteracion]:
     """Todas las iteraciones IM del cálculo unificado por activo."""
     resumenes: list[ResumenIteracion] = []
-    if getattr(resultado, "resultado_agitacion", None) and resultado.resultado_agitacion.ok:
-        resumenes.extend(iteraciones_para_ui(resultado.resultado_agitacion))
+    ag = getattr(resultado, "resultado_agitacion", None)
+    if ag is not None and (ag.ok or ag.iteraciones):
+        resumenes.extend(iteraciones_para_ui(ag))
 
-    if getattr(resultado, "resultado_francobordo", None) and resultado.resultado_francobordo.ok:
-        resumenes.extend(iteraciones_para_ui(resultado.resultado_francobordo))
+    fb = getattr(resultado, "resultado_francobordo", None)
+    if fb is not None and (fb.ok or getattr(fb, "iteraciones", None)):
+        resumenes.extend(iteraciones_para_ui(fb))
 
     calado_resultados = []
     for attr in ("resultado_calado_pi", "resultado_calado_opex", "resultado_calado", "resultado_calado_capex"):

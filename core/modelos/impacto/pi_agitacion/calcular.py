@@ -42,6 +42,13 @@ from core.modelos.impacto.impactos_no_factibles import (
     MOTIVO_NO_FACTIBLE,
     debe_omitir_im,
 )
+from core.modelos.impacto.mensajes_indicador import (
+    conteos_busqueda_indicador,
+    mensaje_indicador_no_encontrado,
+    modo_seleccion_desde_regla,
+    nombre_excel_clima,
+    patron_busqueda_indicador,
+)
 from core.modelos.impacto.pi_agitacion.pasos import (
     PasoResultado,
     ResultadosPorPasos,
@@ -59,36 +66,71 @@ from core.modelos.impacto.pi_agitacion.schemas import (
 
 
 def _texto_error_indicador(
+    *,
+    datos: object,
+    df_clima: pd.DataFrame,
+    hoja: str,
+    variable: str,
+    percentil: str,
+    umbral_txt: str = "",
+    umbral_m: float | None = None,
+    regla: ReglaIndicador | None = None,
+    inundacion_fb: bool = False,
+    origen_referencia: str = "",
+    referencia_m: float | None = None,
+    n_candidatos: int | None = None,
+) -> str:
+    n_hoja, n_pct = conteos_busqueda_indicador(df_clima, percentil=percentil)
+    return mensaje_indicador_no_encontrado(
+        archivo=nombre_excel_clima(datos),
+        hoja=hoja,
+        percentil=percentil,
+        patron=patron_busqueda_indicador(
+            regla=regla,
+            umbral_txt=umbral_txt,
+            umbral_m=umbral_m,
+            inundacion_fb=inundacion_fb,
+            referencia_m=referencia_m,
+            variable=variable,
+        ),
+        modo_seleccion=modo_seleccion_desde_regla(
+            regla,
+            inundacion_fb=inundacion_fb,
+            origen_referencia=origen_referencia,
+        ),
+        variable=variable,
+        n_filas_hoja=n_hoja,
+        n_tras_percentil=n_pct,
+        n_candidatos=n_candidatos if n_candidatos is not None else 0,
+    )
+
+
+def _iteracion_error(
+    *,
+    numero: int,
+    etiqueta_im: str,
     variable: str,
     umbral_txt: str,
     percentil: str,
-    *,
-    regla: ReglaIndicador | None = None,
-    inundacion_fb: bool = False,
-) -> str:
-    if regla and regla.usa_predefinido:
-        return (
-            f"No se encontró el indicador predefinido «{regla.indicador}» "
-            f"({variable}, {percentil}). Revisa Relacion_modelos_activos_e_indicadores.xlsx."
-        )
-    if inundacion_fb:
-        return (
-            f"No se encontró indicador de inundación costera en un atraque "
-            f"(referencia {umbral_txt}, {percentil})."
-        )
-    if variable.lower() == "viento":
-        return f"No se encontró indicador de viento ({umbral_txt}, {percentil})."
-    if variable.lower() == "corriente":
-        return (
-            f"No se encontró indicador de corriente ({umbral_txt}, {percentil}). "
-            "Revisa Indicadores climáticos y Relacion_modelos_activos_e_indicadores.xlsx."
-        )
-    if variable.lower() == "visibilidad":
-        return (
-            f"No se encontró indicador de visibilidad ({umbral_txt}, {percentil}). "
-            "Revisa Indicadores climáticos y Relacion_modelos_activos_e_indicadores.xlsx."
-        )
-    return f"No se encontró indicador de horas/año con {umbral_txt} ({percentil})."
+    origen_regla: str,
+    motivo: str,
+    error_code: str = "INDICADOR_CLIMA_FALTANTE",
+    estados: list | None = None,
+) -> IteracionResultado:
+    return IteracionResultado(
+        numero=numero,
+        modo_fallo=etiqueta_im,
+        variable_climatica=variable,
+        umbral=umbral_txt or "—",
+        indicador_seleccionado="—",
+        percentil=percentil,
+        origen_regla=origen_regla,
+        indicadores_evaluados=estados or [],
+        advertencias=[motivo],
+        estado="error",
+        motivo=motivo,
+        error_code=error_code,
+    )
 
 
 def calcular(
@@ -265,11 +307,21 @@ def calcular(
                     lista_master=lista_master,
                 )
                 if umbral_info is None and not regla_ind.usa_predefinido:
-                    return ResultadoPIAgitacion.error(
-                        f"No se pudo determinar referencia (Fb o umbral) para "
-                        f"«{modo_fallo}» / {variable}. "
-                        f"Fb vacío en Configuración del puerto y sin umbral en Excel 2."
-                    )
+                    iteraciones.append(_iteracion_error(
+                        numero=numero,
+                        etiqueta_im=etiqueta_im,
+                        variable=variable,
+                        umbral_txt=umbral_txt,
+                        percentil=percentil,
+                        origen_regla=regla_modelo.origen,
+                        motivo=(
+                            f"No se pudo determinar referencia (Fb o umbral) para "
+                            f"«{modo_fallo}» / {variable}. "
+                            f"Fb vacío en Configuración del puerto y sin umbral en Excel 2."
+                        ),
+                        error_code="REFERENCIA_FB_UMBRAL_FALTANTE",
+                    ))
+                    continue
                 if umbral_info is not None:
                     umbral_txt, umbral_m = umbral_info
                     referencia_m = umbral_m
@@ -283,9 +335,20 @@ def calcular(
                 info_clima, params.baseline_year, variable=pestana_clima
             )
             if col_hist is None or not columnas_fut:
-                return ResultadoPIAgitacion.error(
-                    f"No se encontraron columnas climáticas para {pestana_clima}."
-                )
+                iteraciones.append(_iteracion_error(
+                    numero=numero,
+                    etiqueta_im=etiqueta_im,
+                    variable=variable,
+                    umbral_txt=umbral_txt,
+                    percentil=percentil,
+                    origen_regla=regla_modelo.origen,
+                    motivo=(
+                        f"No se encontraron columnas climáticas para {pestana_clima} "
+                        f"en {nombre_excel_clima(datos)}."
+                    ),
+                    error_code="COLUMNAS_CLIMA_FALTANTES",
+                ))
+                continue
 
             fila_ind, estados = clasificar_indicadores_francobordo(
                 df_clima,
@@ -295,15 +358,29 @@ def calcular(
                 regla=regla_ind,
             )
             if fila_ind is None:
-                return ResultadoPIAgitacion.error(
-                    _texto_error_indicador(
-                        variable,
-                        umbral_txt,
-                        percentil,
+                iteraciones.append(_iteracion_error(
+                    numero=numero,
+                    etiqueta_im=etiqueta_im,
+                    variable=variable,
+                    umbral_txt=umbral_txt,
+                    percentil=percentil,
+                    origen_regla=regla_modelo.origen,
+                    motivo=_texto_error_indicador(
+                        datos=datos,
+                        df_clima=df_clima,
+                        hoja=pestana_clima,
+                        variable=variable,
+                        percentil=percentil,
+                        umbral_txt=umbral_txt,
+                        umbral_m=umbral_m,
                         regla=regla_ind,
                         inundacion_fb=True,
-                    )
-                )
+                        origen_referencia=origen_referencia,
+                        referencia_m=referencia_m,
+                    ),
+                    estados=estados,
+                ))
+                continue
         else:
             if regla_modelo.desde_excel and regla_ind.usa_predefinido:
                 umbral_txt = "Indicador fijado en Excel de relación modelos"
@@ -320,22 +397,45 @@ def calcular(
                     lista_master=lista_master,
                 )
                 if umbral_info is None and not regla_ind.usa_predefinido:
-                    return ResultadoPIAgitacion.error(
-                        f"No se pudo determinar el umbral para «{modo_fallo}» / {variable}."
-                    )
+                    iteraciones.append(_iteracion_error(
+                        numero=numero,
+                        etiqueta_im=etiqueta_im,
+                        variable=variable,
+                        umbral_txt=umbral_txt,
+                        percentil=percentil,
+                        origen_regla=regla_modelo.origen,
+                        motivo=(
+                            f"No se pudo determinar el umbral para "
+                            f"«{modo_fallo}» / {variable}."
+                        ),
+                        error_code="UMBRAL_FALTANTE",
+                    ))
+                    continue
                 if umbral_info is not None:
                     umbral_txt, umbral_m = umbral_info
                 elif regla_ind.usa_predefinido:
                     umbral_txt = "Sin umbral numérico"
 
             df_clima = info_clima["por_variable"].get(variable, {}).get("df", pd.DataFrame())
+            pestana_clima = variable
             col_hist, columnas_fut = columnas_oleaje(
                 info_clima, params.baseline_year, variable=variable
             )
             if col_hist is None or not columnas_fut:
-                return ResultadoPIAgitacion.error(
-                    f"No se encontraron columnas climáticas para {variable}."
-                )
+                iteraciones.append(_iteracion_error(
+                    numero=numero,
+                    etiqueta_im=etiqueta_im,
+                    variable=variable,
+                    umbral_txt=umbral_txt,
+                    percentil=percentil,
+                    origen_regla=regla_modelo.origen,
+                    motivo=(
+                        f"No se encontraron columnas climáticas para {variable} "
+                        f"en {nombre_excel_clima(datos)}."
+                    ),
+                    error_code="COLUMNAS_CLIMA_FALTANTES",
+                ))
+                continue
 
             fila_ind, estados = clasificar_indicadores_umbral(
                 df_clima,
@@ -345,11 +445,26 @@ def calcular(
                 regla=regla_ind,
             )
             if fila_ind is None:
-                return ResultadoPIAgitacion.error(
-                    _texto_error_indicador(
-                        variable, umbral_txt, percentil, regla=regla_ind
-                    )
-                )
+                iteraciones.append(_iteracion_error(
+                    numero=numero,
+                    etiqueta_im=etiqueta_im,
+                    variable=variable,
+                    umbral_txt=umbral_txt,
+                    percentil=percentil,
+                    origen_regla=regla_modelo.origen,
+                    motivo=_texto_error_indicador(
+                        datos=datos,
+                        df_clima=df_clima,
+                        hoja=pestana_clima,
+                        variable=variable,
+                        percentil=percentil,
+                        umbral_txt=umbral_txt,
+                        umbral_m=umbral_m,
+                        regla=regla_ind,
+                    ),
+                    estados=estados,
+                ))
+                continue
 
         tabla = tabla_resultado_indicador(
             fila_ind,

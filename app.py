@@ -1988,38 +1988,6 @@ def _plegable(titulo: str, key: str, *, expanded: bool = False):
     yield bool(st.session_state[state_key])
 
 
-def _mostrar_campos_ficha(campos, *, etiqueta_fuente: str = "Fuente") -> None:
-    """Tabla compacta de inputs/outputs de una ficha de modelo."""
-    if not campos:
-        st.caption("Sin campos definidos.")
-        return
-    # Quitar filas sin símbolo ni unidad (se pintaban como "— | —");
-    # la regla de interpretación ya va en caption bajo la ecuación.
-    visibles = [
-        c for c in campos
-        if (c.simbolo or "").strip() or (c.unidad or "").strip()
-    ]
-    if not visibles:
-        st.caption("Sin campos definidos.")
-        return
-    filas = []
-    for c in visibles:
-        filas.append({
-            "Nombre": c.nombre,
-            "Símbolo": c.simbolo or "—",
-            "Unidad": c.unidad or "—",
-            etiqueta_fuente: c.fuente or "—",
-            "Descripción": c.descripcion or "—",
-        })
-    df = pd.DataFrame(filas)
-    cols = [c for c in ("Nombre", "Símbolo", "Unidad", etiqueta_fuente, "Descripción") if c in df.columns]
-    if etiqueta_fuente in df.columns and all(
-        (not str(c.fuente or "").strip()) for c in visibles
-    ):
-        cols = [c for c in cols if c != etiqueta_fuente]
-    _mostrar_tabla(df, column_order=cols, altura_max=min(280, 42 + 36 * len(filas)))
-
-
 def _mostrar_ficha_modelo(
     ficha: FichaModelo,
     *,
@@ -2029,7 +1997,7 @@ def _mostrar_ficha_modelo(
     variable: str | None = None,
     indicador: str | None = None,
 ) -> None:
-    """Ficha del modelo: ecuación + inputs/outputs (plegable)."""
+    """Ficha del modelo: ecuación e interpretación (plegable)."""
     with _plegable(
         f"Ficha del modelo · {titulo_modo_display(ficha.nombre)} ({ficha.motor_id})",
         f"{key}_ficha",
@@ -2075,14 +2043,6 @@ def _mostrar_ficha_modelo(
             )
         if regla:
             st.caption(regla)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Inputs**")
-            _mostrar_campos_ficha(ficha.inputs, etiqueta_fuente="Fuente")
-        with c2:
-            st.markdown("**Outputs**")
-            _mostrar_campos_ficha(ficha.outputs, etiqueta_fuente="Fuente")
 
 
 def _mostrar_vista_cp_im(vista) -> None:
