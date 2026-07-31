@@ -27,8 +27,21 @@ def _texto_celda(valor: object) -> str:
     return str(valor).strip()
 
 
+# Alias ya usado en PI agitacion: Agitacion <-> Exceso de oleaje (misma cadena).
+_MODOS_ALIAS_AGITACION = frozenset({"agitacion", "exceso de oleaje"})
+_MODO_CANONICO_AGITACION = "exceso de oleaje"
+
+
+def _normalizar_modo(modo_fallo: object) -> str:
+    """Normaliza modo; unifica Agitacion y Exceso de oleaje."""
+    modo_n = _normalizar(modo_fallo)
+    if modo_n in _MODOS_ALIAS_AGITACION:
+        return _MODO_CANONICO_AGITACION
+    return modo_n
+
+
 def _clave_tipo_modo(tipo_impacto: object, modo_fallo: object) -> tuple[str, str]:
-    return _normalizar(tipo_impacto), _normalizar(modo_fallo)
+    return _normalizar(tipo_impacto), _normalizar_modo(modo_fallo)
 
 
 @dataclass(frozen=True)

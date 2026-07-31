@@ -58,6 +58,41 @@ class TestFiltroNoFactiblesMatching(unittest.TestCase):
             )
         )
 
+    def test_alias_agitacion_exceso_oleaje(self) -> None:
+        """Tabla Agitacion omite IM Exceso de oleaje (y al reves)."""
+        agitacion = "Agitaci\u00f3n"
+        df_agitacion = pd.DataFrame(
+            {
+                COL_ACTIVO: ["Muelle"],
+                COL_TIPO: ["ELO"],
+                COL_DESC: ["Interrupcion operativa"],
+                COL_MODO: [agitacion],
+            }
+        )
+        filtro_ag = FiltroImpactosNoFactibles.desde_dataframe(df_agitacion, [True])
+        self.assertTrue(filtro_ag.es_no_factible("Muelle", "ELO", "Exceso de oleaje"))
+        self.assertTrue(filtro_ag.es_no_factible("Muelle", "ELO", agitacion))
+        self.assertTrue(
+            debe_omitir_im(
+                SimpleNamespace(filtro_impactos_no_factibles=filtro_ag),
+                activo="Muelle",
+                tipo_impacto="ELO",
+                modo_fallo="Exceso de Oleaje",
+            )
+        )
+
+        df_oleaje = pd.DataFrame(
+            {
+                COL_ACTIVO: ["Muelle"],
+                COL_TIPO: ["ELO"],
+                COL_DESC: ["Interrupcion operativa"],
+                COL_MODO: ["  Exceso de oleaje  "],
+            }
+        )
+        filtro_ol = FiltroImpactosNoFactibles.desde_dataframe(df_oleaje, [True])
+        self.assertTrue(filtro_ol.es_no_factible("Muelle", "ELO", "Agitacion"))
+        self.assertFalse(filtro_ol.es_no_factible("Muelle", "ELO", "Falta de Calado"))
+
 
 class TestEloCaladoSinMetodologia(unittest.TestCase):
     def test_pi_falta_calado_sin_diagrama(self) -> None:
