@@ -29,6 +29,7 @@ from core.data_loader import (
     resumen_unicos_clima,
     tabla_impactos_indicadores,
     cargar_configuracion_puerto,
+    cargar_preguntar_impactos,
     cargar_relacion_modelos_activos_indicadores,
     cargar_umbrales_curvas_dano,
     cargar_tipo_de_uo,
@@ -279,6 +280,11 @@ def _obtener_relacion(_firma_excel: str):
 @st.cache_data(show_spinner="Cargando configuración del puerto...")
 def _obtener_config_puerto(_firma_excel: str):
     return cargar_configuracion_puerto()
+
+
+@st.cache_data(show_spinner="Cargando impactos a preguntar...")
+def _obtener_preguntar_impactos(_firma_excel: str):
+    return cargar_preguntar_impactos()
 
 
 UMBRALES_LOADER_VERSION = 2  # Incrementar si cambia qué hojas se muestran en la UI.
@@ -1344,7 +1350,24 @@ def _reset_filtros_config_puerto() -> None:
     st.session_state.pop("cfg_filtro", None)
 
 
+_COL_SELECCIONAR_IMPACTO = "Seleccionar"
+_KEY_IMPACTOS_SELECCION = "pde_impactos_preguntar_seleccion"
+_KEY_IMPACTOS_EDITOR = "pde_impactos_preguntar_editor"
+_KEY_IMPACTOS_META = "pde_impactos_preguntar_meta"
+
+
 def _seccion_configuracion_puerto() -> None:
+    tab_cfg, tab_impactos = st.tabs([
+        "Configuración del puerto",
+        "Preguntar impactos",
+    ])
+    with tab_cfg:
+        _seccion_configuracion_puerto_tabla()
+    with tab_impactos:
+        _seccion_preguntar_impactos()
+
+
+def _seccion_configuracion_puerto_tabla() -> None:
     meta = fuente("config_puerto")
     try:
         _, info = _obtener_config_puerto(_firma_datos_excel())
@@ -1414,6 +1437,77 @@ def _seccion_configuracion_puerto() -> None:
         hoja=hoja_sel[:31],
     )
     _mostrar_tabla(df_mostrar, altura_max=620, conservar_columnas_vacias=True)
+
+
+def _seccion_preguntar_impactos() -> None:
+    """Tabla de impactos a preguntar con casillas (todas marcadas por defecto)."""
+    try:
+        df, info = _obtener_preguntar_impactos(_firma_datos_excel())
+    except FileNotFoundError as exc:
+        st.warning(str(exc))
+        return
+
+    if df.empty:
+        st.warning("El Excel de impactos a preguntar no tiene filas.")
+        return
+
+    _cabecera_seccion(
+        "Preguntar impactos",
+        [{
+            "nombre": "Preguntar_si_se_calculan.xlsx",
+            "ruta": info["ruta"],
+            "detalle": (
+                f"Hoja «{info.get('hoja', '—')}» · {info.get('total', 0)} filas · "
+                "marque/desmarque los impactos a considerar"
+            ),
+        }],
+        key="preguntar_impactos",
+    )
+
+    n = len(df)
+    meta = (info["ruta"], info.get("total", n), tuple(df.columns))
+    if st.session_state.get(_KEY_IMPACTOS_META) != meta:
+        st.session_state.pop(_KEY_IMPACTOS_EDITOR, None)
+        st.session_state[_KEY_IMPACTOS_META] = meta
+        st.session_state[_KEY_IMPACTOS_SELECCION] = [True] * n
+
+    if (
+        _KEY_IMPACTOS_SELECCION not in st.session_state
+        or len(st.session_state[_KEY_IMPACTOS_SELECCION]) != n
+    ):
+        st.session_state[_KEY_IMPACTOS_SELECCION] = [True] * n
+
+    editor_df = df.copy()
+    editor_df.insert(0, _COL_SELECCIONAR_IMPACTO, st.session_state[_KEY_IMPACTOS_SELECCION])
+
+    cfg_cols: dict = {
+        _COL_SELECCIONAR_IMPACTO: st.column_config.CheckboxColumn(
+            "Seleccionar",
+            help="Marcar o desmarcar este impacto",
+            default=True,
+            width="small",
+        ),
+    }
+    for col in df.columns:
+        ancho = "small" if "tipo de impacto" in str(col).lower() else "medium"
+        if "modos de fallo" in str(col).lower() or "activo" in str(col).lower():
+            ancho = "large"
+        cfg_cols[col] = st.column_config.TextColumn(str(col), width=ancho)
+
+    editados = st.data_editor(
+        editor_df,
+        hide_index=True,
+        use_container_width=True,
+        height=_altura_tabla(n, 620),
+        column_config=cfg_cols,
+        disabled=[c for c in editor_df.columns if c != _COL_SELECCIONAR_IMPACTO],
+        key=_KEY_IMPACTOS_EDITOR,
+    )
+
+    seleccion = [bool(v) for v in editados[_COL_SELECCIONAR_IMPACTO].tolist()]
+    st.session_state[_KEY_IMPACTOS_SELECCION] = seleccion
+    n_sel = sum(seleccion)
+    st.caption(f"{n_sel} de {n} filas seleccionadas")
 
 
 def _seccion_relacion_modelos() -> None:

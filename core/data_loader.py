@@ -28,6 +28,8 @@ from core.fuentes_datos import FUENTES, FuenteExcel, candidatos_archivo, fuente,
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 DIR_DATOS_MODELOS = RAIZ_PROYECTO / "data_modelos"
 DIR_DATOS_SECCIONES = RAIZ_PROYECTO / "data_secciones"
+DIR_PREGUNTAR_IMPACTOS = RAIZ_PROYECTO / "Preguntar_impactos"
+ARCHIVO_PREGUNTAR_IMPACTOS = "Preguntar_si_se_calculan.xlsx"
 
 # Carpetas donde se buscan los Excel (firma de caché y búsquedas auxiliares).
 DATA_DIRS: list[Path] = [
@@ -93,13 +95,16 @@ def fuentes_excel_faltantes() -> list[AuditoriaFuenteExcel]:
 
 def firma_cache_excel(data_dirs: list[Path] | None = None) -> str:
     """Firma de los Excel en disco (mtime + tamaño). Invalida caché al actualizar archivos."""
-    dirs = data_dirs or DATA_DIRS
+    dirs = data_dirs or [*DATA_DIRS, DIR_PREGUNTAR_IMPACTOS]
     partes: list[str] = []
     for data_dir in dirs:
         if not data_dir.is_dir():
             continue
         for ext in ("*.xlsx", "*.xls"):
             for ruta in sorted(data_dir.rglob(ext)):
+                # Ignorar bloqueos temporales de Excel (~$...).
+                if ruta.name.startswith("~$"):
+                    continue
                 try:
                     stat = ruta.stat()
                     rel = ruta.relative_to(data_dir).as_posix()
@@ -1256,6 +1261,79 @@ def leer_escenarios(
     if variable is None:
         return [], []
     return variable["anios"], variable["escenarios"]
+
+
+def _limpiar_columnas_preguntar_impactos(columnas: list) -> list[str]:
+    """Normaliza cabeceras; renombra Unnamed/vacías a «Descripción»."""
+    usados: dict[str, int] = {}
+    salida: list[str] = []
+    for i, raw in enumerate(columnas):
+        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+            nombre = "Descripción"
+        else:
+            nombre = str(raw).strip()
+            if not nombre or nombre.lower().startswith("unnamed"):
+                nombre = "Descripción"
+        if nombre in usados:
+            usados[nombre] += 1
+            nombre = f"{nombre}_{usados[nombre]}"
+        else:
+            usados[nombre] = 0
+        salida.append(nombre)
+    return salida
+
+
+def cargar_preguntar_impactos(
+    data_dirs: list[Path] | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Carga el Excel de impactos a preguntar / marcar para cálculo.
+
+    Busca ``Preguntar_si_se_calculan.xlsx`` en ``Preguntar_impactos/`` (raíz del
+    proyecto) y, si no está, en las carpetas de datos habituales.
+    """
+    dirs = list(data_dirs) if data_dirs is not None else [
+        DIR_PREGUNTAR_IMPACTOS,
+        DIR_DATOS_MODELOS,
+        DIR_DATOS_SECCIONES,
+    ]
+    ruta = localizar_excel("Preguntar_si_se_calculan", dirs, parcial=True)
+    if ruta is None:
+        ruta_directa = DIR_PREGUNTAR_IMPACTOS / ARCHIVO_PREGUNTAR_IMPACTOS
+        raise FileNotFoundError(
+            f"No se encontró '{ARCHIVO_PREGUNTAR_IMPACTOS}' en: "
+            + ", ".join(str(d) for d in dirs)
+            + f" (esperado: {ruta_directa})"
+        )
+
+    hojas = pd.read_excel(ruta, sheet_name=None)
+    nombre_hoja = next(iter(hojas))
+    bruto = hojas[nombre_hoja]
+    df = bruto.dropna(how="all").copy().reset_index(drop=True)
+    df.columns = _limpiar_columnas_preguntar_impactos(list(df.columns))
+
+    col_activo = _buscar_columna(
+        list(df.columns),
+        "activo fisico u operacional",
+        "activo físico u operacional",
+        "activo fisico",
+        "activo",
+    )
+    if col_activo is not None:
+        df[col_activo] = df[col_activo].ffill()
+        df[col_activo] = df[col_activo].map(
+            lambda v: str(v).strip()
+            if v is not None and not (isinstance(v, float) and pd.isna(v))
+            else v
+        )
+
+    info = {
+        "ruta": str(ruta),
+        "hoja": nombre_hoja,
+        "total": len(df),
+        "columnas": list(df.columns),
+        "fuente": "preguntar_impactos",
+    }
+    return df, info
 
 
 def cargar_configuracion_puerto(
