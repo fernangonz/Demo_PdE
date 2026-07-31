@@ -1354,12 +1354,24 @@ _COL_SELECCIONAR_IMPACTO = "Seleccionar"
 _KEY_IMPACTOS_SELECCION = "pde_impactos_preguntar_seleccion"
 _KEY_IMPACTOS_EDITOR = "pde_impactos_preguntar_editor"
 _KEY_IMPACTOS_META = "pde_impactos_preguntar_meta"
+_TAB_IMPACTOS_CALCULAR = "Impactos a calcular"
+
+
+def _marcar_todos_impactos(n: int) -> None:
+    st.session_state[_KEY_IMPACTOS_SELECCION] = [True] * n
+    st.session_state.pop(_KEY_IMPACTOS_EDITOR, None)
+
+
+def _desmarcar_todos_impactos(n: int) -> None:
+    st.session_state[_KEY_IMPACTOS_SELECCION] = [False] * n
+    st.session_state.pop(_KEY_IMPACTOS_EDITOR, None)
 
 
 def _seccion_configuracion_puerto() -> None:
+    """Vista Configuración del puerto con pestañas internas."""
     tab_cfg, tab_impactos = st.tabs([
         "Configuración del puerto",
-        "Preguntar impactos",
+        _TAB_IMPACTOS_CALCULAR,
     ])
     with tab_cfg:
         _seccion_configuracion_puerto_tabla()
@@ -1440,7 +1452,7 @@ def _seccion_configuracion_puerto_tabla() -> None:
 
 
 def _seccion_preguntar_impactos() -> None:
-    """Tabla de impactos a preguntar con casillas (todas marcadas por defecto)."""
+    """Pestaña de impactos a calcular: casillas por fila (todas marcadas por defecto)."""
     try:
         df, info = _obtener_preguntar_impactos(_firma_datos_excel())
     except FileNotFoundError as exc:
@@ -1448,17 +1460,17 @@ def _seccion_preguntar_impactos() -> None:
         return
 
     if df.empty:
-        st.warning("El Excel de impactos a preguntar no tiene filas.")
+        st.warning("El Excel de impactos a calcular no tiene filas.")
         return
 
     _cabecera_seccion(
-        "Preguntar impactos",
+        _TAB_IMPACTOS_CALCULAR,
         [{
             "nombre": "Preguntar_si_se_calculan.xlsx",
             "ruta": info["ruta"],
             "detalle": (
                 f"Hoja «{info.get('hoja', '—')}» · {info.get('total', 0)} filas · "
-                "marque/desmarque los impactos a considerar"
+                "marque/desmarque los impactos a calcular"
             ),
         }],
         key="preguntar_impactos",
@@ -1476,6 +1488,24 @@ def _seccion_preguntar_impactos() -> None:
         or len(st.session_state[_KEY_IMPACTOS_SELECCION]) != n
     ):
         st.session_state[_KEY_IMPACTOS_SELECCION] = [True] * n
+
+    col_marcar, col_desmarcar, _ = st.columns([1, 1, 4])
+    with col_marcar:
+        st.button(
+            "Marcar todos",
+            key="impactos_marcar_todos",
+            on_click=_marcar_todos_impactos,
+            args=(n,),
+            use_container_width=True,
+        )
+    with col_desmarcar:
+        st.button(
+            "Desmarcar todos",
+            key="impactos_desmarcar_todos",
+            on_click=_desmarcar_todos_impactos,
+            args=(n,),
+            use_container_width=True,
+        )
 
     editor_df = df.copy()
     editor_df.insert(0, _COL_SELECCIONAR_IMPACTO, st.session_state[_KEY_IMPACTOS_SELECCION])
@@ -1507,7 +1537,7 @@ def _seccion_preguntar_impactos() -> None:
     seleccion = [bool(v) for v in editados[_COL_SELECCIONAR_IMPACTO].tolist()]
     st.session_state[_KEY_IMPACTOS_SELECCION] = seleccion
     n_sel = sum(seleccion)
-    st.caption(f"{n_sel} de {n} filas seleccionadas")
+    st.caption(f"{n_sel} de {n} impactos seleccionados para calcular")
 
 
 def _seccion_relacion_modelos() -> None:
