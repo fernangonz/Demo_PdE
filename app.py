@@ -95,6 +95,7 @@ V_RELACION_IVC = fuente("relacion_ivc").seccion
 V_UMBRALES = fuente("umbrales").seccion
 V_RELACION_MODELOS = fuente("relacion_modelos").seccion
 V_CONFIG_PUERTO = fuente("config_puerto").seccion
+V_CONFIG_IMPACTOS_NO_FACTIBLES = "Configuración de impactos no factibles"
 V_CLIMA = fuente("clima").seccion
 V_EXPLORADOR_INDICADORES = "Explorador de indicadores"
 V_MODELOS_IMPACTOS = "Modelos de impactos"
@@ -137,7 +138,13 @@ GRUPOS_MENU: tuple[_GrupoMenu, ...] = (
     ),
     _GrupoMenu(
         "CONFIGURACIÓN",
-        (_ItemMenu("Configuración del puerto", V_CONFIG_PUERTO),),
+        (
+            _ItemMenu("Configuración del puerto", V_CONFIG_PUERTO),
+            _ItemMenu(
+                "Configuración de impactos no factibles",
+                V_CONFIG_IMPACTOS_NO_FACTIBLES,
+            ),
+        ),
         icono=":material/settings:",
     ),
     _GrupoMenu(
@@ -784,6 +791,8 @@ def _render_vista(vista: str) -> None:
         _seccion_relacion_modelos()
     elif vista == V_CONFIG_PUERTO:
         _seccion_configuracion_puerto()
+    elif vista == V_CONFIG_IMPACTOS_NO_FACTIBLES:
+        _seccion_preguntar_impactos()
     elif vista == V_MODELOS_IMPACTOS:
         _seccion_modelos_impactos()
     elif vista == V_MODELOS_ECONOMICOS:
@@ -1354,7 +1363,6 @@ _COL_SELECCIONAR_IMPACTO = "Seleccionar"
 _KEY_IMPACTOS_SELECCION = "pde_impactos_preguntar_seleccion"
 _KEY_IMPACTOS_EDITOR = "pde_impactos_preguntar_editor"
 _KEY_IMPACTOS_META = "pde_impactos_preguntar_meta"
-_TAB_IMPACTOS_CALCULAR = "Impactos a calcular"
 
 
 def _marcar_todos_impactos(n: int) -> None:
@@ -1368,18 +1376,6 @@ def _desmarcar_todos_impactos(n: int) -> None:
 
 
 def _seccion_configuracion_puerto() -> None:
-    """Vista Configuración del puerto con pestañas internas."""
-    tab_cfg, tab_impactos = st.tabs([
-        "Configuración del puerto",
-        _TAB_IMPACTOS_CALCULAR,
-    ])
-    with tab_cfg:
-        _seccion_configuracion_puerto_tabla()
-    with tab_impactos:
-        _seccion_preguntar_impactos()
-
-
-def _seccion_configuracion_puerto_tabla() -> None:
     meta = fuente("config_puerto")
     try:
         _, info = _obtener_config_puerto(_firma_datos_excel())
@@ -1452,7 +1448,7 @@ def _seccion_configuracion_puerto_tabla() -> None:
 
 
 def _seccion_preguntar_impactos() -> None:
-    """Pestaña de impactos a calcular: casillas por fila (todas marcadas por defecto)."""
+    """Configuración de impactos no factibles: casillas por fila (todas marcadas por defecto)."""
     try:
         df, info = _obtener_preguntar_impactos(_firma_datos_excel())
     except FileNotFoundError as exc:
@@ -1464,7 +1460,7 @@ def _seccion_preguntar_impactos() -> None:
         return
 
     _cabecera_seccion(
-        _TAB_IMPACTOS_CALCULAR,
+        V_CONFIG_IMPACTOS_NO_FACTIBLES,
         [{
             "nombre": "Preguntar_si_se_calculan.xlsx",
             "ruta": info["ruta"],
