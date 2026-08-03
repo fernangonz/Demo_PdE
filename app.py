@@ -2576,9 +2576,28 @@ def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str, entrada=None) 
         _mostrar_txt_diagrama(esquema.ruta)
 
 
-def _mostrar_ficha_catalogo(*, titulo: str, entrada=None) -> None:
-    """Ficha documental desde Fichas/Ficha.xlsx (hoja emparejada al modelo)."""
+def _mostrar_ficha_catalogo(
+    *,
+    titulo: str,
+    entrada=None,
+    key_suffix: str = "ficha",
+    permitir_cerrar: bool = False,
+) -> None:
+    """Ficha documental desde Fichas/Ficha.xlsx (hoja emparejada al modelo).
+
+    Respeta merges Excel (rowspan/colspan HTML) y omite notas editoriales.
+    """
     from core.modelos.fichas_excel import ARCHIVO_FICHAS, ficha_excel_por_entrada
+
+    if permitir_cerrar:
+        c_cerrar, _ = st.columns([1, 5], gap="small")
+        with c_cerrar:
+            st.button(
+                "Cerrar ficha",
+                key=f"pde_cat_cerrar_ficha_{key_suffix}",
+                use_container_width=True,
+                on_click=_cerrar_vista_catalogo,
+            )
 
     st.markdown(f"**Ficha · {titulo}**")
     if entrada is None:
@@ -2594,6 +2613,10 @@ def _mostrar_ficha_catalogo(*, titulo: str, entrada=None) -> None:
         return
 
     st.caption(f"Hoja Excel: **{ficha.hoja}** · {ARCHIVO_FICHAS.as_posix()}")
+    html = getattr(ficha, "html", "") or ""
+    if html:
+        st.markdown(html, unsafe_allow_html=True)
+        return
     if ficha.tabla is None or ficha.tabla.empty:
         st.warning("La hoja existe pero no tiene celdas con texto.")
         return
@@ -2758,33 +2781,38 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
 
     st.markdown(f"### {etiqueta}")
 
-    # Diagrama primero y enlazado a PDF/TXT de la tarjeta.
-    st.markdown("#### Diagrama de flujo")
-    _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
-
     if vista in ("pdf", "txt"):
-        # Con el diagrama abierto no empujar ficha/esquema encima del PDF.
+        # Diagrama en foco: no empujar ficha/esquema encima del PDF.
+        st.markdown("#### Diagrama de flujo")
+        _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
         return
 
-    st.divider()
     if vista == "ficha":
-        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
-        st.divider()
+        _mostrar_ficha_catalogo(
+            titulo=etiqueta,
+            entrada=entrada,
+            key_suffix=str(idx),
+            permitir_cerrar=True,
+        )
+        return
+
+    if vista == "esquema":
         _mostrar_esquema_catalogo(
             modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
         )
-    elif vista == "esquema":
-        _mostrar_esquema_catalogo(
-            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
-        )
-        st.divider()
-        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
-    else:
-        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
-        st.divider()
-        _mostrar_esquema_catalogo(
-            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
-        )
+        return
+
+    # Selección sin vista concreta: resumen (diagrama + ficha + esquema).
+    st.markdown("#### Diagrama de flujo")
+    _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
+    st.divider()
+    _mostrar_ficha_catalogo(
+        titulo=etiqueta, entrada=entrada, key_suffix=str(idx)
+    )
+    st.divider()
+    _mostrar_esquema_catalogo(
+        modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
+    )
 
 
 def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
