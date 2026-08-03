@@ -925,19 +925,39 @@ def _firma_carpeta_fichas() -> tuple[tuple[str, int, int], ...]:
     return tuple(items)
 
 
-@lru_cache(maxsize=8)
-def _cargar_fichas_word_por_firma(
-    firma: tuple[tuple[str, int, int], ...],
-) -> dict[str, FichaWordModelo]:
-    """Mapa catalogo_id -> ficha, cacheado por firma del directorio."""
-    del firma  # solo se usa como clave de cache
+@lru_cache(maxsize=32)
+def _parsear_ficha(
+    ruta_str: str,
+    size: int,
+    mtime_ns: int,
+) -> tuple[str, tuple[Path, ...], tuple[EcuacionFicha, ...]]:
+    """Parseo caro (HTML + imagenes + ecuaciones) cacheado por (ruta, size, mtime)."""
+    del size, mtime_ns  # solo se usan como clave de cache
+    ruta = Path(ruta_str)
+    media = CARPETA_MEDIA / _slug(ruta.stem)
+    imagenes = _imagenes_desde_docx(ruta, media)
+    html, ecuaciones = _html_desde_docx(ruta)
+    return html, imagenes, ecuaciones
+
+
+def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
+    """Mapa catalogo_id -> ficha reconstruido en cada llamada.
+
+    El parseo del .docx esta cacheado (por ruta+size+mtime), pero el
+    emparejamiento con el catalogo se recalcula siempre para que los cambios
+    en catalogo o en la carpeta ``Fichas/`` se apliquen sin reiniciar.
+    """
     resultado: dict[str, FichaWordModelo] = {}
     for ruta in _listar_docx():
+        try:
+            stat = ruta.stat()
+        except OSError:
+            continue
         stem = ruta.stem
         catalogo_id = emparejar_nombre_ficha(stem)
-        media = CARPETA_MEDIA / _slug(stem)
-        imagenes = _imagenes_desde_docx(ruta, media)
-        html, ecuaciones = _html_desde_docx(ruta)
+        html, imagenes, ecuaciones = _parsear_ficha(
+            str(ruta), int(stat.st_size), int(stat.st_mtime_ns)
+        )
         key = catalogo_id or f"docx:{stem}"
         resultado[key] = FichaWordModelo(
             archivo=ruta.name,
@@ -950,17 +970,8 @@ def _cargar_fichas_word_por_firma(
     return resultado
 
 
-def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
-    """Recarga automatica si cambia el contenido de ``Fichas/``.
-
-    Al anadir/quitar/modificar un .docx cambia la firma y se rehace el mapa
-    sin necesidad de reiniciar Streamlit.
-    """
-    return _cargar_fichas_word_por_firma(_firma_carpeta_fichas())
-
-
 def invalidar_cache_fichas() -> None:
-    _cargar_fichas_word_por_firma.cache_clear()
+    _parsear_ficha.cache_clear()
 
 
 def ficha_word_por_catalogo_id(catalogo_id: str) -> FichaWordModelo | None:
