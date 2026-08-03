@@ -10,6 +10,8 @@ Mammoth queda como fallback opcional si esta instalado.
 """
 from __future__ import annotations
 
+import sys
+
 import base64
 import html as html_lib
 import logging
@@ -359,11 +361,18 @@ def _html_desde_docx(ruta: Path) -> str:
         errores.append(f"mammoth: {type(exc).__name__}: {exc}")
 
     detalle = html_lib.escape(" | ".join(errores) if errores else "motivo desconocido")
-    _log.error("No se pudo convertir %s: %s", ruta.name, " | ".join(errores))
+    py_exe = html_lib.escape(sys.executable)
+    _log.error(
+        "No se pudo convertir %s [%s]: %s",
+        ruta.name,
+        sys.executable,
+        " | ".join(errores),
+    )
     return (
         '<div class="pde-ficha-word"><p>'
         f"No se pudo convertir {html_lib.escape(ruta.name)}. "
         f"<code>{detalle}</code>"
+        f" <small>(Python: <code>{py_exe}</code>)</small>"
         "</p></div>"
     )
 
