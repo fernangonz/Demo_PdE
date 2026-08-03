@@ -2399,12 +2399,27 @@ _KEY_CATALOGO_VISTA = "pde_catalogo_vista"
 
 
 def _set_catalogo_modo(idx: int, vista: str | None = None) -> None:
+    # Reclic en el nombre (sin vista) deselecciona; no hay barra «Lista de modelos».
+    if (
+        vista is None
+        and st.session_state.get(_KEY_CATALOGO_SEL) == idx
+        and st.session_state.get(_KEY_CATALOGO_VISTA) is None
+    ):
+        _cerrar_seleccion_catalogo()
+        return
     st.session_state[_KEY_CATALOGO_SEL] = idx
     st.session_state[_KEY_CATALOGO_VISTA] = vista
 
 
 def _set_catalogo_maestro(vista: str | None = None) -> None:
     """Selecciona el procedimiento maestro (diagrama de flujo único)."""
+    if (
+        vista is None
+        and st.session_state.get(_KEY_CATALOGO_SEL) == _CATALOGO_SEL_MAESTRO
+        and st.session_state.get(_KEY_CATALOGO_VISTA) is None
+    ):
+        _cerrar_seleccion_catalogo()
+        return
     st.session_state[_KEY_CATALOGO_SEL] = _CATALOGO_SEL_MAESTRO
     st.session_state[_KEY_CATALOGO_VISTA] = vista
 
@@ -2436,7 +2451,7 @@ def _mostrar_controles_diagrama_catalogo(
     titulo: str,
     key_suffix: str,
 ) -> None:
-    """PDF / TXT / Cerrar + visor para un diagrama del catálogo."""
+    """PDF / TXT (apilados) / Cerrar + visor para un diagrama del catálogo."""
     from core.modelos.flujos import (
         buscar_diagrama,
         buscar_diagrama_pdf,
@@ -2453,8 +2468,8 @@ def _mostrar_controles_diagrama_catalogo(
     txt = buscar_diagrama_texto(modelo_id)
     vista = st.session_state.get(_KEY_CATALOGO_VISTA)
 
-    c_pdf, c_txt, c_cerrar, _ = st.columns([1, 1, 1, 3])
-    with c_pdf:
+    c_btns, c_cerrar, _ = st.columns([1, 1, 4], gap="small", vertical_alignment="top")
+    with c_btns:
         st.button(
             "PDF",
             key=f"pde_cat_pdf_btn_{key_suffix}",
@@ -2463,7 +2478,6 @@ def _mostrar_controles_diagrama_catalogo(
             on_click=_set_catalogo_vista,
             args=("pdf",),
         )
-    with c_txt:
         st.button(
             "TXT",
             key=f"pde_cat_txt_btn_{key_suffix}",
@@ -2532,13 +2546,18 @@ def _mostrar_ficha_catalogo_placeholder(*, titulo: str) -> None:
 
 
 def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
-    """Fila/tarjeta: nombre | Diagrama de flujo (PDF|TXT) | FICHA."""
-    from core.modelos.flujos import buscar_diagrama_pdf, buscar_diagrama_texto
+    """Fila/tarjeta: nombre | Diagrama (PDF/TXT apilados) | FICHA | i (esquema)."""
+    from core.modelos.flujos import (
+        buscar_diagrama_pdf,
+        buscar_diagrama_texto,
+        buscar_esquema,
+    )
 
     etiqueta = _etiqueta_catalogo_modo(entrada)
     modelo_id = entrada.diagrama_modelo_id or ""
     pdf = buscar_diagrama_pdf(modelo_id) if modelo_id else None
     txt = buscar_diagrama_texto(modelo_id) if modelo_id else None
+    esquema = buscar_esquema(modelo_id) if modelo_id else None
     tipo_btn = "primary" if seleccionado else "secondary"
 
     with st.container(border=True):
@@ -2546,8 +2565,8 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
             '<span class="pde-modelo-card-marker"></span>',
             unsafe_allow_html=True,
         )
-        c_nom, c_diag, c_ficha = st.columns(
-            [2.4, 2.2, 1.3],
+        c_nom, c_diag, c_ficha, c_info = st.columns(
+            [2.4, 1.5, 1.0, 0.55],
             gap="small",
             vertical_alignment="center",
         )
@@ -2562,38 +2581,45 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
             )
         with c_diag:
             st.caption("Diagrama de flujo")
-            b_pdf, b_txt = st.columns(2, gap="small")
-            with b_pdf:
-                st.button(
-                    "PDF",
-                    key=f"pde_cat_card_pdf_{idx}",
-                    use_container_width=True,
-                    disabled=pdf is None,
-                    on_click=_set_catalogo_modo,
-                    args=(idx, "pdf"),
-                )
-            with b_txt:
-                st.button(
-                    "TXT",
-                    key=f"pde_cat_card_txt_{idx}",
-                    use_container_width=True,
-                    disabled=txt is None,
-                    on_click=_set_catalogo_modo,
-                    args=(idx, "txt"),
-                )
+            st.button(
+                "PDF",
+                key=f"pde_cat_card_pdf_{idx}",
+                use_container_width=True,
+                disabled=pdf is None,
+                on_click=_set_catalogo_modo,
+                args=(idx, "pdf"),
+            )
+            st.button(
+                "TXT",
+                key=f"pde_cat_card_txt_{idx}",
+                use_container_width=True,
+                disabled=txt is None,
+                on_click=_set_catalogo_modo,
+                args=(idx, "txt"),
+            )
         with c_ficha:
             st.button(
-                "FICHA ⓘ",
+                "FICHA",
                 key=f"pde_cat_card_ficha_{idx}",
                 use_container_width=True,
-                help="Ficha del modelo (próximamente)",
+                help="Ficha del modelo",
                 on_click=_set_catalogo_modo,
                 args=(idx, "ficha"),
+            )
+        with c_info:
+            st.button(
+                "i",
+                key=f"pde_cat_card_info_{idx}",
+                use_container_width=True,
+                help="Esquema / imagen de información",
+                disabled=esquema is None,
+                on_click=_set_catalogo_modo,
+                args=(idx, "esquema"),
             )
 
 
 def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
-    """Tarjeta del procedimiento maestro (diagrama de flujo único)."""
+    """Tarjeta del procedimiento maestro: nombre | Diagrama (PDF/TXT apilados)."""
     from core.modelos.flujos import buscar_diagrama_pdf, buscar_diagrama_texto
 
     mid = "DIAGRAMA_FLUJO_UNICO"
@@ -2606,8 +2632,8 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
             '<span class="pde-modelo-card-marker"></span>',
             unsafe_allow_html=True,
         )
-        c_nom, c_diag, _ = st.columns(
-            [2.4, 2.2, 1.3],
+        c_nom, c_diag = st.columns(
+            [2.4, 1.5],
             gap="small",
             vertical_alignment="center",
         )
@@ -2621,26 +2647,23 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
                 args=(None,),
             )
         with c_diag:
-            st.caption("Procedimiento maestro")
-            b_pdf, b_txt = st.columns(2, gap="small")
-            with b_pdf:
-                st.button(
-                    "PDF",
-                    key="pde_cat_card_maestro_pdf",
-                    use_container_width=True,
-                    disabled=pdf is None,
-                    on_click=_set_catalogo_maestro,
-                    args=("pdf",),
-                )
-            with b_txt:
-                st.button(
-                    "TXT",
-                    key="pde_cat_card_maestro_txt",
-                    use_container_width=True,
-                    disabled=txt is None,
-                    on_click=_set_catalogo_maestro,
-                    args=("txt",),
-                )
+            st.caption("Diagrama de flujo")
+            st.button(
+                "PDF",
+                key="pde_cat_card_maestro_pdf",
+                use_container_width=True,
+                disabled=pdf is None,
+                on_click=_set_catalogo_maestro,
+                args=("pdf",),
+            )
+            st.button(
+                "TXT",
+                key="pde_cat_card_maestro_txt",
+                use_container_width=True,
+                disabled=txt is None,
+                on_click=_set_catalogo_maestro,
+                args=("txt",),
+            )
 
 
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
@@ -2649,16 +2672,7 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
     modelo_id = entrada.diagrama_modelo_id or ""
     vista = st.session_state.get(_KEY_CATALOGO_VISTA)
 
-    cab, cerrar = st.columns([5, 1], vertical_alignment="center")
-    with cab:
-        st.markdown(f"### {etiqueta}")
-    with cerrar:
-        st.button(
-            "Cerrar",
-            key=f"pde_cat_detalle_cerrar_{idx}",
-            use_container_width=True,
-            on_click=_cerrar_seleccion_catalogo,
-        )
+    st.markdown(f"### {etiqueta}")
 
     st.markdown("#### Diagrama de flujo")
     _mostrar_controles_diagrama_catalogo(
@@ -2668,7 +2682,7 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
     )
 
     st.divider()
-    # Si el usuario pulsó FICHA en la tarjeta, la sección queda arriba de esquema.
+    # Si el usuario pulsó FICHA o i en la tarjeta, esa sección queda arriba.
     if vista == "ficha":
         _mostrar_ficha_catalogo_placeholder(titulo=etiqueta)
         st.divider()
@@ -2686,84 +2700,68 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
 def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
     """Lista de modelos en 3 columnas (ELO / ELU / ELS) + detalle al seleccionar."""
     # Same id as core.modelos.flujos.ID_DIAGRAMA_FLUJO_UNICO (aliases resolve PDF/TXT).
+    # ``expanded`` se conserva por compatibilidad de llamadas; el catálogo ya no
+    # usa barra plegable «Lista de modelos» (detalle inline bajo las tarjetas).
+    _ = expanded
     id_diagrama_flujo_unico = "DIAGRAMA_FLUJO_UNICO"
 
-    # _plegable conserva abierto/cerrado en session_state (st.expander con
-    # expanded=False se cierra en cada rerun al pulsar botones internos).
-    with _plegable(
-        "Lista de modelos",
-        "catalogo_modos_impacto",
-        expanded=expanded,
-    ) as abierto:
-        if not abierto:
-            return
+    st.caption("Procedimiento maestro")
+    idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
+    _tarjeta_maestro_catalogo(seleccionado=idx_sel == _CATALOGO_SEL_MAESTRO)
 
-        st.caption("Procedimiento maestro")
-        idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
-        _tarjeta_maestro_catalogo(seleccionado=idx_sel == _CATALOGO_SEL_MAESTRO)
-
-        st.markdown("##### Lista de modelos")
-        col_elo, col_elu, col_els = st.columns(3, gap="medium")
-        columnas_ui = {
-            "ELO": col_elo,
-            "ELU": col_elu,
-            "ELS": col_els,
-        }
-        for tipo, titulo_col in COLUMNAS_LISTA_MODELOS:
-            with columnas_ui[tipo]:
-                st.markdown(f"**{titulo_col}**")
-                entradas = entradas_por_tipo_impacto(tipo)
-                if not entradas:
-                    st.caption("Sin modelos en esta familia.")
+    st.markdown("##### Lista de modelos")
+    col_elo, col_elu, col_els = st.columns(3, gap="medium")
+    columnas_ui = {
+        "ELO": col_elo,
+        "ELU": col_elu,
+        "ELS": col_els,
+    }
+    for tipo, titulo_col in COLUMNAS_LISTA_MODELOS:
+        with columnas_ui[tipo]:
+            st.markdown(f"**{titulo_col}**")
+            entradas = entradas_por_tipo_impacto(tipo)
+            if not entradas:
+                st.caption("Sin modelos en esta familia.")
+                continue
+            for entrada in entradas:
+                idx = _indice_catalogo(entrada)
+                if idx < 0:
                     continue
-                for entrada in entradas:
-                    idx = _indice_catalogo(entrada)
-                    if idx < 0:
-                        continue
-                    seleccionado = idx_sel == idx
-                    _tarjeta_modelo_catalogo(
-                        entrada,
-                        idx=idx,
-                        seleccionado=seleccionado,
-                    )
-
-        idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
-        if idx_sel is None:
-            st.caption(
-                "Selecciona un modelo para ver su diagrama de flujo, ficha y esquema."
-            )
-            return
-
-        st.divider()
-
-        if idx_sel == _CATALOGO_SEL_MAESTRO:
-            cab, cerrar = st.columns([5, 1], vertical_alignment="center")
-            with cab:
-                st.markdown("### Diagrama de flujo único — Procedimiento maestro")
-            with cerrar:
-                st.button(
-                    "Cerrar",
-                    key="pde_cat_detalle_cerrar_maestro",
-                    use_container_width=True,
-                    on_click=_cerrar_seleccion_catalogo,
+                seleccionado = idx_sel == idx
+                _tarjeta_modelo_catalogo(
+                    entrada,
+                    idx=idx,
+                    seleccionado=seleccionado,
                 )
-            _mostrar_controles_diagrama_catalogo(
-                modelo_id=id_diagrama_flujo_unico,
-                titulo="Procedimiento maestro",
-                key_suffix="maestro",
-            )
-            return
 
-        try:
-            idx_sel = int(idx_sel)
-        except (TypeError, ValueError):
-            st.session_state.pop(_KEY_CATALOGO_SEL, None)
-            return
-        if idx_sel < 0 or idx_sel >= len(CATALOGO_MODOS_IMPACTO):
-            st.session_state.pop(_KEY_CATALOGO_SEL, None)
-            return
+    idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
+    if idx_sel is None:
+        st.caption(
+            "Selecciona un modelo para ver su diagrama de flujo, ficha y esquema."
+        )
+        return
 
-        _detalle_modelo_catalogo(CATALOGO_MODOS_IMPACTO[idx_sel], idx=idx_sel)
+    st.divider()
+
+    if idx_sel == _CATALOGO_SEL_MAESTRO:
+        st.markdown("### Diagrama de flujo único — Procedimiento maestro")
+        _mostrar_controles_diagrama_catalogo(
+            modelo_id=id_diagrama_flujo_unico,
+            titulo="Procedimiento maestro",
+            key_suffix="maestro",
+        )
+        return
+
+    try:
+        idx_sel = int(idx_sel)
+    except (TypeError, ValueError):
+        st.session_state.pop(_KEY_CATALOGO_SEL, None)
+        return
+    if idx_sel < 0 or idx_sel >= len(CATALOGO_MODOS_IMPACTO):
+        st.session_state.pop(_KEY_CATALOGO_SEL, None)
+        return
+
+    _detalle_modelo_catalogo(CATALOGO_MODOS_IMPACTO[idx_sel], idx=idx_sel)
 
 
 def _resultados_impactos_puerto() -> None:
