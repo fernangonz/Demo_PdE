@@ -103,6 +103,7 @@ V_CLIMA = fuente("clima").seccion
 V_EXPLORADOR_INDICADORES = "Explorador de indicadores"
 V_MODELOS_IMPACTOS = "Modelos de impactos"
 V_MODELOS_ECONOMICOS = "Modelos económicos"
+V_CALCULO_IMPACTOS = "Cálculo de impactos"
 V_ADAPTACION = "__adaptacion__"
 V_RESUMEN = "__resumen__"
 
@@ -159,10 +160,17 @@ GRUPOS_MENU: tuple[_GrupoMenu, ...] = (
         icono=":material/cloud:",
     ),
     _GrupoMenu(
-        "RIESGO",
+        "MODELOS",
         (
             _ItemMenu("Modelos de impactos", V_MODELOS_IMPACTOS),
             _ItemMenu("Modelos económicos", V_MODELOS_ECONOMICOS),
+        ),
+        icono=":material/account_tree:",
+    ),
+    _GrupoMenu(
+        "RIESGO",
+        (
+            _ItemMenu("Cálculo de impactos", V_CALCULO_IMPACTOS),
         ),
         icono=":material/warning:",
     ),
@@ -805,6 +813,8 @@ def _render_vista(vista: str) -> None:
         _seccion_modelos_impactos()
     elif vista == V_MODELOS_ECONOMICOS:
         _seccion_modelos_economicos()
+    elif vista == V_CALCULO_IMPACTOS:
+        _seccion_calculo_impactos()
     elif vista == V_ADAPTACION:
         _seccion_en_desarrollo("ADAPTACIÓN")
     elif vista == V_RESUMEN:
@@ -2476,8 +2486,8 @@ def _mostrar_controles_diagrama_catalogo(
             st.warning("Diagrama no disponible.")
 
 
-def _bloque_catalogo_modos_impacto() -> None:
-    """Catálogo compacto dentro de un desplegable (cerrado por defecto)."""
+def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
+    """Catálogo de modos de impacto y diagramas (PDF/TXT)."""
     # Same id as core.modelos.flujos.ID_DIAGRAMA_FLUJO_UNICO (aliases resolve PDF/TXT).
     id_diagrama_flujo_unico = "DIAGRAMA_FLUJO_UNICO"
 
@@ -2486,7 +2496,7 @@ def _bloque_catalogo_modos_impacto() -> None:
     with _plegable(
         "Catálogo de modos de impacto y diagrama de flujo",
         "catalogo_modos_impacto",
-        expanded=False,
+        expanded=expanded,
     ) as abierto:
         if not abierto:
             return
@@ -2712,10 +2722,17 @@ def _mostrar_detalle_validacion_puerto(validacion: ResultadoValidacionPuerto) ->
 
 
 def _seccion_modelos_impactos() -> None:
+    """Catálogo y diagramas de modos de impacto (menú MODELOS)."""
+    _cabecera_seccion("Modelos de impactos")
+    _bloque_catalogo_modos_impacto(expanded=True)
+
+
+def _seccion_calculo_impactos() -> None:
+    """Cálculo, validación y resultados de impactos (menú RIESGO)."""
     meta_clima = fuente("clima")
     meta_cfg = fuente("config_puerto")
     try:
-        info_clima = _obtener_clima(_firma_datos_excel())
+        _obtener_clima(_firma_datos_excel())
     except FileNotFoundError:
         st.warning(
             f"No se encontró `{nombre_archivo_display(meta_clima)}`. "
@@ -2729,7 +2746,7 @@ def _seccion_modelos_impactos() -> None:
     except FileNotFoundError:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
 
-    _cabecera_seccion("Modelos de impactos")
+    _cabecera_seccion("Cálculo de impactos")
 
     if config_df is None or config_df.empty:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
@@ -2738,9 +2755,6 @@ def _seccion_modelos_impactos() -> None:
     _activo, activo_raw, cp_num, cp_total, fila_cfg = _selector_activo_cp(config_df)
     st.session_state.cp_numero_actual = cp_num
     st.session_state.cp_total_activos = cp_total
-
-    # Orden UI: catálogo → Calcular → validación / resultados
-    _bloque_catalogo_modos_impacto()
 
     pulsar, params = _bloque_calculo_activo()
     if pulsar:
