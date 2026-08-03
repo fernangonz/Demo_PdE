@@ -246,6 +246,9 @@ def _extraer_imagenes_python_docx(ruta_docx: Path, media_dir: Path) -> tuple[Pat
     return tuple(guardadas)
 
 
+_W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
 def _celda_a_html(texto: str) -> str:
     t = (texto or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not t:
@@ -253,29 +256,117 @@ def _celda_a_html(texto: str) -> str:
     return html_lib.escape(t).replace("\n", "<br/>")
 
 
-def _tabla_a_html(tabla) -> str:
-    """Convierte una tabla python-docx a HTML con bordes basicos.
+def _tc_texto(tc, tabla) -> str:
+    """Texto de una celda OOXML ``w:tc`` via python-docx."""
+    from docx.table import _Cell
 
-    Celdas fusionadas horizontalmente: python-docx repite el mismo objeto;
-    se colapsan con colspan cuando el texto y la identidad de celda coinciden.
+    return _Cell(tc, tabla).text or ""
+
+
+def _tc_grid_span(tc) -> int:
+    """``w:gridSpan`` (colspan); por defecto 1."""
+    tc_pr = tc.find(f"{_W_NS}tcPr")
+    if tc_pr is None:
+        return 1
+    gs = tc_pr.find(f"{_W_NS}gridSpan")
+    if gs is None:
+        return 1
+    try:
+        return max(1, int(gs.get(f"{_W_NS}val") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _tc_vmerge(tc) -> str | None:
+    """Estado de fusion vertical OOXML.
+
+    - ``None``: celda normal (sin vMerge)
+    - ``\"restart\"``: inicio de fusion vertical
+    - ``\"continue\"``: continuation (no emitir ``<td>``)
+
+    En OOXML, ``w:vMerge`` sin ``w:val`` equivale a ``continue``.
     """
+    tc_pr = tc.find(f"{_W_NS}tcPr")
+    if tc_pr is None:
+        return None
+    vm = tc_pr.find(f"{_W_NS}vMerge")
+    if vm is None:
+        return None
+    val = (vm.get(f"{_W_NS}val") or "").strip().lower()
+    if not val or val == "continue":
+        return "continue"
+    return "restart"
+
+
+@dataclass(frozen=True)
+class _TcInfo:
+    tc: object
+    col: int
+    colspan: int
+    vmerge: str | None
+    text: str
+
+
+def _parsear_filas_ooxml(tabla) -> list[list[_TcInfo]]:
+    """Lee filas/celdas reales del ``w:tbl`` (respeta vMerge/gridSpan)."""
+    filas: list[list[_TcInfo]] = []
+    for tr in tabla._tbl.findall(f"{_W_NS}tr"):
+        col = 0
+        celdas: list[_TcInfo] = []
+        for tc in tr.findall(f"{_W_NS}tc"):
+            colspan = _tc_grid_span(tc)
+            celdas.append(
+                _TcInfo(
+                    tc=tc,
+                    col=col,
+                    colspan=colspan,
+                    vmerge=_tc_vmerge(tc),
+                    text=_tc_texto(tc, tabla),
+                )
+            )
+            col += colspan
+        filas.append(celdas)
+    return filas
+
+
+def _calcular_rowspan(filas: list[list[_TcInfo]], ri: int, celda: _TcInfo) -> int:
+    """Numero de filas que ocupa un restart (o celda normal = 1)."""
+    if celda.vmerge == "continue":
+        return 0
+    if celda.vmerge != "restart":
+        return 1
+    span = 1
+    col = celda.col
+    for rj in range(ri + 1, len(filas)):
+        debajo = next((c for c in filas[rj] if c.col == col), None)
+        if debajo is None or debajo.vmerge != "continue":
+            break
+        span += 1
+    return span
+
+
+def _tabla_a_html(tabla) -> str:
+    """Convierte una tabla Word a HTML respetando fusiones OOXML.
+
+    - ``w:vMerge`` restart -> ``rowspan`` con el texto una sola vez
+    - ``w:vMerge`` continue (o sin val) -> no se emite ``<td>``
+    - ``w:gridSpan`` -> ``colspan``
+    """
+    filas = _parsear_filas_ooxml(tabla)
     filas_html: list[str] = []
-    for ri, row in enumerate(tabla.rows):
-        celdas = list(row.cells)
+    for ri, celdas in enumerate(filas):
         parts: list[str] = []
-        ci = 0
-        while ci < len(celdas):
-            cell = celdas[ci]
-            span = 1
-            while (
-                ci + span < len(celdas)
-                and celdas[ci + span]._tc is cell._tc
-            ):
-                span += 1
-            tag = "th" if ri == 0 else "td"
-            colspan = f' colspan="{span}"' if span > 1 else ""
-            parts.append(f"<{tag}{colspan}>{_celda_a_html(cell.text)}</{tag}>")
-            ci += span
+        tag = "th" if ri == 0 else "td"
+        for celda in celdas:
+            if celda.vmerge == "continue":
+                continue
+            rowspan = _calcular_rowspan(filas, ri, celda)
+            attrs = ""
+            if celda.colspan > 1:
+                attrs += f' colspan="{celda.colspan}"'
+            if rowspan > 1:
+                attrs += f' rowspan="{rowspan}"'
+            parts.append(f"<{tag}{attrs}>{_celda_a_html(celda.text)}</{tag}>")
         filas_html.append("<tr>" + "".join(parts) + "</tr>")
     return "<table>" + "".join(filas_html) + "</table>"
 
