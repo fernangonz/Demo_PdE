@@ -468,6 +468,9 @@ def _limpiar_texto_ecuacion(texto: str) -> str:
     t = re.sub(r"^\u0394RS\s*=\s*", "\u0394Rs = ", t)
     t = re.sub(r"^\u0394Rs\s*=\s*", "\u0394Rs = ", t)
     t = re.sub(r"\s*=\s*max", " = max", t, flags=re.I)
+    t = t.replace("T_port", "Tport").replace("C_conc", "Cconc")
+    t = t.replace("(Tport +Cconc)", "(Tport+Cconc)")
+    t = re.sub(r"max\{0,\s*", "max{0, ", t)
     return t.strip()
 
 
