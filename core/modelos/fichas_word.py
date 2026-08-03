@@ -5,13 +5,14 @@ El nombre del archivo (sin extension) se empareja con el catalogo igual que
 antes las hojas de Excel: p.ej. ``PI FALTA DE FRANCOBORDO.docx`` ->
 ``PI Falta de francobordo`` / ``falta_francobordo_elo``.
 
-El contenido se convierte a HTML con mammoth (tablas, parrafos, imagenes).
+Ruta robusta: tablas e imagenes con ``python-docx`` (+ zip OOXML).
+Mammoth queda como fallback opcional si esta instalado.
 """
-
 from __future__ import annotations
 
 import base64
 import html as html_lib
+import logging
 import re
 import unicodedata
 import zipfile
@@ -24,6 +25,25 @@ CARPETA_FICHAS = RAIZ_PROYECTO / "Fichas"
 CARPETA_MEDIA = CARPETA_FICHAS / "_media"
 
 _EXTENSIONES_WORD = (".docx",)
+_log = logging.getLogger(__name__)
+
+_CSS_FICHA = (
+    ".pde-ficha-word{"
+    "font-family:Calibri,'Segoe UI',Arial,sans-serif;"
+    "font-size:15px;line-height:1.45;color:#1a1a1a;"
+    "}"
+    ".pde-ficha-word table{"
+    "border-collapse:collapse;width:100%;margin:0.75em 0;"
+    "}"
+    ".pde-ficha-word th,.pde-ficha-word td{"
+    "border:1px solid #333;padding:6px 8px;vertical-align:top;"
+    "}"
+    ".pde-ficha-word p{margin:0.4em 0;}"
+    ".pde-ficha-word img{max-width:100%;height:auto;display:block;margin:8px auto;}"
+    ".pde-ficha-word h1,.pde-ficha-word h2,.pde-ficha-word h3{"
+    "margin:0.8em 0 0.35em;font-weight:700;"
+    "}"
+)
 
 
 @dataclass(frozen=True)
@@ -120,8 +140,11 @@ def _listar_docx() -> list[Path]:
     return rutas
 
 
-def _ext_imagen(data: bytes, content_type: str = "") -> str:
+def _ext_imagen(data: bytes, content_type: str = "", nombre: str = "") -> str:
     ct = (content_type or "").lower()
+    ext_nombre = Path(nombre).suffix.lower() if nombre else ""
+    if ext_nombre in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".emf", ".wmf"}:
+        return ".jpg" if ext_nombre == ".jpeg" else ext_nombre
     if "jpeg" in ct or "jpg" in ct or data[:2] == b"\xff\xd8":
         return ".jpg"
     if "png" in ct or data[:8].startswith(b"\x89PNG"):
@@ -148,18 +171,147 @@ def _extraer_imagenes_media(ruta_docx: Path, media_dir: Path) -> tuple[Path, ...
                 data = zf.read(nombre)
                 if not data:
                     continue
-                ext = Path(nombre).suffix.lower() or _ext_imagen(data)
+                ext = Path(nombre).suffix.lower() or _ext_imagen(data, nombre=nombre)
+                if ext in {".emf", ".wmf"}:
+                    # No mostrables directamente en Streamlit; se omiten.
+                    continue
                 dest = media_dir / f"img_{i}{ext}"
                 if not dest.is_file() or dest.stat().st_size != len(data):
                     dest.write_bytes(data)
                 guardadas.append(dest)
-    except (OSError, zipfile.BadZipFile):
+    except (OSError, zipfile.BadZipFile) as exc:
+        _log.warning("No se pudieron extraer imagenes de %s: %s", ruta_docx.name, exc)
         return ()
     return tuple(guardadas)
 
 
-def _html_desde_docx(ruta: Path) -> str:
-    """Convierte el .docx a HTML (tablas, estilos basicos, imagenes inline)."""
+def _extraer_imagenes_python_docx(ruta_docx: Path, media_dir: Path) -> tuple[Path, ...]:
+    """Extrae imagenes via ``document.part.related_parts`` (python-docx)."""
+    try:
+        from docx import Document
+        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    except ImportError:
+        return ()
+
+    media_dir.mkdir(parents=True, exist_ok=True)
+    guardadas: list[Path] = []
+    try:
+        doc = Document(str(ruta_docx))
+        parts = getattr(doc.part, "related_parts", {}) or {}
+        i = 0
+        for rel in doc.part.rels.values():
+            try:
+                if rel.reltype != RT.IMAGE:
+                    continue
+                part = rel.target_part
+            except Exception:
+                continue
+            data = part.blob
+            if not data:
+                continue
+            ct = getattr(part, "content_type", "") or ""
+            nombre = getattr(part, "partname", None)
+            nombre_s = str(nombre) if nombre else ""
+            ext = _ext_imagen(data, content_type=ct, nombre=nombre_s)
+            if ext in {".emf", ".wmf", ".bin"}:
+                continue
+            dest = media_dir / f"img_{i}{ext}"
+            if not dest.is_file() or dest.stat().st_size != len(data):
+                dest.write_bytes(data)
+            guardadas.append(dest)
+            i += 1
+        # related_parts dict path (algunas builds)
+        if not guardadas and parts:
+            for part in parts.values():
+                ct = getattr(part, "content_type", "") or ""
+                if not str(ct).startswith("image/"):
+                    continue
+                data = getattr(part, "blob", None)
+                if not data:
+                    continue
+                nombre_s = str(getattr(part, "partname", "") or "")
+                ext = _ext_imagen(data, content_type=ct, nombre=nombre_s)
+                if ext in {".emf", ".wmf", ".bin"}:
+                    continue
+                dest = media_dir / f"img_{i}{ext}"
+                if not dest.is_file() or dest.stat().st_size != len(data):
+                    dest.write_bytes(data)
+                guardadas.append(dest)
+                i += 1
+    except Exception as exc:
+        _log.warning("python-docx imagenes fallo en %s: %s", ruta_docx.name, exc)
+        return ()
+    return tuple(guardadas)
+
+
+def _celda_a_html(texto: str) -> str:
+    t = (texto or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not t:
+        return "&nbsp;"
+    return html_lib.escape(t).replace("\n", "<br/>")
+
+
+def _tabla_a_html(tabla) -> str:
+    """Convierte una tabla python-docx a HTML con bordes basicos.
+
+    Celdas fusionadas horizontalmente: python-docx repite el mismo objeto;
+    se colapsan con colspan cuando el texto y la identidad de celda coinciden.
+    """
+    filas_html: list[str] = []
+    for ri, row in enumerate(tabla.rows):
+        celdas = list(row.cells)
+        parts: list[str] = []
+        ci = 0
+        while ci < len(celdas):
+            cell = celdas[ci]
+            span = 1
+            while (
+                ci + span < len(celdas)
+                and celdas[ci + span]._tc is cell._tc
+            ):
+                span += 1
+            tag = "th" if ri == 0 else "td"
+            colspan = f' colspan="{span}"' if span > 1 else ""
+            parts.append(f"<{tag}{colspan}>{_celda_a_html(cell.text)}</{tag}>")
+            ci += span
+        filas_html.append("<tr>" + "".join(parts) + "</tr>")
+    return "<table>" + "".join(filas_html) + "</table>"
+
+
+def _html_desde_python_docx(ruta: Path) -> str:
+    """Tablas (+ parrafos sueltos) a HTML con python-docx."""
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    doc = Document(str(ruta))
+    bloques: list[str] = []
+
+    # Recorrer body en orden: parrafos y tablas intercalados.
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "tbl":
+            tabla = Table(child, doc)
+            bloques.append(_tabla_a_html(tabla))
+        elif tag == "p":
+            para = Paragraph(child, doc)
+            texto = (para.text or "").strip()
+            if texto:
+                bloques.append(f"<p>{_celda_a_html(texto)}</p>")
+
+    if not bloques and doc.tables:
+        for tabla in doc.tables:
+            bloques.append(_tabla_a_html(tabla))
+
+    if not bloques:
+        return ""
+
+    body = "\n".join(bloques)
+    return f'<div class="pde-ficha-word"><style>{_CSS_FICHA}</style>{body}</div>'
+
+
+def _html_desde_mammoth(ruta: Path) -> str:
+    """Fallback opcional: convierte el .docx a HTML con mammoth."""
     import mammoth
 
     def _convert_image(image):
@@ -177,25 +329,51 @@ def _html_desde_docx(ruta: Path) -> str:
     body = (result.value or "").strip()
     if not body:
         return ""
+    return f'<div class="pde-ficha-word"><style>{_CSS_FICHA}</style>{body}</div>'
 
-    css = (
-        ".pde-ficha-word{"
-        "font-family:Calibri,'Segoe UI',Arial,sans-serif;"
-        "font-size:15px;line-height:1.45;color:#1a1a1a;"
-        "}"
-        ".pde-ficha-word table{"
-        "border-collapse:collapse;width:100%;margin:0.75em 0;"
-        "}"
-        ".pde-ficha-word th,.pde-ficha-word td{"
-        "border:1px solid #333;padding:6px 8px;vertical-align:top;"
-        "}"
-        ".pde-ficha-word p{margin:0.4em 0;}"
-        ".pde-ficha-word img{max-width:100%;height:auto;display:block;margin:8px auto;}"
-        ".pde-ficha-word h1,.pde-ficha-word h2,.pde-ficha-word h3{"
-        "margin:0.8em 0 0.35em;font-weight:700;"
-        "}"
+
+def _html_desde_docx(ruta: Path) -> str:
+    """Convierte el .docx a HTML. Preferir python-docx; mammoth opcional."""
+    errores: list[str] = []
+
+    try:
+        html = _html_desde_python_docx(ruta)
+        if html:
+            return html
+        errores.append("python-docx: documento sin tablas/parrafos utiles")
+    except ImportError as exc:
+        errores.append(f"python-docx no instalado: {exc}")
+    except Exception as exc:
+        _log.exception("python-docx fallo al convertir %s", ruta.name)
+        errores.append(f"python-docx: {type(exc).__name__}: {exc}")
+
+    try:
+        html = _html_desde_mammoth(ruta)
+        if html:
+            return html
+        errores.append("mammoth: conversion vacia")
+    except ImportError:
+        errores.append("mammoth no instalado (fallback omitido)")
+    except Exception as exc:
+        _log.exception("mammoth fallo al convertir %s", ruta.name)
+        errores.append(f"mammoth: {type(exc).__name__}: {exc}")
+
+    detalle = html_lib.escape(" | ".join(errores) if errores else "motivo desconocido")
+    _log.error("No se pudo convertir %s: %s", ruta.name, " | ".join(errores))
+    return (
+        '<div class="pde-ficha-word"><p>'
+        f"No se pudo convertir {html_lib.escape(ruta.name)}. "
+        f"<code>{detalle}</code>"
+        "</p></div>"
     )
-    return f'<div class="pde-ficha-word"><style>{css}</style>{body}</div>'
+
+
+def _imagenes_desde_docx(ruta: Path, media_dir: Path) -> tuple[Path, ...]:
+    """Imagenes para el panel Esquema: python-docx, si no zip OOXML."""
+    imgs = _extraer_imagenes_python_docx(ruta, media_dir)
+    if imgs:
+        return imgs
+    return _extraer_imagenes_media(ruta, media_dir)
 
 
 @lru_cache(maxsize=1)
@@ -206,15 +384,8 @@ def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
         stem = ruta.stem
         catalogo_id = emparejar_nombre_ficha(stem)
         media = CARPETA_MEDIA / _slug(stem)
-        imagenes = _extraer_imagenes_media(ruta, media)
-        try:
-            html = _html_desde_docx(ruta)
-        except Exception:
-            html = (
-                '<div class="pde-ficha-word"><p>'
-                f"No se pudo convertir {html_lib.escape(ruta.name)}."
-                "</p></div>"
-            )
+        imagenes = _imagenes_desde_docx(ruta, media)
+        html = _html_desde_docx(ruta)
         key = catalogo_id or f"docx:{stem}"
         resultado[key] = FichaWordModelo(
             archivo=ruta.name,

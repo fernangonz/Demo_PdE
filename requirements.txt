@@ -7,6 +7,8 @@ folium>=0.18.0
 streamlit-folium>=0.23.0
 pandas>=2.2.0
 openpyxl>=3.1.0
+python-docx>=1.1.0
+# Opcional: fallback HTML si python-docx no basta
 mammoth>=1.8.0
 numpy>=2.0.0
 scipy>=1.11.0
