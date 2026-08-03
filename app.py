@@ -2662,40 +2662,36 @@ def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str, entrada=None) 
     from core.modelos.flujos import buscar_esquema
 
     st.markdown("**Esquema / imagen**")
-
-    # Contenedor centrado con ancho máximo para que la imagen no ocupe toda la
-    # pantalla; el usuario puede hacer clic para verla en tamaño real.
-    _, c_img, _ = st.columns([1, 3, 1])
+    st.caption("Haz clic sobre la imagen para verla en tamaño real.")
 
     imgs = imagenes_ficha_por_entrada(entrada) if entrada is not None else ()
     if imgs:
-        with c_img:
-            st.caption("Fuente: Fichas/*.docx")
-            for ruta in imgs:
-                if ruta.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}:
-                    st.image(str(ruta), width=520)
-                else:
-                    st.caption(f"Archivo no mostrable como imagen: {ruta.name}")
+        st.caption("Fuente: Fichas/*.docx")
+        for ruta in imgs:
+            if ruta.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}:
+                # use_container_width ocupa el ancho del panel (nítido) y
+                # Streamlit añade botón de fullscreen para verla al 100%.
+                st.image(str(ruta), use_container_width=True)
+            else:
+                st.caption(f"Archivo no mostrable como imagen: {ruta.name}")
         return
 
     esquema = buscar_esquema(modelo_id) if modelo_id else None
     if esquema is None:
-        with c_img:
-            st.caption("No hay imagen de esquema para este modelo.")
+        st.caption("No hay imagen de esquema para este modelo.")
         return
 
-    with c_img:
-        st.caption(f"Fuente: {esquema.ruta.name}")
-        if esquema.tipo == "pdf":
-            _mostrar_pdf_en_frontend(
-                esquema.ruta,
-                height=520,
-                key=f"pde_cat_esquema_pdf_{key_suffix}",
-            )
-        elif esquema.tipo == "imagen":
-            st.image(str(esquema.ruta), width=520)
-        else:
-            _mostrar_txt_diagrama(esquema.ruta)
+    st.caption(f"Fuente: {esquema.ruta.name}")
+    if esquema.tipo == "pdf":
+        _mostrar_pdf_en_frontend(
+            esquema.ruta,
+            height=520,
+            key=f"pde_cat_esquema_pdf_{key_suffix}",
+        )
+    elif esquema.tipo == "imagen":
+        st.image(str(esquema.ruta), use_container_width=True)
+    else:
+        _mostrar_txt_diagrama(esquema.ruta)
 
 
 def _mostrar_ficha_catalogo(
