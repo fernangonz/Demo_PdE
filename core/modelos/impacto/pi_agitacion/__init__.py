@@ -1,12 +1,15 @@
-"""Modelo PI_AGITACION — módulo independiente.
+"""Modelo PI_AGITACION.
 
-Reexporta ``calcular`` como **función** (no el submódulo ``calcular.py``).
-``from package import calcular`` resolvería el submódulo si no se enlaza aquí.
+``calcular`` se resuelve de forma perezosa para evitar un ciclo:
+``pi_agitacion.__init__`` -> ``calcular.py`` -> ``inputs_activo`` ->
+``pi_agitacion.utilidades`` (que reentra en este mismo ``__init__``).
+
+Quien necesite la función debe importarla desde ``.calcular`` (registro.py lo
+hace así) o vía ``core.modelos.impacto.pi_agitacion.calcular`` (atributo lazy).
 """
 
 from __future__ import annotations
 
-from core.modelos.impacto.pi_agitacion.calcular import calcular
 from core.modelos.impacto.pi_agitacion.schemas import (
     METADATOS,
     ParametrosEntrada,
@@ -23,3 +26,11 @@ __all__ = [
     "calcular",
     "percentiles_disponibles",
 ]
+
+
+def __getattr__(name: str):
+    if name == "calcular":
+        from core.modelos.impacto.pi_agitacion.calcular import calcular as _calcular
+
+        return _calcular
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

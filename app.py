@@ -2336,8 +2336,17 @@ def _mostrar_modos_sin_modelo(modos) -> None:
             )
 
 
+_ETIQUETAS_CATALOGO_OVERRIDE = {
+    # Unificación visual: la entrada del catálogo cubre ambos nombres del Excel.
+    "exceso_oleaje": "PI Exceso de oleaje o agitación",
+}
+
+
 def _etiqueta_catalogo_modo(entrada) -> str:
     """Etiqueta del catálogo: Flujo-style para calado/francobordo; resto familia+modo."""
+    override = _ETIQUETAS_CATALOGO_OVERRIDE.get(entrada.id)
+    if override:
+        return titulo_modo_display(override)
     if entrada.id in {
         "falta_francobordo_elo",
         "falta_calado_elo",

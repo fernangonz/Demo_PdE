@@ -53,23 +53,9 @@ MOTOR_ACTIVO = MotorCalculoActivo(
 
 CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
     EntradaCatalogoImpacto(
-        id="agitacion_oleaje",
-        familia="PI",
-        modo_fallo="Agitación",
-        variable="Oleaje",
-        tipo_impacto="ELO",
-        motor_id=MOTOR_PI_SUPERACION,
-        motor_nombre="PI SUPERACIÓN DE UMBRAL",
-        implementado=True,
-        requiere_inputs_ui=False,
-        diagrama_modelo_id=MOTOR_PI_SUPERACION,
-        descripcion=(
-            "Misma cadena PI superación de umbral que Exceso de Oleaje; "
-            "modo «Agitación» en el Excel de relación impactos."
-        ),
-        notas_inputs="Automático: Excel de relación modelos, umbrales e indicadores.",
-    ),
-    EntradaCatalogoImpacto(
+        # Modo unificado: en el Excel de relación impactos aparece indistintamente
+        # como «Exceso de Oleaje» o «Agitación» (ambos ELO + Oleaje). El motor y la
+        # metodología son idénticos; el matcher los trata como equivalentes.
         id="exceso_oleaje",
         familia="PI",
         modo_fallo="Exceso de Oleaje",
@@ -83,7 +69,8 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         descripcion=(
             "Iteración IM dentro del cálculo del activo. Percentil e indicador "
             "desde Excel de relación modelos (paso 5b) o diagrama (umbral + P99). "
-            "Tipo ELO = interrupción operativa / PI."
+            "Tipo ELO = interrupción operativa / PI. Cubre las filas del Excel "
+            "etiquetadas «Exceso de Oleaje» o «Agitación»."
         ),
         notas_inputs="Automático: Excel de relación modelos, umbrales e indicadores.",
     ),
