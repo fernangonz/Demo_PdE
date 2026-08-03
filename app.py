@@ -2361,46 +2361,123 @@ def _mostrar_txt_diagrama(ruta, *, altura_max: int = 640) -> None:
     st.text(contenido)
 
 
+def _pdf_media_url(data: bytes, *, coordinates: str, file_name: str) -> str | None:
+    """Registra bytes en el MediaFileManager y devuelve la URL /media/..."""
+    try:
+        from streamlit import runtime
+    except Exception:
+        return None
+    if not runtime.exists():
+        return None
+    try:
+        return runtime.get_instance().media_file_mgr.add(
+            data,
+            "application/pdf",
+            coordinates,
+            file_name=file_name,
+        )
+    except Exception:
+        return None
+
+
+def _mostrar_pdf_via_media_iframe(
+    data: bytes,
+    *,
+    height: int,
+    file_name: str,
+    key: str,
+) -> bool:
+    """Fallback sin data-URI: iframe apuntando a la URL media de Streamlit."""
+    import streamlit.components.v1 as components
+
+    coords = f"pdf_fallback_{key or file_name}"
+    url = _pdf_media_url(data, coordinates=coords, file_name=file_name)
+    if not url:
+        return False
+    # URL http(s)/relativa del runtime: Edge/Chrome la aceptan (a diferencia de data:).
+    components.html(
+        (
+            f'<iframe src="{url}" title="{file_name}" '
+            f'width="100%" height="{int(height)}" '
+            f'style="border:0;min-height:{int(height)}px;"></iframe>'
+        ),
+        height=int(height) + 16,
+    )
+    return True
+
+
 def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
-    """Carga el PDF en el frontend con ``st.pdf`` (sin descarga ni data-URI).
+    """Carga el PDF en el frontend (streamlit-pdf / st.pdf / iframe media).
 
     Edge/Chrome bloquean iframes con ``data:application/pdf``; no usar ese
-    fallback. Requiere el paquete ``streamlit-pdf`` (ver ``requirements.txt``).
+    fallback. Preferimos ``streamlit_pdf.pdf_viewer`` con bytes + height int
+    (``st.pdf`` a veces pasa height como str y el iframe queda a altura 0).
     """
-    st.caption(f"Diagrama: {ruta.name}")
-    data = ruta.read_bytes()
-    # Preferir bytes: rutas con acentos en Windows a veces fallan con st.pdf(path).
-    try:
-        st.pdf(data, height=height, key=key or None)
+    from pathlib import Path
+
+    path = Path(ruta)
+    if not path.is_file():
+        st.error(f"No se encuentra el PDF en disco: `{path}`")
         return
-    except TypeError:
-        # Firmas antiguas de st.pdf (sin key)
-        try:
-            st.pdf(data, height=height)
-            return
-        except Exception as exc:
-            st.error(
-                "No se pudo mostrar el PDF. En la carpeta del proyecto ejecuta:\n\n"
-                "`pip install -r requirements.txt`\n\n"
-                "(incluye `streamlit-pdf`). "
-                f"Detalle: {type(exc).__name__}: {exc}"
-            )
-            return
+
+    st.caption(f"Diagrama: {path.name}")
+    data = path.read_bytes()
+    if not data:
+        st.error(f"El PDF está vacío: `{path.name}`")
+        return
+
+    height_i = int(height)
+    widget_key = key or None
+    errores: list[str] = []
+
+    # 1) API directa del componente (height int; evita el str() de PdfMixin).
+    try:
+        import streamlit_pdf
+
+        streamlit_pdf.pdf_viewer(file=data, height=height_i, key=widget_key)
+        return
     except Exception as exc:
-        msg = str(exc)
-        if "streamlit-pdf" in msg.lower() or "streamlit[pdf]" in msg.lower():
-            st.error(
-                "El visor PDF necesita el componente **streamlit-pdf**.\n\n"
-                "En local: `pip install -r requirements.txt` "
-                "(o `pip install \"streamlit-pdf>=1.0.0,<2\"`) y reinicia Streamlit.\n\n"
-                "En Streamlit Cloud: espera el redeploy tras el push de `requirements.txt`."
-            )
+        errores.append(f"streamlit_pdf.pdf_viewer(bytes): {type(exc).__name__}: {exc}")
+
+    # 2) st.pdf con Path (Streamlit lee el fichero) y luego con bytes.
+    for label, payload in (("path", path), ("bytes", data)):
+        try:
+            st.pdf(payload, height=height_i, key=widget_key)
             return
-        st.error(
-            "No se pudo mostrar el PDF. Comprueba `streamlit-pdf` "
-            "(`pip install -r requirements.txt`). "
-            f"Detalle: {type(exc).__name__}: {exc}"
+        except TypeError:
+            try:
+                st.pdf(payload, height=height_i)
+                return
+            except Exception as exc:
+                errores.append(f"st.pdf({label}): {type(exc).__name__}: {exc}")
+        except Exception as exc:
+            errores.append(f"st.pdf({label}): {type(exc).__name__}: {exc}")
+
+    # 3) Fallback visible: iframe sobre /media/... (sin data-URI).
+    if _mostrar_pdf_via_media_iframe(
+        data, height=height_i, file_name=path.name, key=key or path.stem
+    ):
+        st.info(
+            "Visor `streamlit-pdf` no disponible; se muestra el PDF vía URL media de Streamlit."
         )
+        return
+
+    msg = " | ".join(errores[-3:]) if errores else "sin detalle"
+    if any("streamlit-pdf" in e.lower() or "streamlit[pdf]" in e.lower() for e in errores):
+        st.error(
+            "El visor PDF necesita el componente **streamlit-pdf**.\n\n"
+            "En local: `pip install -r requirements.txt` "
+            "(o `pip install \"streamlit-pdf>=1.0.0,<2\"`) y reinicia Streamlit.\n\n"
+            "En Streamlit Cloud: espera el redeploy tras el push de `requirements.txt`.\n\n"
+            f"Detalle: {msg}"
+        )
+        return
+    st.error(
+        "No se pudo mostrar el PDF. En la carpeta del proyecto ejecuta "
+        "`pip install -r requirements.txt` (incluye `streamlit-pdf` y `pyarrow`) "
+        "y reinicia Streamlit.\n\n"
+        f"Archivo: `{path}`\n\nDetalle: {msg}"
+    )
 
 
 _CATALOGO_SEL_MAESTRO = "maestro"
@@ -2494,6 +2571,7 @@ def _visor_diagrama_catalogo(
 
     if vista == "pdf":
         if pdf is not None:
+            st.caption(f"Conectado: `{pdf.ruta}`")
             _mostrar_pdf_en_frontend(
                 pdf.ruta,
                 height=640,
@@ -2503,8 +2581,8 @@ def _visor_diagrama_catalogo(
         if txt is not None:
             st.warning(
                 "No hay PDF esquemático para este modelo "
-                f"(se esperaba «{nombre_esperado_diagrama(modelo_id)}.pdf»). "
-                "Se muestra el TXT."
+                f"(se esperaba «{nombre_esperado_diagrama(modelo_id)}.pdf» "
+                f"en Flujo de modelos). Se muestra el TXT."
             )
             _mostrar_txt_diagrama(txt.ruta)
             return
@@ -2668,7 +2746,9 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
             )
         with c_diag:
             st.caption("Diagrama de flujo")
-            st.button(
+            # if-button (no on_click): el estado queda fijado en este rerun
+            # antes de pintar el detalle bajo las tarjetas.
+            if st.button(
                 "PDF",
                 key=f"pde_cat_card_pdf_{idx}",
                 use_container_width=True,
@@ -2677,10 +2757,10 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                     if pdf is not None
                     else f"Buscar «{esperado}.pdf» en Flujo de modelos"
                 ),
-                on_click=_set_catalogo_modo,
-                args=(idx, "pdf"),
-            )
-            st.button(
+            ):
+                st.session_state[_KEY_CATALOGO_SEL] = idx
+                st.session_state[_KEY_CATALOGO_VISTA] = "pdf"
+            if st.button(
                 "TXT",
                 key=f"pde_cat_card_txt_{idx}",
                 use_container_width=True,
@@ -2689,9 +2769,9 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                     if txt is not None
                     else f"Buscar «{esperado}.txt» en Flujo de modelos"
                 ),
-                on_click=_set_catalogo_modo,
-                args=(idx, "txt"),
-            )
+            ):
+                st.session_state[_KEY_CATALOGO_SEL] = idx
+                st.session_state[_KEY_CATALOGO_VISTA] = "txt"
         with c_ficha:
             st.button(
                 "FICHA",
@@ -2747,7 +2827,7 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
             )
         with c_diag:
             st.caption("Diagrama de flujo")
-            st.button(
+            if st.button(
                 "PDF",
                 key="pde_cat_card_maestro_pdf",
                 use_container_width=True,
@@ -2756,10 +2836,10 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
                     if pdf is not None
                     else "Buscar DIAGRAMA DE FLUJO UNICO.pdf"
                 ),
-                on_click=_set_catalogo_maestro,
-                args=("pdf",),
-            )
-            st.button(
+            ):
+                st.session_state[_KEY_CATALOGO_SEL] = _CATALOGO_SEL_MAESTRO
+                st.session_state[_KEY_CATALOGO_VISTA] = "pdf"
+            if st.button(
                 "TXT",
                 key="pde_cat_card_maestro_txt",
                 use_container_width=True,
@@ -2768,9 +2848,9 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
                     if txt is not None
                     else "Buscar DIAGRAMA DE FLUJO UNICO.txt"
                 ),
-                on_click=_set_catalogo_maestro,
-                args=("txt",),
-            )
+            ):
+                st.session_state[_KEY_CATALOGO_SEL] = _CATALOGO_SEL_MAESTRO
+                st.session_state[_KEY_CATALOGO_VISTA] = "txt"
 
 
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:

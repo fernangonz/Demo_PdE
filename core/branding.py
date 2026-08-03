@@ -480,6 +480,13 @@ div[data-testid="stIFrame"] iframe {{
     min-height: 560px;
 }}
 
+/* Visor PDF (streamlit-pdf / custom component): evita iframe a altura 0 */
+div[data-testid="stCustomComponentV1"] iframe,
+iframe[title*="pdf_viewer"],
+iframe[title*="pdf"] {{
+    min-height: 640px !important;
+}}
+
 /* Streamlit 1.58: [data-testid=stDataFrameResizable] aplica
    border:1px + border-radius en estilo inline, pero sin overflow:hidden,
    así la rejilla Glide (.dvn-scroller) pinta una línea gris recta ~1px

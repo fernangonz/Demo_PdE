@@ -1,6 +1,8 @@
 streamlit>=1.40.0
 # Pin <2: streamlit-pdf 2.x (CCv2) can fail asset discovery; 1.x uses components.v1 + media URL (Edge-safe).
 streamlit-pdf>=1.0.0,<2
+# Custom Components (streamlit-pdf) requieren pyarrow para serializar args.
+pyarrow>=14.0.0
 folium>=0.18.0
 streamlit-folium>=0.23.0
 pandas>=2.2.0
