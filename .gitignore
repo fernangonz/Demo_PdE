@@ -27,6 +27,6 @@ _final_*
 _nudge.py
 **/DIAGRAMA DE FLUJO UNICO.new.pdf
 
-# Fichas: cache de imagenes extraidas del Excel (se regenera al cargar)
+# Fichas: cache de imagenes extraidas del Word (se regenera al cargar)
 Fichas/_media/
 Fichas/_extract/

@@ -2648,14 +2648,14 @@ def _mostrar_controles_diagrama_catalogo(
 
 
 def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str, entrada=None) -> None:
-    """Imagen del boton i: primero imagenes de Ficha.xlsx; si no, ESQUEMA en Flujo."""
-    from core.modelos.fichas_excel import imagenes_ficha_por_entrada
+    """Imagen del boton i: primero imagenes del Word; si no, ESQUEMA en Flujo."""
+    from core.modelos.fichas_word import imagenes_ficha_por_entrada
     from core.modelos.flujos import buscar_esquema
 
     st.markdown("**Esquema / imagen**")
     imgs = imagenes_ficha_por_entrada(entrada) if entrada is not None else ()
     if imgs:
-        st.caption(f"Fuente: Fichas/Ficha.xlsx")
+        st.caption("Fuente: Fichas/*.docx")
         for i, ruta in enumerate(imgs):
             if ruta.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}:
                 st.image(str(ruta), use_container_width=True)
@@ -2688,11 +2688,8 @@ def _mostrar_ficha_catalogo(
     key_suffix: str = "ficha",
     permitir_cerrar: bool = False,
 ) -> None:
-    """Ficha documental desde Fichas/Ficha.xlsx (hoja emparejada al modelo).
-
-    Respeta merges, colores y ecuaciones Excel; omite notas editoriales.
-    """
-    from core.modelos.fichas_excel import ARCHIVO_FICHAS, ficha_excel_por_entrada
+    """Ficha documental desde ``Fichas/*.docx`` (nombre emparejado al modelo)."""
+    from core.modelos.fichas_word import CARPETA_FICHAS, ficha_word_por_entrada
 
     if permitir_cerrar:
         c_cerrar, _ = st.columns([1, 5], gap="small")
@@ -2709,42 +2706,36 @@ def _mostrar_ficha_catalogo(
         st.info("Sin modelo seleccionado.")
         return
 
-    ficha = ficha_excel_por_entrada(entrada)
+    ficha = ficha_word_por_entrada(entrada)
     if ficha is None:
         st.info(
-            "No hay hoja en `Fichas/Ficha.xlsx` emparejada a este modelo. "
-            f"Archivo: `{ARCHIVO_FICHAS.name}`."
+            "No hay documento Word en `Fichas/` emparejado a este modelo. "
+            "Coloca un `.docx` cuyo nombre coincida con el modelo "
+            "(p.ej. `PI FALTA DE FRANCOBORDO.docx`)."
         )
         return
 
-    st.caption(f"Hoja Excel: **{ficha.hoja}** · {ARCHIVO_FICHAS.as_posix()}")
+    st.caption(f"Documento: **{ficha.archivo}** · {CARPETA_FICHAS.as_posix()}")
     html = getattr(ficha, "html", "") or ""
     if html:
         _mostrar_ficha_html(html)
         return
-    if ficha.tabla is None or ficha.tabla.empty:
-        st.warning("La hoja existe pero no tiene celdas con texto.")
-        return
-    st.dataframe(ficha.tabla, use_container_width=True, hide_index=True)
+    st.warning("El documento existe pero no se pudo convertir a HTML.")
 
 
 def _mostrar_ficha_html(html: str) -> None:
-    """Renderiza la ficha Excel como HTML (tabla con merges/colores).
+    """Renderiza la ficha Word/HTML.
 
     Preferir ``st.html`` (Streamlit >=1.45) o ``components.v1.html``.
-    Nunca ``st.markdown``/``st.code``/``st.text``: escapan la tabla y el
-    usuario ve ``<tr><td...`` como texto gris.
+    Nunca ``st.markdown``/``st.code``/``st.text``: escapan el HTML y el
+    usuario ve etiquetas como texto gris.
     """
     body = (html or "").strip()
     if not body:
         return
     low = body.lower()
-    if "<table" not in low:
-        body = (
-            '<div class="pde-ficha-excel"><table style="border-collapse:collapse;'
-            'width:100%;border:1px solid #1a1a1a;"><tbody>'
-            f"{body}</tbody></table></div>"
-        )
+    if "pde-ficha-word" not in low and "pde-ficha-excel" not in low:
+        body = f'<div class="pde-ficha-word">{body}</div>'
         low = body.lower()
 
     # st.html inserta HTML de confianza sin pasar por el sanitizador Markdown.
@@ -2757,9 +2748,9 @@ def _mostrar_ficha_html(html: str) -> None:
 
     import streamlit.components.v1 as components
 
-    n_rows = max(1, low.count("<tr"))
+    n_rows = max(1, low.count("<tr") + low.count("<p"))
     has_img = "data:image" in low or "<img" in low
-    height = min(1800, max(420, 72 + n_rows * 52 + (200 if has_img else 0)))
+    height = min(2200, max(480, 72 + n_rows * 36 + (280 if has_img else 0)))
     doc = (
         "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'/>"
@@ -2814,7 +2805,7 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
 
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
     """Detalle al seleccionar un modelo: ficha (+esquema) y diagrama si está abierto."""
-    from core.modelos.fichas_excel import imagenes_ficha_por_entrada
+    from core.modelos.fichas_word import imagenes_ficha_por_entrada
     from core.modelos.flujos import buscar_esquema
 
     etiqueta = _etiqueta_catalogo_modo(entrada)
