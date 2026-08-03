@@ -235,6 +235,84 @@ def tiene_diagrama(modelo_id: str) -> bool:
     )
 
 
+def _aliases_esquema(modelo_id: str) -> tuple[str, ...]:
+    """Nombres de archivo esperados para el esquema asociado a un modelo."""
+    mid = (modelo_id or "").strip()
+    if not mid:
+        return ()
+    if mid == "CALCULO_ACTIVO":
+        return _ALIASES_FLUJO.get(mid, ())
+    meta = _modelos_impacto().get(mid)
+    nombre = meta.metadatos.nombre if meta else mid
+    return (
+        f"ESQUEMA {nombre}",
+        f"ESQUEMA_{mid}",
+        f"ESQUEMA {mid}",
+        *(_ALIASES_FLUJO.get(f"ESQUEMA_{mid}", ())),
+    )
+
+
+def buscar_esquema(modelo_id: str) -> DiagramaFlujo | None:
+    """Localiza un esquema (PDF/imagen/TXT) aparte del diagrama de flujo.
+
+    Convención: archivos ``ESQUEMA …`` en ``Flujo de modelos/``.
+    ``CALCULO_ACTIVO`` reutiliza sus aliases de esquema por activo.
+    """
+    if not CARPETA_FLUJOS.is_dir() or not (modelo_id or "").strip():
+        return None
+
+    aliases = _aliases_esquema(modelo_id)
+    if not aliases:
+        return None
+
+    extensiones = _PDF | _IMAGENES | _TEXTOS
+    candidatos: list[Path] = []
+    vistos: set[Path] = set()
+    for alias_nombre in aliases:
+        for ext in sorted(extensiones):
+            ruta = CARPETA_FLUJOS / f"{alias_nombre}{ext}"
+            if ruta.is_file() and ruta not in vistos:
+                if ruta.stem.lower().endswith("_nuevo"):
+                    continue
+                candidatos.append(ruta)
+                vistos.add(ruta)
+
+    if not candidatos:
+        for archivo in CARPETA_FLUJOS.iterdir():
+            if not archivo.is_file():
+                continue
+            if archivo.suffix.lower() not in extensiones:
+                continue
+            if archivo.stem.lower().endswith("_nuevo"):
+                continue
+            if any(_coincide_archivo(archivo, a) for a in aliases):
+                if archivo not in vistos:
+                    candidatos.append(archivo)
+                    vistos.add(archivo)
+
+    if not candidatos:
+        return None
+
+    def prioridad(p: Path) -> tuple[int, str]:
+        ext = p.suffix.lower()
+        if ext in _PDF:
+            return (0, p.name)
+        if ext in _IMAGENES:
+            return (1, p.name)
+        return (2, p.name)
+
+    elegido = sorted(candidatos, key=prioridad)[0]
+    return DiagramaFlujo(
+        modelo_id=modelo_id,
+        ruta=elegido,
+        tipo=_tipo_diagrama(elegido),
+    )
+
+
+def tiene_esquema(modelo_id: str) -> bool:
+    return buscar_esquema(modelo_id) is not None
+
+
 def motores_sin_diagrama(
     modelo_ids: Iterable[str] | None = None,
 ) -> list[str]:

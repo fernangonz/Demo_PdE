@@ -344,6 +344,21 @@ def modos_implementados() -> list[EntradaCatalogoImpacto]:
     return [e for e in CATALOGO_MODOS_IMPACTO if e.implementado]
 
 
+# Orden de columnas en la lista de modelos (MODELOS → Modelos de impactos).
+# ELO = PI / pérdida de ingresos; ELU = CAPEX; ELS = OPEX.
+COLUMNAS_LISTA_MODELOS: tuple[tuple[str, str], ...] = (
+    ("ELO", "ELO - Pérdida de Ingresos"),
+    ("ELU", "ELU - CAPEX"),
+    ("ELS", "ELS - OPEX"),
+)
+
+
+def entradas_por_tipo_impacto(tipo_impacto: str) -> list[EntradaCatalogoImpacto]:
+    """Entradas del catálogo filtradas por tipo ELO / ELU / ELS (orden del catálogo)."""
+    tipo = (tipo_impacto or "").strip().upper()
+    return [e for e in CATALOGO_MODOS_IMPACTO if e.tipo_impacto == tipo]
+
+
 def mermaid_esquema_calculo_activo(*, activo: str) -> str:
     """Diagrama activo → modos de fallo → resumen."""
     activo_txt = activo.replace('"', "'")

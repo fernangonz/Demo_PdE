@@ -494,6 +494,23 @@ div[data-testid="stIFrame"] iframe {{
 [data-testid="stDataFrameResizable"] .dvn-scroller {{
     border-radius: inherit !important;
 }}
+
+/* --------------------------------------------------------------------- */
+/* Lista de modelos (MODELOS): tarjetas navy, sin acentos «IA púrpura»   */
+/* --------------------------------------------------------------------- */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-modelo-card-marker) {{
+    border: 1px solid #c5ccd8 !important;
+    border-radius: 8px !important;
+    background: {BRAND_WHITE} !important;
+    box-shadow: none !important;
+}}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-modelo-card-marker) button[kind="primary"],
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-modelo-card-marker) button[data-testid="baseButton-primary"] {{
+    background-color: rgba(5, 10, 48, 0.08) !important;
+    border: 1px solid {BRAND_NAVY} !important;
+    color: {BRAND_NAVY} !important;
+    font-weight: 700 !important;
+}}
 </style>
         """,
         unsafe_allow_html=True,
