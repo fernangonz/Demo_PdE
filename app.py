@@ -2731,30 +2731,44 @@ def _mostrar_ficha_catalogo(
 def _mostrar_ficha_html(html: str) -> None:
     """Renderiza la ficha Excel como HTML (tabla con merges/colores).
 
-    Nunca usar ``st.markdown`` / ``st.code`` / ``st.text`` aquí: Streamlit
-    escapa o sanitiza ``<table>``/``<style>``/data-URI y el usuario ve el
-    HTML crudo. ``components.html`` pinta en iframe con estilos intactos.
+    Preferir ``st.html`` (Streamlit >=1.45) o ``components.v1.html``.
+    Nunca ``st.markdown``/``st.code``/``st.text``: escapan la tabla y el
+    usuario ve ``<tr><td...`` como texto gris.
     """
-    import streamlit.components.v1 as components
-
     body = (html or "").strip()
     if not body:
         return
     low = body.lower()
     if "<table" not in low:
         body = (
-            '<div class="pde-ficha-excel"><table><tbody>'
+            '<div class="pde-ficha-excel"><table style="border-collapse:collapse;'
+            'width:100%;border:1px solid #1a1a1a;"><tbody>'
             f"{body}</tbody></table></div>"
         )
         low = body.lower()
+
+    # st.html inserta HTML de confianza sin pasar por el sanitizador Markdown.
+    if hasattr(st, "html"):
+        try:
+            st.html(body)
+            return
+        except Exception:
+            pass
+
+    import streamlit.components.v1 as components
+
     n_rows = max(1, low.count("<tr"))
     has_img = "data:image" in low or "<img" in low
-    height = min(1600, max(360, 64 + n_rows * 48 + (180 if has_img else 0)))
-    # Documento completo: estilos CSS del Excel + ecuaciones imagen.
+    height = min(1800, max(420, 72 + n_rows * 52 + (200 if has_img else 0)))
     doc = (
         "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
-        "<style>html,body{margin:0;padding:0;background:#fff;}</style>"
-        f"</head><body>{body}</body></html>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'/>"
+        "<style>"
+        "html,body{margin:0;padding:8px;background:#fff;"
+        "font-family:Calibri,Segoe UI,Arial,sans-serif;}"
+        "</style></head><body>"
+        f"{body}"
+        "</body></html>"
     )
     components.html(doc, height=height, scrolling=True)
 

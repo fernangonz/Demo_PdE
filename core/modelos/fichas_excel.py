@@ -929,331 +929,181 @@ def _estilo_celda(cell) -> str:
 
 
 def _html_desde_hoja(
-
     ws,
-
     *,
-
     imagenes: tuple[_ImgAnclada, ...] = (),
-
     textos_dibujo: tuple[_TextoDibujo, ...] = (),
-
 ) -> tuple[str, tuple[Path, ...]]:
-
     """Tabla HTML con estilos Excel. Devuelve (html, imagenes_esquema)."""
-
     min_r, max_r, min_c, max_c = _limites_hoja(ws)
-
     if max_r < min_r or max_c < min_c:
-
         return "", tuple(img.path for img in imagenes)
 
-
-
     merges = _mapa_merges(ws)
-
     cubiertas = _celdas_cubiertas(ws)
-
     max_col_ws = int(ws.max_column or 0)
-
     filas_omitir = {
-
         r
-
         for r in range(1, int(ws.max_row or 0) + 1)
-
         if _fila_tiene_nota_editorial(ws, r, max_col_ws)
-
     }
 
-
+    # Extender rango a merges y ecuaciones ancladas (ej. fila bajo Modelo).
+    for _mr, _mc, rowspan, colspan in merges.values():
+        max_r = max(max_r, _mr + rowspan - 1)
+        max_c = max(max_c, _mc + colspan - 1)
+    for td in textos_dibujo:
+        if min_c - 1 <= td.col <= max_c + 1:
+            max_r = max(max_r, td.row)
 
     imgs_tabla: dict[tuple[int, int], list[_ImgAnclada]] = {}
-
     imgs_esquema: list[Path] = []
-
     for img in imagenes:
-
-        # Esquema a la derecha del bloque tabular, o fuera de filas de contenido.
-
         if img.col > max_c or img.row < min_r:
-
             imgs_esquema.append(img.path)
-
         elif min_r <= img.row <= max_r + 1 and min_c <= img.col <= max_c:
-
             imgs_tabla.setdefault((img.row, img.col), []).append(img)
-
         else:
-
             imgs_esquema.append(img.path)
-
-
 
     textos_por_celda: dict[tuple[int, int], list[str]] = {}
-
     for td in textos_dibujo:
-
         if td.row < min_r or td.row > max_r + 2:
-
             continue
-
         if td.col < min_c or td.col > max_c + 1:
-
             continue
-
         textos_por_celda.setdefault((td.row, td.col), []).append(td.texto)
 
-
+    def _fila_es_separador(r: int) -> bool:
+        """Fila en blanco entre bloques (sin merges ni contenido)."""
+        for c in range(min_c, max_c + 1):
+            if (r, c) in cubiertas:
+                return False
+            if (r, c) in merges:
+                return False
+            if _texto_celda(ws.cell(r, c).value):
+                return False
+            if textos_por_celda.get((r, c)) or imgs_tabla.get((r, c)):
+                return False
+        return True
 
     filas_html: list[str] = []
-
     for r in range(min_r, max_r + 1):
-
         if r in filas_omitir:
-
+            continue
+        if _fila_es_separador(r):
             continue
 
         celdas: list[str] = []
-
         for c in range(min_c, max_c + 1):
-
             if (r, c) in cubiertas:
-
                 continue
 
             cell = ws.cell(r, c)
-
             texto = _texto_celda(cell.value)
-
             if _es_nota_editorial(texto):
-
                 texto = ""
 
             attrs = ""
-
             info = merges.get((r, c))
-
             rowspan_eff = 1
-
             if info is not None:
-
                 _mr, _mc, rowspan, colspan = info
-
                 fin = _mr + rowspan - 1
-
-                omitidas = sum(1 for rr in range(_mr, fin + 1) if rr in filas_omitir)
-
+                omitidas = sum(
+                    1
+                    for rr in range(_mr, fin + 1)
+                    if rr in filas_omitir or _fila_es_separador(rr)
+                )
                 rowspan_eff = max(1, rowspan - omitidas)
-
                 if rowspan_eff > 1:
-
                     attrs += f' rowspan="{rowspan_eff}"'
-
                 if colspan > 1:
-
                     attrs += f' colspan="{colspan}"'
 
-
-
             style = _estilo_celda(cell)
-
             if rowspan_eff > 1 and c == min_c and texto:
-
                 extra = (
-
                     "font-weight:700;text-align:center;"
-
                     "vertical-align:middle;background-color:#f3f5f7"
-
                 )
-
                 style = f"{style};{extra}" if style else extra
 
-
-
             extras_html: list[str] = []
-
             coords_merge = {(r, c)}
-
             if info is not None:
-
                 _mr, _mc, rowspan, colspan = info
-
                 for rr in range(_mr, _mr + rowspan):
-
                     for cc in range(_mc, _mc + colspan):
-
                         coords_merge.add((rr, cc))
-
             for coord in coords_merge:
-
                 for t in textos_por_celda.pop(coord, []):
-
                     extras_html.append(
-
                         f'<div class="pde-ficha-eq">{html_lib.escape(t)}</div>'
-
                     )
-
                 for im in imgs_tabla.pop(coord, []):
-
                     extras_html.append(
-
                         f'<div class="pde-ficha-eq-img">'
-
                         f'<img src="{im.data_uri}" alt="Ecuacion"/></div>'
-
                     )
-
-
 
             esc = html_lib.escape(texto).replace("\n", "<br/>")
-
             inner = esc + ("".join(extras_html) if extras_html else "")
-
             style_attr = f' style="{style}"' if style else ""
-
             celdas.append(f"<td{attrs}{style_attr}>{inner}</td>")
 
-        if celdas:
+        # Filas totalmente cubiertas por rowspan: tr vacio obligatorio en HTML.
+        filas_html.append(f"<tr>{''.join(celdas)}</tr>")
 
-            filas_html.append(f"<tr>{''.join(celdas)}</tr>")
-
-
-
-    pendientes: list[str] = []
-
+    pendientes_txt: list[str] = []
+    pendientes_img: list[str] = []
     for textos in textos_por_celda.values():
-
         for t in textos:
-
-            pendientes.append(html_lib.escape(t))
-
+            pendientes_txt.append(html_lib.escape(t))
     for ims in imgs_tabla.values():
-
         for im in ims:
-
-            pendientes.append(
-
-                f'<img src="{im.data_uri}" alt="Ecuacion" '
-
-                f'style="max-width:100%;height:auto;"/>'
-
+            pendientes_img.append(
+                f'<div class="pde-ficha-eq-img">'
+                f'<img src="{im.data_uri}" alt="Ecuacion"/></div>'
+            )
+    if (pendientes_txt or pendientes_img) and filas_html:
+        extra = "".join(
+            f'<div class="pde-ficha-eq">{t}</div>' for t in pendientes_txt
+        ) + "".join(pendientes_img)
+        last = filas_html[-1]
+        if last.endswith("</td></tr>"):
+            filas_html[-1] = last[: -len("</td></tr>")] + extra + "</td></tr>"
+        else:
+            span = max_c - min_c + 1
+            filas_html.append(
+                f'<tr><td colspan="{span}" '
+                f'style="text-align:center;padding:12px 10px;">{extra}</td></tr>'
             )
 
-    if pendientes and filas_html:
-
-        eqs = "".join(f'<div class="pde-ficha-eq">{p}</div>' for p in pendientes)
-
-        span = max_c - min_c + 1
-
-        filas_html.append(
-
-            f'<tr><td colspan="{span}" '
-
-            f'style="text-align:center;padding:12px 10px;">{eqs}</td></tr>'
-
-        )
-
-
-
     if not filas_html:
-
         return "", tuple(imgs_esquema)
 
-
-
-    html = f"""
-
-<div class="pde-ficha-excel">
-
-<style>
-
-.pde-ficha-excel table {{
-
-  border-collapse: collapse;
-
-  width: 100%;
-
-  font-size: 0.88rem;
-
-  table-layout: fixed;
-
-  background: #fff;
-
-}}
-
-.pde-ficha-excel th,
-
-.pde-ficha-excel td {{
-
-  border: 1px solid #1a1a1a;
-
-  padding: 8px 10px;
-
-  text-align: left;
-
-  vertical-align: middle;
-
-  word-wrap: break-word;
-
-}}
-
-.pde-ficha-excel .pde-ficha-eq {{
-
-  display: block;
-
-  text-align: center;
-
-  font-weight: 700;
-
-  font-style: italic;
-
-  margin-top: 10px;
-
-  font-size: 0.95rem;
-
-  letter-spacing: 0.01em;
-
-}}
-
-.pde-ficha-excel .pde-ficha-eq-img {{
-
-  text-align: center;
-
-  margin-top: 8px;
-
-}}
-
-.pde-ficha-excel .pde-ficha-eq-img img {{
-
-  max-width: 100%;
-
-  height: auto;
-
-}}
-
-</style>
-
-<table>
-
-  <tbody>
-
-    {''.join(filas_html)}
-
-  </tbody>
-
-</table>
-
-</div>
-
-""".strip()
+    html = (
+        '<div class="pde-ficha-excel">'
+        "<style>"
+        ".pde-ficha-excel table{"
+        "border-collapse:collapse;width:100%;font-size:0.88rem;"
+        "table-layout:fixed;background:#fff;}"
+        ".pde-ficha-excel th,.pde-ficha-excel td{"
+        "border:1px solid #1a1a1a;padding:8px 10px;text-align:left;"
+        "vertical-align:middle;word-wrap:break-word;}"
+        ".pde-ficha-excel .pde-ficha-eq{"
+        "display:block;text-align:center;font-weight:700;font-style:italic;"
+        "margin-top:10px;font-size:0.95rem;letter-spacing:0.01em;}"
+        ".pde-ficha-excel .pde-ficha-eq-img{text-align:center;margin-top:8px;}"
+        ".pde-ficha-excel .pde-ficha-eq-img img{max-width:100%;height:auto;}"
+        "</style>"
+        "<table><tbody>"
+        + "".join(filas_html)
+        + "</tbody></table></div>"
+    )
 
     return html, tuple(imgs_esquema)
-
-
-
 
 
 def _tabla_desde_hoja(ws) -> pd.DataFrame:
