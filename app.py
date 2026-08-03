@@ -2719,6 +2719,24 @@ def _mostrar_ficha_catalogo(
     html = getattr(ficha, "html", "") or ""
     if html:
         _mostrar_ficha_html(html)
+        ecuaciones = getattr(ficha, "ecuaciones", ()) or ()
+        if ecuaciones:
+            st.caption("Ecuación del documento (OMML → LaTeX)")
+            for eq in ecuaciones:
+                latex = getattr(eq, "latex", "") or ""
+                if not latex:
+                    continue
+                try:
+                    st.latex(latex)
+                except Exception:
+                    st.code(latex, language=None)
+                digest = getattr(eq, "omml_sha256", "") or ""
+                fuente = getattr(eq, "fuente", "") or ""
+                if digest:
+                    st.caption(
+                        f"Hash OMML SHA-256: `{digest}`"
+                        + (f" · fuente: {fuente}" if fuente else "")
+                    )
         return
     st.warning("El documento existe pero no se pudo convertir a HTML.")
 
