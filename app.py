@@ -2720,12 +2720,43 @@ def _mostrar_ficha_catalogo(
     st.caption(f"Hoja Excel: **{ficha.hoja}** · {ARCHIVO_FICHAS.as_posix()}")
     html = getattr(ficha, "html", "") or ""
     if html:
-        st.markdown(html, unsafe_allow_html=True)
+        _mostrar_ficha_html(html)
         return
     if ficha.tabla is None or ficha.tabla.empty:
         st.warning("La hoja existe pero no tiene celdas con texto.")
         return
     st.dataframe(ficha.tabla, use_container_width=True, hide_index=True)
+
+
+def _mostrar_ficha_html(html: str) -> None:
+    """Renderiza la ficha Excel como HTML (tabla con merges/colores).
+
+    Nunca usar ``st.markdown`` / ``st.code`` / ``st.text`` aquí: Streamlit
+    escapa o sanitiza ``<table>``/``<style>``/data-URI y el usuario ve el
+    HTML crudo. ``components.html`` pinta en iframe con estilos intactos.
+    """
+    import streamlit.components.v1 as components
+
+    body = (html or "").strip()
+    if not body:
+        return
+    low = body.lower()
+    if "<table" not in low:
+        body = (
+            '<div class="pde-ficha-excel"><table><tbody>'
+            f"{body}</tbody></table></div>"
+        )
+        low = body.lower()
+    n_rows = max(1, low.count("<tr"))
+    has_img = "data:image" in low or "<img" in low
+    height = min(1600, max(360, 64 + n_rows * 48 + (180 if has_img else 0)))
+    # Documento completo: estilos CSS del Excel + ecuaciones imagen.
+    doc = (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
+        "<style>html,body{margin:0;padding:0;background:#fff;}</style>"
+        f"</head><body>{body}</body></html>"
+    )
+    components.html(doc, height=height, scrolling=True)
 
 
 def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:

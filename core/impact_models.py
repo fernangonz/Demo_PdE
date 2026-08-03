@@ -10,11 +10,11 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from core.modelos.impacto.pi_agitacion import (
+from core.modelos.impacto.pi_agitacion.calcular import calcular
+from core.modelos.impacto.pi_agitacion.schemas import (
     ParametrosEntrada,
     ResultadoPIAgitacion,
     SintesisCambios,
-    calcular,
 )
 from core.modelos.impacto.pi_calado import ResultadoPICalado
 from core.modelos.impacto.pi_agitacion.schemas import (

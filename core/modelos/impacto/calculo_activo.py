@@ -15,8 +15,11 @@ from core.modelos.catalogo_impactos import (
 )
 from core.modelos.flujos import tiene_diagrama
 from core.modelos.impacto.auditoria import ModoSinModelo, modos_sin_modelo_puerto
-from core.modelos.impacto.pi_agitacion import ParametrosEntrada as ParametrosAgitacion
-from core.modelos.impacto.pi_agitacion import ResultadoPIAgitacion, calcular as calcular_agitacion
+from core.modelos.impacto.pi_agitacion.calcular import calcular as calcular_agitacion
+from core.modelos.impacto.pi_agitacion.schemas import (
+    ParametrosEntrada as ParametrosAgitacion,
+    ResultadoPIAgitacion,
+)
 from core.modelos.impacto.pi_agitacion.utilidades import fila_configuracion
 from core.modelos.impacto.pi_calado import ParametrosEntrada as ParametrosCalado
 from core.modelos.impacto.pi_calado import ResultadoPICalado, calcular as calcular_calado

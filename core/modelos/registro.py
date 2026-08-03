@@ -5,25 +5,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from core.modelos.impacto.pi_agitacion import (
+from core.modelos.impacto.pi_agitacion.calcular import calcular as calcular_pi_agitacion
+from core.modelos.impacto.pi_agitacion.schemas import (
     METADATOS as PI_AGITACION_META,
     ParametrosEntrada,
     ResultadoPIAgitacion,
-    calcular as calcular_pi_agitacion,
 )
-from core.modelos.impacto.pi_calado import (
+from core.modelos.impacto.pi_calado.calcular import calcular as calcular_pi_calado
+from core.modelos.impacto.pi_calado.schemas import (
     METADATOS as PI_CALADO_ELS_META,
     METADATOS_ELO as PI_CALADO_ELO_META,
     METADATOS_ELU as PI_CALADO_ELU_META,
     ParametrosEntrada as ParametrosCalado,
     ResultadoPICalado,
-    calcular as calcular_pi_calado,
 )
-from core.modelos.impacto.pi_francobordo import (
+from core.modelos.impacto.pi_francobordo.calcular import calcular as calcular_pi_francobordo
+from core.modelos.impacto.pi_francobordo.schemas import (
     METADATOS as PI_FRANCOBORDO_META,
     ParametrosEntrada as ParametrosFrancobordo,
     ResultadoPIFrancobordo,
-    calcular as calcular_pi_francobordo,
 )
 from core.schemas.base import MetadatosModelo, ResultadoModelo
 
