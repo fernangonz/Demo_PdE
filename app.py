@@ -2538,7 +2538,11 @@ def _visor_diagrama_catalogo(
     key_suffix: str,
     permitir_cerrar: bool = True,
 ) -> None:
-    """Muestra el PDF/TXT según ``pde_catalogo_vista`` (vínculo desde la tarjeta)."""
+    """Muestra el PDF/TXT según ``pde_catalogo_vista`` (vínculo desde la tarjeta).
+
+    Solo pinta contenido cuando la vista activa es pdf/txt; el aviso de
+    «Pulsa PDF o TXT…» vive al pie del catálogo, no aquí.
+    """
     from core.modelos.flujos import (
         buscar_diagrama,
         buscar_diagrama_pdf,
@@ -2547,17 +2551,16 @@ def _visor_diagrama_catalogo(
         nombre_esperado_diagrama,
     )
 
+    vista = st.session_state.get(_KEY_CATALOGO_VISTA)
+    if vista not in ("pdf", "txt"):
+        return
+
     if not modelo_id:
         st.warning("Diagrama no disponible (sin id de modelo).")
         return
 
     pdf = buscar_diagrama_pdf(modelo_id)
     txt = buscar_diagrama_texto(modelo_id)
-    vista = st.session_state.get(_KEY_CATALOGO_VISTA)
-
-    if vista not in ("pdf", "txt"):
-        st.caption("Pulsa **PDF** o **TXT** en la tarjeta del modelo para cargar el diagrama.")
-        return
 
     c_cerrar, _ = st.columns([1, 5], gap="small")
     with c_cerrar:
@@ -2663,7 +2666,7 @@ def _mostrar_ficha_catalogo(
 ) -> None:
     """Ficha documental desde Fichas/Ficha.xlsx (hoja emparejada al modelo).
 
-    Respeta merges Excel (rowspan/colspan HTML) y omite notas editoriales.
+    Respeta merges, colores y ecuaciones Excel; omite notas editoriales.
     """
     from core.modelos.fichas_excel import ARCHIVO_FICHAS, ficha_excel_por_entrada
 
@@ -2674,7 +2677,7 @@ def _mostrar_ficha_catalogo(
                 "Cerrar ficha",
                 key=f"pde_cat_cerrar_ficha_{key_suffix}",
                 use_container_width=True,
-                on_click=_cerrar_vista_catalogo,
+                on_click=_cerrar_seleccion_catalogo,
             )
 
     st.markdown(f"**Ficha · {titulo}**")
@@ -2702,15 +2705,10 @@ def _mostrar_ficha_catalogo(
 
 
 def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
-    """Fila/tarjeta: nombre | Diagrama (PDF/TXT apilados) | FICHA | i (esquema)."""
-    from core.modelos.fichas_excel import (
-        ficha_excel_por_entrada,
-        imagenes_ficha_por_entrada,
-    )
+    """Fila/tarjeta: nombre | Diagrama (PDF/TXT). Ficha/esquema van al detalle."""
     from core.modelos.flujos import (
         buscar_diagrama_pdf,
         buscar_diagrama_texto,
-        buscar_esquema,
         nombre_esperado_diagrama,
     )
 
@@ -2718,10 +2716,6 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
     modelo_id = entrada.diagrama_modelo_id or ""
     pdf = buscar_diagrama_pdf(modelo_id) if modelo_id else None
     txt = buscar_diagrama_texto(modelo_id) if modelo_id else None
-    imgs_ficha = imagenes_ficha_por_entrada(entrada)
-    esquema = buscar_esquema(modelo_id) if modelo_id else None
-    tiene_imagen_i = bool(imgs_ficha) or esquema is not None
-    ficha_xlsx = ficha_excel_por_entrada(entrada)
     tipo_btn = "primary" if seleccionado else "secondary"
     esperado = nombre_esperado_diagrama(modelo_id) if modelo_id else ""
 
@@ -2730,8 +2724,8 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
             '<span class="pde-modelo-card-marker"></span>',
             unsafe_allow_html=True,
         )
-        c_nom, c_diag, c_ficha, c_info = st.columns(
-            [2.4, 1.5, 1.0, 0.55],
+        c_nom, c_diag = st.columns(
+            [2.8, 1.5],
             gap="small",
             vertical_alignment="center",
         )
@@ -2772,29 +2766,6 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
             ):
                 st.session_state[_KEY_CATALOGO_SEL] = idx
                 st.session_state[_KEY_CATALOGO_VISTA] = "txt"
-        with c_ficha:
-            st.button(
-                "FICHA",
-                key=f"pde_cat_card_ficha_{idx}",
-                use_container_width=True,
-                help=(
-                    f"Ficha Excel · hoja «{ficha_xlsx.hoja}»"
-                    if ficha_xlsx is not None
-                    else "Ficha del modelo (Fichas/Ficha.xlsx)"
-                ),
-                on_click=_set_catalogo_modo,
-                args=(idx, "ficha"),
-            )
-        with c_info:
-            st.button(
-                "i",
-                key=f"pde_cat_card_info_{idx}",
-                use_container_width=True,
-                help="Imagen / esquema del modelo",
-                disabled=not tiene_imagen_i,
-                on_click=_set_catalogo_modo,
-                args=(idx, "esquema"),
-            )
 
 
 def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
@@ -2854,7 +2825,10 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
 
 
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
-    """Detalle al seleccionar un modelo: diagrama + ficha + esquema."""
+    """Detalle al seleccionar un modelo: ficha (+esquema) o diagrama PDF/TXT."""
+    from core.modelos.fichas_excel import imagenes_ficha_por_entrada
+    from core.modelos.flujos import buscar_esquema
+
     etiqueta = _etiqueta_catalogo_modo(entrada)
     modelo_id = entrada.diagrama_modelo_id or ""
     vista = st.session_state.get(_KEY_CATALOGO_VISTA)
@@ -2862,37 +2836,24 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
     st.markdown(f"### {etiqueta}")
 
     if vista in ("pdf", "txt"):
-        # Diagrama en foco: no empujar ficha/esquema encima del PDF.
         st.markdown("#### Diagrama de flujo")
         _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
         return
 
-    if vista == "ficha":
-        _mostrar_ficha_catalogo(
-            titulo=etiqueta,
-            entrada=entrada,
-            key_suffix=str(idx),
-            permitir_cerrar=True,
-        )
-        return
-
-    if vista == "esquema":
+    # Clic en el nombre (o legado ficha/esquema): ficha Excel + esquema si hay.
+    _mostrar_ficha_catalogo(
+        titulo=etiqueta,
+        entrada=entrada,
+        key_suffix=str(idx),
+        permitir_cerrar=True,
+    )
+    imgs = imagenes_ficha_por_entrada(entrada)
+    esquema = buscar_esquema(modelo_id) if modelo_id else None
+    if imgs or esquema is not None:
+        st.divider()
         _mostrar_esquema_catalogo(
             modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
         )
-        return
-
-    # Selección sin vista concreta: resumen (diagrama + ficha + esquema).
-    st.markdown("#### Diagrama de flujo")
-    _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
-    st.divider()
-    _mostrar_ficha_catalogo(
-        titulo=etiqueta, entrada=entrada, key_suffix=str(idx)
-    )
-    st.divider()
-    _mostrar_esquema_catalogo(
-        modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
-    )
 
 
 def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
@@ -2933,20 +2894,29 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
                 )
 
     idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
+    vista = st.session_state.get(_KEY_CATALOGO_VISTA)
+
     if idx_sel is None:
         st.caption(
-            "Selecciona un modelo para ver su diagrama de flujo, ficha y esquema."
+            "Selecciona un modelo para ver su ficha. "
+            "Pulsa PDF o TXT en la tarjeta del modelo para cargar el diagrama."
         )
         return
 
     st.divider()
 
     if idx_sel == _CATALOGO_SEL_MAESTRO:
-        st.markdown("### Diagrama de flujo único — Procedimiento maestro")
-        _visor_diagrama_catalogo(
-            modelo_id=id_diagrama_flujo_unico,
-            key_suffix="maestro",
-        )
+        if vista in ("pdf", "txt"):
+            st.markdown("### Diagrama de flujo único — Procedimiento maestro")
+            _visor_diagrama_catalogo(
+                modelo_id=id_diagrama_flujo_unico,
+                key_suffix="maestro",
+            )
+        else:
+            st.caption(
+                "Pulsa PDF o TXT en la tarjeta del procedimiento maestro "
+                "para cargar el diagrama."
+            )
         return
 
     try:
@@ -2959,6 +2929,11 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
         return
 
     _detalle_modelo_catalogo(CATALOGO_MODOS_IMPACTO[idx_sel], idx=idx_sel)
+
+    if vista not in ("pdf", "txt"):
+        st.caption(
+            "Pulsa PDF o TXT en la tarjeta del modelo para cargar el diagrama."
+        )
 
 
 def _resultados_impactos_puerto() -> None:
