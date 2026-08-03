@@ -2445,75 +2445,91 @@ def _indice_catalogo(entrada) -> int:
     return -1
 
 
-def _mostrar_controles_diagrama_catalogo(
+def _visor_diagrama_catalogo(
     *,
     modelo_id: str,
-    titulo: str,
     key_suffix: str,
+    permitir_cerrar: bool = True,
 ) -> None:
-    """PDF / TXT (apilados) / Cerrar + visor para un diagrama del catálogo."""
+    """Muestra el PDF/TXT según ``pde_catalogo_vista`` (vínculo desde la tarjeta)."""
     from core.modelos.flujos import (
         buscar_diagrama,
         buscar_diagrama_pdf,
         buscar_diagrama_texto,
+        mensaje_diagrama_faltante,
+        nombre_esperado_diagrama,
     )
 
-    if titulo:
-        st.markdown(f"**{titulo}**")
     if not modelo_id:
-        st.warning("Diagrama no disponible.")
+        st.warning("Diagrama no disponible (sin id de modelo).")
         return
 
     pdf = buscar_diagrama_pdf(modelo_id)
     txt = buscar_diagrama_texto(modelo_id)
     vista = st.session_state.get(_KEY_CATALOGO_VISTA)
 
-    c_btns, c_cerrar, _ = st.columns([1, 1, 4], gap="small", vertical_alignment="top")
-    with c_btns:
-        st.button(
-            "PDF",
-            key=f"pde_cat_pdf_btn_{key_suffix}",
-            use_container_width=True,
-            disabled=pdf is None,
-            on_click=_set_catalogo_vista,
-            args=("pdf",),
-        )
-        st.button(
-            "TXT",
-            key=f"pde_cat_txt_btn_{key_suffix}",
-            use_container_width=True,
-            disabled=txt is None,
-            on_click=_set_catalogo_vista,
-            args=("txt",),
-        )
+    if vista not in ("pdf", "txt"):
+        st.caption("Pulsa **PDF** o **TXT** en la tarjeta del modelo para cargar el diagrama.")
+        return
+
+    c_cerrar, _ = st.columns([1, 5], gap="small")
     with c_cerrar:
-        if vista in ("pdf", "txt"):
+        if permitir_cerrar:
             st.button(
-                "Cerrar",
+                "Cerrar diagrama",
                 key=f"pde_cat_cerrar_{key_suffix}",
                 use_container_width=True,
                 on_click=_cerrar_vista_catalogo,
             )
 
-    vista = st.session_state.get(_KEY_CATALOGO_VISTA)
-    if vista == "pdf" and pdf is not None:
+    if vista == "pdf":
+        if pdf is not None:
+            _mostrar_pdf_en_frontend(
+                pdf.ruta,
+                height=640,
+                key=f"pde_cat_pdf_{key_suffix}",
+            )
+            return
+        if txt is not None:
+            st.warning(
+                "No hay PDF esquemático para este modelo "
+                f"(se esperaba «{nombre_esperado_diagrama(modelo_id)}.pdf»). "
+                "Se muestra el TXT."
+            )
+            _mostrar_txt_diagrama(txt.ruta)
+            return
+        st.warning(mensaje_diagrama_faltante(modelo_id))
+        return
+
+    # vista == "txt"
+    if txt is not None:
+        _mostrar_txt_diagrama(txt.ruta)
+        return
+    if pdf is not None:
+        st.warning("No hay TXT; se muestra el PDF.")
         _mostrar_pdf_en_frontend(
             pdf.ruta,
             height=640,
-            key=f"pde_cat_pdf_{key_suffix}",
+            key=f"pde_cat_pdf_fallback_{key_suffix}",
         )
-    elif vista == "txt" and txt is not None:
-        _mostrar_txt_diagrama(txt.ruta)
-    elif vista == "pdf" and pdf is None and txt is not None:
-        st.warning("No hay PDF esquemático.")
-    elif vista in (None, "ficha", "esquema"):
-        st.caption("Pulsa **PDF** o **TXT** para cargar el diagrama.")
-    else:
-        diagrama = buscar_diagrama(modelo_id)
-        if diagrama is not None and diagrama.tipo == "imagen" and vista == "pdf":
-            st.image(str(diagrama.ruta), use_container_width=True)
-        else:
-            st.warning("Diagrama no disponible.")
+        return
+    diagrama = buscar_diagrama(modelo_id)
+    if diagrama is not None and diagrama.tipo == "imagen":
+        st.image(str(diagrama.ruta), use_container_width=True)
+        return
+    st.warning(mensaje_diagrama_faltante(modelo_id))
+
+
+def _mostrar_controles_diagrama_catalogo(
+    *,
+    modelo_id: str,
+    titulo: str,
+    key_suffix: str,
+) -> None:
+    """Compat: título opcional + visor enlazado a la vista del catálogo."""
+    if titulo:
+        st.markdown(f"**{titulo}**")
+    _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=key_suffix)
 
 
 def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str) -> None:
@@ -2551,6 +2567,7 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
         buscar_diagrama_pdf,
         buscar_diagrama_texto,
         buscar_esquema,
+        nombre_esperado_diagrama,
     )
 
     etiqueta = _etiqueta_catalogo_modo(entrada)
@@ -2559,6 +2576,7 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
     txt = buscar_diagrama_texto(modelo_id) if modelo_id else None
     esquema = buscar_esquema(modelo_id) if modelo_id else None
     tipo_btn = "primary" if seleccionado else "secondary"
+    esperado = nombre_esperado_diagrama(modelo_id) if modelo_id else ""
 
     with st.container(border=True):
         st.markdown(
@@ -2585,7 +2603,12 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                 "PDF",
                 key=f"pde_cat_card_pdf_{idx}",
                 use_container_width=True,
-                disabled=pdf is None,
+                # No deshabilitar: si falta el archivo, el detalle muestra el aviso.
+                help=(
+                    f"Abrir {pdf.ruta.name}"
+                    if pdf is not None
+                    else f"Buscar «{esperado}.pdf» en Flujo de modelos"
+                ),
                 on_click=_set_catalogo_modo,
                 args=(idx, "pdf"),
             )
@@ -2593,7 +2616,11 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                 "TXT",
                 key=f"pde_cat_card_txt_{idx}",
                 use_container_width=True,
-                disabled=txt is None,
+                help=(
+                    f"Abrir {txt.ruta.name}"
+                    if txt is not None
+                    else f"Buscar «{esperado}.txt» en Flujo de modelos"
+                ),
                 on_click=_set_catalogo_modo,
                 args=(idx, "txt"),
             )
@@ -2652,7 +2679,11 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
                 "PDF",
                 key="pde_cat_card_maestro_pdf",
                 use_container_width=True,
-                disabled=pdf is None,
+                help=(
+                    f"Abrir {pdf.ruta.name}"
+                    if pdf is not None
+                    else "Buscar DIAGRAMA DE FLUJO UNICO.pdf"
+                ),
                 on_click=_set_catalogo_maestro,
                 args=("pdf",),
             )
@@ -2660,7 +2691,11 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
                 "TXT",
                 key="pde_cat_card_maestro_txt",
                 use_container_width=True,
-                disabled=txt is None,
+                help=(
+                    f"Abrir {txt.ruta.name}"
+                    if txt is not None
+                    else "Buscar DIAGRAMA DE FLUJO UNICO.txt"
+                ),
                 on_click=_set_catalogo_maestro,
                 args=("txt",),
             )
@@ -2674,15 +2709,15 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
 
     st.markdown(f"### {etiqueta}")
 
+    # Diagrama primero y enlazado a PDF/TXT de la tarjeta.
     st.markdown("#### Diagrama de flujo")
-    _mostrar_controles_diagrama_catalogo(
-        modelo_id=modelo_id,
-        titulo="",
-        key_suffix=str(idx),
-    )
+    _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
+
+    if vista in ("pdf", "txt"):
+        # Con el diagrama abierto no empujar ficha/esquema encima del PDF.
+        return
 
     st.divider()
-    # Si el usuario pulsó FICHA o i en la tarjeta, esa sección queda arriba.
     if vista == "ficha":
         _mostrar_ficha_catalogo_placeholder(titulo=etiqueta)
         st.divider()
@@ -2745,9 +2780,8 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
 
     if idx_sel == _CATALOGO_SEL_MAESTRO:
         st.markdown("### Diagrama de flujo único — Procedimiento maestro")
-        _mostrar_controles_diagrama_catalogo(
+        _visor_diagrama_catalogo(
             modelo_id=id_diagrama_flujo_unico,
-            titulo="Procedimiento maestro",
             key_suffix="maestro",
         )
         return
