@@ -913,9 +913,24 @@ def _imagenes_desde_docx(ruta: Path, media_dir: Path) -> tuple[Path, ...]:
     return _extraer_imagenes_media(ruta, media_dir)
 
 
-@lru_cache(maxsize=1)
-def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
-    """Mapa catalogo_id -> ficha. Sin match: clave ``docx:<stem>``."""
+def _firma_carpeta_fichas() -> tuple[tuple[str, int, int], ...]:
+    """Huella (name, size, mtime_ns) para detectar nuevas/removidas fichas."""
+    items: list[tuple[str, int, int]] = []
+    for ruta in _listar_docx():
+        try:
+            stat = ruta.stat()
+        except OSError:
+            continue
+        items.append((ruta.name, int(stat.st_size), int(stat.st_mtime_ns)))
+    return tuple(items)
+
+
+@lru_cache(maxsize=8)
+def _cargar_fichas_word_por_firma(
+    firma: tuple[tuple[str, int, int], ...],
+) -> dict[str, FichaWordModelo]:
+    """Mapa catalogo_id -> ficha, cacheado por firma del directorio."""
+    del firma  # solo se usa como clave de cache
     resultado: dict[str, FichaWordModelo] = {}
     for ruta in _listar_docx():
         stem = ruta.stem
@@ -935,8 +950,17 @@ def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
     return resultado
 
 
+def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
+    """Recarga automatica si cambia el contenido de ``Fichas/``.
+
+    Al anadir/quitar/modificar un .docx cambia la firma y se rehace el mapa
+    sin necesidad de reiniciar Streamlit.
+    """
+    return _cargar_fichas_word_por_firma(_firma_carpeta_fichas())
+
+
 def invalidar_cache_fichas() -> None:
-    _cargar_fichas_word.cache_clear()
+    _cargar_fichas_word_por_firma.cache_clear()
 
 
 def ficha_word_por_catalogo_id(catalogo_id: str) -> FichaWordModelo | None:
