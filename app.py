@@ -2365,7 +2365,7 @@ def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
     """Carga el PDF en el frontend con ``st.pdf`` (sin descarga ni data-URI).
 
     Edge/Chrome bloquean iframes con ``data:application/pdf``; no usar ese
-    fallback. Requiere el extra ``streamlit[pdf]`` / paquete ``streamlit-pdf``.
+    fallback. Requiere el paquete ``streamlit-pdf`` (ver ``requirements.txt``).
     """
     st.caption(f"Diagrama: {ruta.name}")
     data = ruta.read_bytes()
@@ -2380,15 +2380,25 @@ def _mostrar_pdf_en_frontend(ruta, *, height: int = 640, key: str = "") -> None:
             return
         except Exception as exc:
             st.error(
-                "No se pudo mostrar el PDF. Instala el visor: "
-                "`pip install streamlit[pdf]` "
-                f"({type(exc).__name__}: {exc})"
+                "No se pudo mostrar el PDF. En la carpeta del proyecto ejecuta:\n\n"
+                "`pip install -r requirements.txt`\n\n"
+                "(incluye `streamlit-pdf`). "
+                f"Detalle: {type(exc).__name__}: {exc}"
             )
             return
     except Exception as exc:
+        msg = str(exc)
+        if "streamlit-pdf" in msg.lower() or "streamlit[pdf]" in msg.lower():
+            st.error(
+                "El visor PDF necesita el componente **streamlit-pdf**.\n\n"
+                "En local: `pip install -r requirements.txt` "
+                "(o `pip install \"streamlit-pdf>=1.0.0,<2\"`) y reinicia Streamlit.\n\n"
+                "En Streamlit Cloud: espera el redeploy tras el push de `requirements.txt`."
+            )
+            return
         st.error(
-            "No se pudo mostrar el PDF. Comprueba que esté instalado "
-            "`streamlit-pdf` (`pip install streamlit[pdf]`). "
+            "No se pudo mostrar el PDF. Comprueba `streamlit-pdf` "
+            "(`pip install -r requirements.txt`). "
             f"Detalle: {type(exc).__name__}: {exc}"
         )
 
@@ -2532,14 +2542,25 @@ def _mostrar_controles_diagrama_catalogo(
     _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=key_suffix)
 
 
-def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str) -> None:
-    """Esquema asociado al modelo (si existe archivo ESQUEMA… en Flujo de modelos)."""
+def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str, entrada=None) -> None:
+    """Imagen del boton i: primero imagenes de Ficha.xlsx; si no, ESQUEMA en Flujo."""
+    from core.modelos.fichas_excel import imagenes_ficha_por_entrada
     from core.modelos.flujos import buscar_esquema
 
-    st.markdown("**Esquema**")
+    st.markdown("**Esquema / imagen**")
+    imgs = imagenes_ficha_por_entrada(entrada) if entrada is not None else ()
+    if imgs:
+        st.caption(f"Fuente: Fichas/Ficha.xlsx")
+        for i, ruta in enumerate(imgs):
+            if ruta.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}:
+                st.image(str(ruta), use_container_width=True)
+            else:
+                st.caption(f"Archivo no mostrable como imagen: {ruta.name}")
+        return
+
     esquema = buscar_esquema(modelo_id) if modelo_id else None
     if esquema is None:
-        st.caption("No hay esquema.")
+        st.caption("No hay imagen de esquema para este modelo.")
         return
 
     st.caption(f"Fuente: {esquema.ruta.name}")
@@ -2555,14 +2576,36 @@ def _mostrar_esquema_catalogo(*, modelo_id: str, key_suffix: str) -> None:
         _mostrar_txt_diagrama(esquema.ruta)
 
 
-def _mostrar_ficha_catalogo_placeholder(*, titulo: str) -> None:
-    """Hueco para la ficha documental del modelo (contenido pendiente)."""
+def _mostrar_ficha_catalogo(*, titulo: str, entrada=None) -> None:
+    """Ficha documental desde Fichas/Ficha.xlsx (hoja emparejada al modelo)."""
+    from core.modelos.fichas_excel import ARCHIVO_FICHAS, ficha_excel_por_entrada
+
     st.markdown(f"**Ficha · {titulo}**")
-    st.info("La ficha se añadirá próximamente.")
+    if entrada is None:
+        st.info("Sin modelo seleccionado.")
+        return
+
+    ficha = ficha_excel_por_entrada(entrada)
+    if ficha is None:
+        st.info(
+            "No hay hoja en `Fichas/Ficha.xlsx` emparejada a este modelo. "
+            f"Archivo: `{ARCHIVO_FICHAS.name}`."
+        )
+        return
+
+    st.caption(f"Hoja Excel: **{ficha.hoja}** · {ARCHIVO_FICHAS.as_posix()}")
+    if ficha.tabla is None or ficha.tabla.empty:
+        st.warning("La hoja existe pero no tiene celdas con texto.")
+        return
+    st.dataframe(ficha.tabla, use_container_width=True, hide_index=True)
 
 
 def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
     """Fila/tarjeta: nombre | Diagrama (PDF/TXT apilados) | FICHA | i (esquema)."""
+    from core.modelos.fichas_excel import (
+        ficha_excel_por_entrada,
+        imagenes_ficha_por_entrada,
+    )
     from core.modelos.flujos import (
         buscar_diagrama_pdf,
         buscar_diagrama_texto,
@@ -2574,7 +2617,10 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
     modelo_id = entrada.diagrama_modelo_id or ""
     pdf = buscar_diagrama_pdf(modelo_id) if modelo_id else None
     txt = buscar_diagrama_texto(modelo_id) if modelo_id else None
+    imgs_ficha = imagenes_ficha_por_entrada(entrada)
     esquema = buscar_esquema(modelo_id) if modelo_id else None
+    tiene_imagen_i = bool(imgs_ficha) or esquema is not None
+    ficha_xlsx = ficha_excel_por_entrada(entrada)
     tipo_btn = "primary" if seleccionado else "secondary"
     esperado = nombre_esperado_diagrama(modelo_id) if modelo_id else ""
 
@@ -2603,7 +2649,6 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                 "PDF",
                 key=f"pde_cat_card_pdf_{idx}",
                 use_container_width=True,
-                # No deshabilitar: si falta el archivo, el detalle muestra el aviso.
                 help=(
                     f"Abrir {pdf.ruta.name}"
                     if pdf is not None
@@ -2629,7 +2674,11 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                 "FICHA",
                 key=f"pde_cat_card_ficha_{idx}",
                 use_container_width=True,
-                help="Ficha del modelo",
+                help=(
+                    f"Ficha Excel · hoja «{ficha_xlsx.hoja}»"
+                    if ficha_xlsx is not None
+                    else "Ficha del modelo (Fichas/Ficha.xlsx)"
+                ),
                 on_click=_set_catalogo_modo,
                 args=(idx, "ficha"),
             )
@@ -2638,8 +2687,8 @@ def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
                 "i",
                 key=f"pde_cat_card_info_{idx}",
                 use_container_width=True,
-                help="Esquema / imagen de información",
-                disabled=esquema is None,
+                help="Imagen / esquema del modelo",
+                disabled=not tiene_imagen_i,
                 on_click=_set_catalogo_modo,
                 args=(idx, "esquema"),
             )
@@ -2719,17 +2768,23 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
 
     st.divider()
     if vista == "ficha":
-        _mostrar_ficha_catalogo_placeholder(titulo=etiqueta)
+        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
         st.divider()
-        _mostrar_esquema_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
+        _mostrar_esquema_catalogo(
+            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
+        )
     elif vista == "esquema":
-        _mostrar_esquema_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
+        _mostrar_esquema_catalogo(
+            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
+        )
         st.divider()
-        _mostrar_ficha_catalogo_placeholder(titulo=etiqueta)
+        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
     else:
-        _mostrar_ficha_catalogo_placeholder(titulo=etiqueta)
+        _mostrar_ficha_catalogo(titulo=etiqueta, entrada=entrada)
         st.divider()
-        _mostrar_esquema_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
+        _mostrar_esquema_catalogo(
+            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
+        )
 
 
 def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
