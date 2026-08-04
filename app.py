@@ -3322,15 +3322,6 @@ def _seccion_calculo_impactos() -> None:
 
     _cabecera_seccion("Cálculo de impactos")
 
-    st.caption(
-        "Nuevo activo: debe figurar en **1_Configuración_del_puerto** "
-        "(columna Activo físico u Operacional), en **ListRelacion impactos-indicador** "
-        "del Excel 2 (mismos nombre + modos/variable/tipo) y, para fijar percentil/"
-        "indicador, en **4_Relacion_modelos_activos_e_indicadores**. "
-        "Si editas Excel con la app abierta, usa «Recargar datos Excel» en Herramienta "
-        "o vuelve a calcular (la caché se invalida por mtime)."
-    )
-
     if config_df is None or config_df.empty:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
         return
