@@ -3232,21 +3232,30 @@ def _mostrar_informe_validacion_puerto(validacion: ResultadoValidacionPuerto) ->
 
     if n_errores == 0 and n_adv == 0:
         st.success(
-            f"Validacion correcta: {n_activos} activo(s) detectado(s), "
-            f"{n_calc} con al menos un modo calculable."
+            f"Validacion correcta: {n_activos} activo(s) detectado(s) en "
+            f"Configuracion del puerto, {n_calc} con al menos un modo calculable."
         )
         return
 
+    aclaracion_modos = (
+        " Los avisos de «modo sin metodologia» significan que el activo sí se "
+        "detecto; solo ese modo de fallo no tiene motor implementado."
+        if n_sin_modelo
+        else ""
+    )
+
     if n_errores:
         st.warning(
-            f"Validacion: {n_activos} activo(s), {n_errores} error(es), "
+            f"Validacion: {n_activos} activo(s) detectado(s), {n_errores} error(es), "
             f"{n_adv} aviso(s), {n_sin_modelo} modo(s) sin metodologia. "
             f"Se calculara lo que sea posible ({n_calc} activo(s) con modos validos)."
+            f"{aclaracion_modos}"
         )
     else:
         st.info(
-            f"Validacion: {n_activos} activo(s), {n_adv} aviso(s), "
-            f"{n_sin_modelo} modo(s) sin metodologia implementada."
+            f"Validacion: {n_activos} activo(s) detectado(s) en Configuracion del puerto, "
+            f"{n_adv} aviso(s), {n_sin_modelo} modo(s) sin metodologia implementada."
+            f"{aclaracion_modos}"
         )
 
 
@@ -3312,6 +3321,15 @@ def _seccion_calculo_impactos() -> None:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
 
     _cabecera_seccion("Cálculo de impactos")
+
+    st.caption(
+        "Nuevo activo: debe figurar en **1_Configuración_del_puerto** "
+        "(columna Activo físico u Operacional), en **ListRelacion impactos-indicador** "
+        "del Excel 2 (mismos nombre + modos/variable/tipo) y, para fijar percentil/"
+        "indicador, en **4_Relacion_modelos_activos_e_indicadores**. "
+        "Si editas Excel con la app abierta, usa «Recargar datos Excel» en Herramienta "
+        "o vuelve a calcular (la caché se invalida por mtime)."
+    )
 
     if config_df is None or config_df.empty:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))

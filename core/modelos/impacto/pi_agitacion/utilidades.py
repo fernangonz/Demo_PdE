@@ -112,8 +112,15 @@ def fila_configuracion(
 
 
 def impactos_por_activo(df_rel: pd.DataFrame, activo: str) -> pd.DataFrame:
-    col = "Activo físico u Operacional"
-    if col not in df_rel.columns:
+    """Filas de relación IM asociadas al activo (nombre flexible / acentos)."""
+    if df_rel is None or df_rel.empty:
+        return df_rel.iloc[0:0] if df_rel is not None else pd.DataFrame()
+    col = columna_por_patron(
+        list(df_rel.columns),
+        "activo fisico u operacional",
+        "activo",
+    )
+    if not col:
         return df_rel.iloc[0:0]
     mask = df_rel[col].map(lambda x: match_activo(x, activo))
     return df_rel[mask].copy()

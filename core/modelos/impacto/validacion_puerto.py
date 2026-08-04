@@ -1150,8 +1150,13 @@ def validar_puerto_antes_calculo(
                 archivo="registro de metodologias (codigo)",
                 hoja="",
                 mensaje=(
-                    f"{modo.activo} - {n_rel} - {modo.etiqueta}: no hay motor de "
-                    f"calculo implementado para este modo."
+                    f"Activo «{modo.activo}» detectado en Configuracion del puerto; "
+                    f"el modo {n_rel} «{modo.etiqueta}» ({modo.variable or 'sin variable'}, "
+                    f"{modo.tipo_impacto or 'sin tipo'}) esta en ListRelacion pero no tiene "
+                    f"motor de calculo implementado. No implica que el activo sea desconocido: "
+                    f"solo ese modo se omite. Motores actuales: PI superacion de umbral "
+                    f"(oleaje/viento/corriente/visibilidad/inundacion), falta de francobordo "
+                    f"y falta de calado."
                 ),
                 n_relacion=modo.n_relacion,
             )
@@ -1203,8 +1208,12 @@ def validar_puerto_antes_calculo(
                     ),
                     hoja="ListRelacion impactos-indicador",
                     mensaje=(
-                        f"{activo_resumen}: no hay modos de fallo en "
-                        f"ListRelacion impactos-indicador."
+                        f"Activo «{activo_resumen}» esta en Configuracion del puerto "
+                        f"pero no aparece en la hoja ListRelacion impactos-indicador "
+                        f"del Excel 2_Relacion_umbrales_y_curvas_de_dano_vs_activos "
+                        f"(columna «Activo fisico u Operacional»). Anade al menos una "
+                        f"fila con Tipo de impacto, Modos de fallo, Variable y el mismo "
+                        f"nombre de activo; sin eso la herramienta no puede calcularlo."
                     ),
                 )
             )
