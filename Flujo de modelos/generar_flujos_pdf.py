@@ -568,11 +568,19 @@ def build_calado_like(
     step5b_tipo: str,
     step6_extra: list[str],
     step7_predef_note: str,
+    step7_por_umbral_title: str = "Seleccionar por umbral",
+    step7_por_umbral_lines: list[str] | None = None,
     step8_header: str,
     step8_lines: list[str],
     step9_table: list[list[str]],
     step10_lines: list[str],
 ):
+    if step7_por_umbral_lines is None:
+        step7_por_umbral_lines = [
+            "Indicador que contenga el umbral",
+            "obtenido en el paso 6 (o el del",
+            "diagrama si no hay Excel en 5b).",
+        ]
     pdf = FlowPDF(out_path, title)
     cx = CX
     main_w = 520
@@ -857,15 +865,8 @@ def build_calado_like(
         umb_cx,
         sel_top,
         300,
-        "Seleccionar por umbral / Fb",
-        [
-            "General: indicador con el umbral",
-            "del paso 6 (o diagrama).",
-            "Inundacion costera (ELO):",
-            "referencia = Fb (o umbral si Fb",
-            "vacio); menor valor >= ref. en",
-            "inundacion costera en atraque.",
-        ],
+        step7_por_umbral_title,
+        step7_por_umbral_lines,
         font_size=11,
         line_h=13,
         header_h=26,
@@ -1390,6 +1391,16 @@ def main():
         step5b_tipo="(si está definido en la fila)",
         step6_extra=[],
         step7_predef_note="(si el Excel fijó un indicador)",
+        # Caso especial solo de PI Superación (Inundación costera ELO), no de calado.
+        step7_por_umbral_title="Seleccionar por umbral / Fb",
+        step7_por_umbral_lines=[
+            "General: indicador con el umbral",
+            "del paso 6 (o diagrama).",
+            "Inundacion costera (ELO):",
+            "referencia = Fb (o umbral si Fb",
+            "vacio); menor valor >= ref. en",
+            "inundacion costera en atraque.",
+        ],
         step8_header="8. Calcular la variación",
         step8_lines=[
             "Para cada escenario:",
