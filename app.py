@@ -3071,9 +3071,7 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
     _render_modal_flujo_si_toca()
     _render_modal_imagen_si_toca()
 
-    st.caption("Procedimiento maestro")
     idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
-    _tarjeta_maestro_catalogo(seleccionado=idx_sel == _CATALOGO_SEL_MAESTRO)
 
     st.markdown("##### Lista de modelos")
     col_elo, col_elu, col_els = st.columns(3, gap="medium")
