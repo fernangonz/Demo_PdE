@@ -2627,10 +2627,6 @@ def _abrir_modal_imagen(idx: int) -> None:
     if idx is None or idx < 0:
         return
     st.session_state[_KEY_MODAL_IMAGEN_IDX] = int(idx)
-    # Reiniciamos estados de tamaño al abrir para no arrastrar
-    # maximizada/minimizada de una ventana anterior.
-    st.session_state.pop("pde_pdf_modal_max", None)
-    st.session_state.pop("pde_img_modal_min", None)
 
 
 def _render_modal_imagen_si_toca() -> None:

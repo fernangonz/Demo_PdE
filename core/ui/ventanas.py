@@ -269,23 +269,9 @@ def abrir_dialogo_pdf(*, titulo, ruta_pdf, state_key, url_pestana_nueva=None, ke
 
 
 # --- BEGIN abrir_dialogo_imagen ---
-KEY_MODAL_MINIMIZADO = "pde_img_modal_min"
-
-
-def _minimizar_dialogo_imagen():
-    st.session_state[KEY_MODAL_MINIMIZADO] = True
-    st.session_state[KEY_MODAL_MAXIMIZADO] = False
-
-
-def _restaurar_dialogo_imagen():
-    st.session_state[KEY_MODAL_MINIMIZADO] = False
-
-
 def cerrar_dialogo_imagen(state_key):
-    """Cierra el modal de imagen y limpia estados asociados."""
+    """Cierra el modal de imagen y limpia el estado asociado."""
     st.session_state.pop(state_key, None)
-    st.session_state.pop(KEY_MODAL_MAXIMIZADO, None)
-    st.session_state.pop(KEY_MODAL_MINIMIZADO, None)
 
 
 def _mime_imagen(ruta):
@@ -301,77 +287,10 @@ def _mime_imagen(ruta):
     }.get(ext, "application/octet-stream")
 
 
-def _inyectar_css_taskbar_imagen():
-    """Chip fijo inferior al estilo barra de tareas (ventana minimizada)."""
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-img-taskbar-marker),
-        div[data-testid="stVerticalBlock"]:has(> div > .pde-img-taskbar-marker),
-        div[data-testid="stVerticalBlock"]:has(.pde-img-taskbar-marker) {
-            position: fixed !important;
-            bottom: 14px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            z-index: 100000 !important;
-            width: min(560px, 92vw) !important;
-            background: #1f1f1f !important;
-            border: 1px solid #444 !important;
-            border-radius: 10px !important;
-            padding: 8px 12px !important;
-            box-shadow: 0 6px 22px rgba(0,0,0,0.38) !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(.pde-img-taskbar-marker)
-        [data-testid="stButton"] button,
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-img-taskbar-marker)
-        [data-testid="stButton"] button {
-            background-color: #2b2b2b !important;
-            color: #f3f3f3 !important;
-            border: 1px solid #666 !important;
-            min-height: 38px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def _render_taskbar_imagen(*, titulo, state_key, key_prefix):
-    """Barra inferior: chip con título (restaura) + ✕ (cierra)."""
-    _inyectar_css_taskbar_imagen()
-    with st.container():
-        st.markdown(
-            '<span class="pde-img-taskbar-marker" aria-hidden="true"></span>',
-            unsafe_allow_html=True,
-        )
-        c_chip, c_cerrar = st.columns([6, 1], gap="small")
-        with c_chip:
-            if st.button(
-                f"☐  {titulo}",
-                key=f"{key_prefix}_taskbar_restore",
-                help="Restaurar ventana",
-                use_container_width=True,
-            ):
-                _restaurar_dialogo_imagen()
-                st.rerun()
-        with c_cerrar:
-            if st.button(
-                "✕",
-                key=f"{key_prefix}_taskbar_close",
-                help="Cerrar",
-                use_container_width=True,
-                type="primary",
-            ):
-                cerrar_dialogo_imagen(state_key)
-                st.rerun()
-
-
 def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
     """Modal con imagen(es) y botones-icono (arriba-derecha):
 
     - ⇩ Descargar
-    - − Minimizar → chip tipo taskbar inferior; ☐ restaura
-    - □ Maximizar / ❐ Restaurar (casi pantalla completa)
     - ✕ Cerrar (limpia session_state; la X nativa de Streamlit se oculta)
 
     ``rutas_imagen`` puede ser una ruta unica o iterable de rutas.
@@ -387,29 +306,15 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
     else:
         rutas = [Path(r) for r in rutas_imagen]
 
-    maximizada = bool(st.session_state.get(KEY_MODAL_MAXIMIZADO, False))
-    minimizada = bool(st.session_state.get(KEY_MODAL_MINIMIZADO, False))
     key_prefix = key_suffix or state_key
 
-    # Minimizar = ocultar el dialogo grande y mostrar chip inferior.
-    if minimizada:
-        _render_taskbar_imagen(
-            titulo=titulo, state_key=state_key, key_prefix=key_prefix
-        )
-        return
-
-    ancho_dialogo = "large" if maximizada else "medium"
-
-    @st.dialog(titulo, width=ancho_dialogo)
+    @st.dialog(titulo, width="medium")
     def _dlg():
-        if maximizada:
-            _inyectar_css_dialogo_maximizado()
-
         _inyectar_css_toolbar_iconos()
 
-        # Una sola fila arriba-derecha: descargar | min | max | cerrar
-        _sp, c_dl, c_min, c_max, c_cerrar = st.columns(
-            [8, 0.85, 0.85, 0.85, 0.85], gap="small", vertical_alignment="center"
+        # Una sola fila arriba-derecha: descargar | cerrar
+        _sp, c_dl, c_cerrar = st.columns(
+            [8, 0.85, 0.85], gap="small", vertical_alignment="center"
         )
 
         with c_dl:
@@ -417,22 +322,6 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
                 rutas[0] if rutas else None,
                 key=f"{key_prefix}_btn_dl",
                 mime_fn=_mime_imagen,
-            )
-        with c_min:
-            st.button(
-                "−",
-                key=f"{key_prefix}_btn_min",
-                help="Minimizar",
-                use_container_width=True,
-                on_click=_minimizar_dialogo_imagen,
-            )
-        with c_max:
-            st.button(
-                "❐" if maximizada else "□",
-                key=f"{key_prefix}_btn_max",
-                help="Restaurar tamaño" if maximizada else "Maximizar",
-                use_container_width=True,
-                on_click=_toggle_maximizado,
             )
         with c_cerrar:
             if st.button(
