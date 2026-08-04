@@ -62,6 +62,11 @@ from core.modelos.catalogo_impactos import (
     titulo_modo_impacto,
 )
 from core.modelos.flujos import buscar_diagrama
+from core.ui.ventanas import (
+    abrir_dialogo_pdf,
+    preparar_pdf_publico,
+    url_pdf_publico,
+)
 from core.modelos.impacto.calculo_activo import calcular_impactos_puerto
 from core.modelos.impacto.impactos_no_factibles import FiltroImpactosNoFactibles
 from core.modelos.impacto.validacion_puerto import (
@@ -2536,6 +2541,135 @@ def _cerrar_seleccion_catalogo() -> None:
     st.session_state[_KEY_CATALOGO_VISTA] = None
 
 
+# ---------------------------------------------------------------------------
+# Ventana modal del diagrama de flujo (PDF) — reutilizable
+# ---------------------------------------------------------------------------
+_KEY_MODAL_FLUJO_ID = "pde_pdf_modal_flujo_modelo_id"
+
+
+def _abrir_modal_flujo(modelo_id: str) -> None:
+    """Marca el modal PDF como abierto para ``modelo_id`` (se renderiza al final)."""
+    if not modelo_id:
+        return
+    st.session_state[_KEY_MODAL_FLUJO_ID] = modelo_id
+
+
+def _url_pdf_flujo_publico(modelo_id: str) -> str | None:
+    """Devuelve la URL ``/app/static/flujos/...`` para el PDF del flujo (o ``None``)."""
+    from core.modelos.flujos import buscar_diagrama_pdf
+
+    if not modelo_id:
+        return None
+    pdf = buscar_diagrama_pdf(modelo_id)
+    if pdf is None:
+        return None
+    publicado = preparar_pdf_publico(pdf.ruta, subcarpeta="flujos")
+    if publicado is None:
+        return None
+    return url_pdf_publico(publicado)
+
+
+def _render_modal_flujo_si_toca() -> None:
+    """Si hay un modelo pendiente, dispara el ``@st.dialog`` con su PDF."""
+    from core.modelos.flujos import (
+        buscar_diagrama_pdf,
+        nombre_esperado_diagrama,
+    )
+
+    modelo_id = st.session_state.get(_KEY_MODAL_FLUJO_ID)
+    if not modelo_id:
+        return
+
+    pdf = buscar_diagrama_pdf(modelo_id)
+    ruta = pdf.ruta if pdf is not None else None
+    url_nueva = _url_pdf_flujo_publico(modelo_id)
+    titulo_modelo = nombre_esperado_diagrama(modelo_id) if modelo_id else "diagrama"
+    abrir_dialogo_pdf(
+        titulo=f"Diagrama · {titulo_modelo}",
+        ruta_pdf=ruta,
+        state_key=_KEY_MODAL_FLUJO_ID,
+        url_pestana_nueva=url_nueva,
+        key_suffix=f"pde_modal_flujo_{modelo_id}",
+    )
+
+
+def _ocultar_txt_diagrama() -> None:
+    if st.session_state.get(_KEY_CATALOGO_VISTA) == "txt":
+        st.session_state[_KEY_CATALOGO_VISTA] = None
+
+
+def _mostrar_txt_diagrama_inline(*, modelo_id: str, key_suffix: str) -> None:
+    """Muestra el TXT del diagrama y un botón para ocultarlo."""
+    from core.modelos.flujos import buscar_diagrama_texto
+
+    txt = buscar_diagrama_texto(modelo_id) if modelo_id else None
+    if txt is None:
+        st.info("Este modelo no tiene diagrama en formato TXT.")
+        return
+    c_cerrar, _ = st.columns([1, 5], gap="small")
+    with c_cerrar:
+        st.button(
+            "Ocultar TXT",
+            key=f"pde_cat_ocultar_txt_{key_suffix}",
+            use_container_width=True,
+            on_click=_ocultar_txt_diagrama,
+        )
+    _mostrar_txt_diagrama(txt.ruta)
+
+
+def _controles_diagrama_detalle(*, modelo_id: str, key_suffix: str) -> None:
+    """Dos botones: «Ver diagrama» (modal) y «Abrir en pestaña nueva» (link)."""
+    from core.modelos.flujos import (
+        buscar_diagrama_pdf,
+        buscar_diagrama_texto,
+        mensaje_diagrama_faltante,
+    )
+
+    if not modelo_id:
+        st.info("Sin modelo seleccionado; no hay diagrama que mostrar.")
+        return
+
+    pdf = buscar_diagrama_pdf(modelo_id)
+    txt = buscar_diagrama_texto(modelo_id)
+    url_nueva = _url_pdf_flujo_publico(modelo_id) if pdf is not None else None
+
+    c_ver, c_link, c_txt, _ = st.columns([1.2, 1.4, 1.0, 3.4], gap="small")
+    with c_ver:
+        st.button(
+            "Ver diagrama",
+            key=f"pde_cat_ver_diag_{key_suffix}",
+            use_container_width=True,
+            type="primary",
+            disabled=pdf is None,
+            on_click=_abrir_modal_flujo,
+            args=(modelo_id,),
+        )
+    with c_link:
+        if url_nueva:
+            st.link_button(
+                "Abrir en pestaña nueva",
+                url=url_nueva,
+                use_container_width=True,
+            )
+    with c_txt:
+        if txt is not None:
+            st.button(
+                "Ver TXT",
+                key=f"pde_cat_ver_txt_{key_suffix}",
+                use_container_width=True,
+                type=(
+                    "primary"
+                    if st.session_state.get(_KEY_CATALOGO_VISTA) == "txt"
+                    else "secondary"
+                ),
+                on_click=_set_catalogo_vista,
+                args=("txt",),
+            )
+
+    if pdf is None and txt is None:
+        st.warning(mensaje_diagrama_faltante(modelo_id))
+
+
 def _indice_catalogo(entrada) -> int:
     for i, e in enumerate(CATALOGO_MODOS_IMPACTO):
         if e.id == entrada.id:
@@ -2842,18 +2976,11 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
             modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
         )
 
-    if vista in ("pdf", "txt"):
-        st.divider()
-        st.markdown("#### Diagrama de flujo")
-        _visor_diagrama_catalogo(modelo_id=modelo_id, key_suffix=str(idx))
-    else:
-        st.divider()
-        st.button(
-            "Abrir diagrama",
-            key=f"pde_cat_abrir_diag_{idx}",
-            on_click=_set_catalogo_vista,
-            args=("pdf",),
-        )
+    st.divider()
+    st.markdown("#### Diagrama de flujo")
+    _controles_diagrama_detalle(modelo_id=modelo_id, key_suffix=str(idx))
+    if vista == "txt":
+        _mostrar_txt_diagrama_inline(modelo_id=modelo_id, key_suffix=str(idx))
 
 
 def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
@@ -2863,6 +2990,8 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
     # usa barra plegable «Lista de modelos» (detalle inline bajo las tarjetas).
     _ = expanded
     id_diagrama_flujo_unico = "DIAGRAMA_FLUJO_UNICO"
+
+    _render_modal_flujo_si_toca()
 
     st.caption("Procedimiento maestro")
     idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
@@ -2906,17 +3035,13 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
 
     if idx_sel == _CATALOGO_SEL_MAESTRO:
         st.markdown("### Diagrama de flujo único — Procedimiento maestro")
-        if vista in ("pdf", "txt"):
-            _visor_diagrama_catalogo(
-                modelo_id=id_diagrama_flujo_unico,
-                key_suffix="maestro",
-            )
-        else:
-            st.button(
-                "Abrir diagrama",
-                key="pde_cat_abrir_diag_maestro",
-                on_click=_set_catalogo_vista,
-                args=("pdf",),
+        _controles_diagrama_detalle(
+            modelo_id=id_diagrama_flujo_unico,
+            key_suffix="maestro",
+        )
+        if vista == "txt":
+            _mostrar_txt_diagrama_inline(
+                modelo_id=id_diagrama_flujo_unico, key_suffix="maestro"
             )
         return
 

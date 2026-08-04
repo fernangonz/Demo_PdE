@@ -7,3 +7,6 @@ font = "sans serif"
 
 [server]
 headless = true
+# Sirve el contenido de la carpeta `static/` bajo `/app/static/...`.
+# Lo usamos para exponer los PDFs de flujos en «Abrir en pestaña nueva».
+enableStaticServing = true

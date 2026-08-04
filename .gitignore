@@ -30,3 +30,9 @@ _nudge.py
 # Fichas: cache de imagenes extraidas del Word (se regenera al cargar)
 Fichas/_media/
 Fichas/_extract/
+
+# Static: PDFs de flujos publicados en runtime (se regeneran al abrir la ventana).
+# Mantenemos las carpetas con .gitkeep; solo ignoramos los ficheros generados.
+static/flujos/*.pdf
+static/fichas/*.pdf
+static/esquemas/*.pdf
