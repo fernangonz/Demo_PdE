@@ -79,18 +79,41 @@ def url_pdf_publico(ruta_publicada):
 
 
 def _inyectar_css_dialogo_maximizado():
+    """CSS fuerte: dialogo casi a pantalla completa (95vw x 95vh)."""
     st.markdown(
         """
         <style>
-        div[data-testid="stModal"] div[role="dialog"] {
-            max-width: 95vw !important;
+        div[data-testid="stModal"] {
+            padding: 0 !important;
+        }
+        div[data-testid="stModal"] > div {
             width: 95vw !important;
+            max-width: 95vw !important;
+            height: 95vh !important;
+            max-height: 95vh !important;
+        }
+        div[data-testid="stModal"] div[role="dialog"] {
+            width: 95vw !important;
+            max-width: 95vw !important;
+            height: 95vh !important;
+            max-height: 95vh !important;
+            margin: 0 auto !important;
         }
         div[data-testid="stModal"] div[role="dialog"] > div {
             max-width: 100% !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 95vh !important;
+            overflow: auto !important;
         }
         div[data-testid="stModal"] div[role="dialog"] iframe {
             width: 100% !important;
+        }
+        div[data-testid="stModal"] div[role="dialog"] img {
+            max-height: calc(95vh - 120px) !important;
+            width: auto !important;
+            max-width: 100% !important;
+            object-fit: contain !important;
         }
         </style>
         """,
@@ -249,10 +272,13 @@ def abrir_dialogo_pdf(*, titulo, ruta_pdf, state_key, url_pestana_nueva=None, ke
 KEY_MODAL_MINIMIZADO = "pde_img_modal_min"
 
 
-def _toggle_minimizado():
-    st.session_state[KEY_MODAL_MINIMIZADO] = not st.session_state.get(
-        KEY_MODAL_MINIMIZADO, False
-    )
+def _minimizar_dialogo_imagen():
+    st.session_state[KEY_MODAL_MINIMIZADO] = True
+    st.session_state[KEY_MODAL_MAXIMIZADO] = False
+
+
+def _restaurar_dialogo_imagen():
+    st.session_state[KEY_MODAL_MINIMIZADO] = False
 
 
 def cerrar_dialogo_imagen(state_key):
@@ -275,16 +301,82 @@ def _mime_imagen(ruta):
     }.get(ext, "application/octet-stream")
 
 
+def _inyectar_css_taskbar_imagen():
+    """Chip fijo inferior al estilo barra de tareas (ventana minimizada)."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-img-taskbar-marker),
+        div[data-testid="stVerticalBlock"]:has(> div > .pde-img-taskbar-marker),
+        div[data-testid="stVerticalBlock"]:has(.pde-img-taskbar-marker) {
+            position: fixed !important;
+            bottom: 14px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 100000 !important;
+            width: min(560px, 92vw) !important;
+            background: #1f1f1f !important;
+            border: 1px solid #444 !important;
+            border-radius: 10px !important;
+            padding: 8px 12px !important;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.38) !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(.pde-img-taskbar-marker)
+        [data-testid="stButton"] button,
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-img-taskbar-marker)
+        [data-testid="stButton"] button {
+            background-color: #2b2b2b !important;
+            color: #f3f3f3 !important;
+            border: 1px solid #666 !important;
+            min-height: 38px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_taskbar_imagen(*, titulo, state_key, key_prefix):
+    """Barra inferior: chip con título (restaura) + ✕ (cierra)."""
+    _inyectar_css_taskbar_imagen()
+    with st.container():
+        st.markdown(
+            '<span class="pde-img-taskbar-marker" aria-hidden="true"></span>',
+            unsafe_allow_html=True,
+        )
+        c_chip, c_cerrar = st.columns([6, 1], gap="small")
+        with c_chip:
+            if st.button(
+                f"☐  {titulo}",
+                key=f"{key_prefix}_taskbar_restore",
+                help="Restaurar ventana",
+                use_container_width=True,
+            ):
+                _restaurar_dialogo_imagen()
+                st.rerun()
+        with c_cerrar:
+            if st.button(
+                "✕",
+                key=f"{key_prefix}_taskbar_close",
+                help="Cerrar",
+                use_container_width=True,
+                type="primary",
+            ):
+                cerrar_dialogo_imagen(state_key)
+                st.rerun()
+
+
 def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
     """Modal con imagen(es) y botones-icono (arriba-derecha):
 
     - ⇩ Descargar
-    - − Minimizar / ☐ Restaurar (colapsa el contenido)
-    - □ Maximizar / ❐ Restaurar (ocupa 95vw)
-    - ✕ Cerrar
+    - − Minimizar → chip tipo taskbar inferior; ☐ restaura
+    - □ Maximizar / ❐ Restaurar (casi pantalla completa)
+    - ✕ Cerrar (limpia session_state; la X nativa de Streamlit se oculta)
 
     ``rutas_imagen`` puede ser una ruta unica o iterable de rutas.
     """
+    # Critico: idx=0 es valido; no usar ``if not get(...)``.
     if st.session_state.get(state_key) is None:
         return
 
@@ -298,11 +390,15 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
     maximizada = bool(st.session_state.get(KEY_MODAL_MAXIMIZADO, False))
     minimizada = bool(st.session_state.get(KEY_MODAL_MINIMIZADO, False))
     key_prefix = key_suffix or state_key
-    # Ancho dinamico del dialogo: small (minimizada) / medium (normal) /
-    # large (maximizada). Streamlit 1.58 acepta estos tres literales.
-    ancho_dialogo = (
-        "small" if minimizada else "large" if maximizada else "medium"
-    )
+
+    # Minimizar = ocultar el dialogo grande y mostrar chip inferior.
+    if minimizada:
+        _render_taskbar_imagen(
+            titulo=titulo, state_key=state_key, key_prefix=key_prefix
+        )
+        return
+
+    ancho_dialogo = "large" if maximizada else "medium"
 
     @st.dialog(titulo, width=ancho_dialogo)
     def _dlg():
@@ -311,8 +407,9 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
 
         _inyectar_css_toolbar_iconos()
 
-        c_spacer, c_dl, c_min, c_max, c_cerrar = st.columns(
-            [8, 0.9, 0.9, 0.9, 0.9], gap="small", vertical_alignment="center"
+        # Una sola fila arriba-derecha: descargar | min | max | cerrar
+        _sp, c_dl, c_min, c_max, c_cerrar = st.columns(
+            [8, 0.85, 0.85, 0.85, 0.85], gap="small", vertical_alignment="center"
         )
 
         with c_dl:
@@ -323,21 +420,19 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
             )
         with c_min:
             st.button(
-                "☐" if minimizada else "−",
+                "−",
                 key=f"{key_prefix}_btn_min",
-                help="Restaurar" if minimizada else "Minimizar",
+                help="Minimizar",
                 use_container_width=True,
-                on_click=_toggle_minimizado,
-                disabled=maximizada,
+                on_click=_minimizar_dialogo_imagen,
             )
         with c_max:
             st.button(
                 "❐" if maximizada else "□",
                 key=f"{key_prefix}_btn_max",
-                help="Restaurar tama\u00f1o" if maximizada else "Maximizar",
+                help="Restaurar tamaño" if maximizada else "Maximizar",
                 use_container_width=True,
                 on_click=_toggle_maximizado,
-                disabled=minimizada,
             )
         with c_cerrar:
             if st.button(
@@ -349,12 +444,6 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
             ):
                 cerrar_dialogo_imagen(state_key)
                 st.rerun()
-
-        if minimizada:
-            st.caption(
-                "Ventana minimizada — pulsa ☐ para restaurar."
-            )
-            return
 
         if not rutas:
             st.warning("No hay imagen disponible para este modelo.")
@@ -377,23 +466,43 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
 
 
 def _inyectar_css_toolbar_iconos():
-    """CSS: compacta los botones de la fila superior del modal."""
+    """CSS del modal de imagen:
+
+    1. Oculta la X nativa de ``@st.dialog`` (``aria-label="Close"``).
+    2. Compacta los botones-icono del toolbar en una sola linea.
+    """
     st.markdown(
         """
         <style>
-        div[data-testid="stModal"] [data-testid="stHorizontalBlock"]:first-of-type
-        button {
-            min-height: 34px;
-            padding: 2px 4px;
-            font-size: 1.05rem;
-            line-height: 1;
+        /* 1. Ocultar el boton de cierre nativo de st.dialog */
+        div[role="dialog"] button[aria-label="Close"],
+        div[data-testid="stModal"] button[aria-label="Close"] {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            opacity: 0 !important;
         }
-        div[data-testid="stModal"] [data-testid="stHorizontalBlock"]:first-of-type
+
+        /* 2. Compactar la fila de iconos (arriba-derecha) */
+        div[role="dialog"] [data-testid="stHorizontalBlock"]:first-of-type
+        [data-testid="stButton"] button,
+        div[role="dialog"] [data-testid="stHorizontalBlock"]:first-of-type
         [data-testid="stDownloadButton"] button {
             min-height: 34px;
             padding: 2px 4px;
             font-size: 1.05rem;
             line-height: 1;
+            white-space: nowrap;
+        }
+
+        /* 3. Acercar la barra al titulo */
+        div[role="dialog"] [data-testid="stHorizontalBlock"]:first-of-type {
+            margin-top: -1.75rem;
+            flex-wrap: nowrap !important;
         }
         </style>
         """,

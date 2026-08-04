@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Fichas documentales desde Word en ``Fichas/*.docx`` (un archivo = un modelo).
 
-El nombre del archivo (sin extension) se empareja con el catalogo igual que
-antes las hojas de Excel: p.ej. ``PI FALTA DE FRANCOBORDO.docx`` ->
-``PI Falta de francobordo`` / ``falta_francobordo_elo``.
+Emparejamiento por palabras clave (prefijo PI/CAPEX/OPEX + variable
+VIENTO/CORRIENTE/OLEAJE|AGITACION/…), no por aliases de diagrama compartidos.
+Ej.: ``PI VIENTO.docx`` -> ``PI Exceso de viento`` / ``exceso_viento``.
 
 Ruta robusta: tablas e imagenes con ``python-docx`` (+ zip OOXML).
 Mammoth queda como fallback opcional si esta instalado.
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import sys
 
-import base64
 import hashlib
 import html as html_lib
 import logging
@@ -30,6 +29,7 @@ CARPETA_MEDIA = CARPETA_FICHAS / "_media"
 
 _EXTENSIONES_WORD = (".docx",)
 _log = logging.getLogger(__name__)
+_RE_IMG_TAG = re.compile(r"<img\b[^>]*/?>", re.IGNORECASE)
 
 _CSS_FICHA = (
     ".pde-ficha-word{"
@@ -43,7 +43,8 @@ _CSS_FICHA = (
     "border:1px solid #333;padding:6px 8px;vertical-align:top;"
     "}"
     ".pde-ficha-word p{margin:0.4em 0;}"
-    ".pde-ficha-word img{max-width:100%;height:auto;display:block;margin:8px auto;}"
+    # Imagenes solo en el modal ⓘ (detalle HTML las oculta).
+    ".pde-ficha-word img{display:none!important;}"
     ".pde-ficha-word h1,.pde-ficha-word h2,.pde-ficha-word h3{"
     "margin:0.8em 0 0.35em;font-weight:700;"
     "}"
@@ -101,60 +102,151 @@ def _slug(texto: str) -> str:
     return t or "ficha"
 
 
-def _aliases_catalogo(entrada) -> set[str]:
-    """Nombres normalizados con los que un archivo Word puede emparejarse."""
-    from core.modelos.catalogo_impactos import titulo_modo_impacto
-    from core.modelos.flujos import _ALIASES_FLUJO, nombre_esperado_diagrama
+# Emparejamiento Word <-> catalogo por tokens (no por aliases de diagrama).
+_STOPWORDS_FICHA = frozenset({"DE", "LA", "DEL", "O", "Y", "EN", "A", "EL", "LOS", "LAS"})
+_PREFIJOS_FICHA = frozenset({"PI", "CAPEX", "OPEX"})
+# ELO/ELS/ELU del catalogo -> prefijo del nombre de ficha.
+_PREFIJO_POR_TIPO = {
+    "ELO": "PI",
+    "ELS": "OPEX",
+    "ELU": "CAPEX",
+    "PI": "PI",
+    "OPEX": "OPEX",
+    "CAPEX": "CAPEX",
+}
+# Grupos de variable: OLEAJE y AGITACION son equivalentes.
+_GRUPOS_VARIABLE = (
+    frozenset({"VIENTO"}),
+    frozenset({"CORRIENTE"}),
+    frozenset({"AGITACION", "OLEAJE"}),
+    frozenset({"VISIBILIDAD"}),
+    frozenset({"INUNDACION"}),
+    frozenset({"FRANCOBORDO"}),
+    frozenset({"CALADO"}),
+)
 
-    aliases: set[str] = set()
-    for bruto in (
-        entrada.id,
-        entrada.motor_id,
-        entrada.motor_nombre,
-        entrada.modo_fallo,
-        titulo_modo_impacto(entrada),
-        f"{entrada.familia} {entrada.modo_fallo}",
-        f"{entrada.tipo_impacto} {entrada.modo_fallo}",
-        nombre_esperado_diagrama(entrada.diagrama_modelo_id or entrada.motor_id),
-    ):
-        n = _normalizar(bruto)
-        if n:
-            aliases.add(n)
 
-    mid = entrada.diagrama_modelo_id or entrada.motor_id
-    for a in _ALIASES_FLUJO.get(mid, ()):
-        n = _normalizar(a)
-        if n:
-            aliases.add(n)
-    return aliases
+def _slug_palabras(nombre: str) -> frozenset[str]:
+    """Tokens normalizados (sin acentos, mayusculas) sin stopwords."""
+    t = unicodedata.normalize("NFKD", str(nombre or ""))
+    t = t.encode("ascii", "ignore").decode("ascii").upper()
+    t = re.sub(r"[^A-Z0-9]+", " ", t)
+    return frozenset(tok for tok in t.split() if tok and tok not in _STOPWORDS_FICHA)
+
+
+def _prefijo_entrada(entrada) -> str | None:
+    """Prefijo de ficha (PI/CAPEX/OPEX) segun familia o tipo_impacto."""
+    for bruto in (getattr(entrada, "familia", None), getattr(entrada, "tipo_impacto", None)):
+        clave = str(bruto or "").strip().upper()
+        if clave in _PREFIJO_POR_TIPO:
+            return _PREFIJO_POR_TIPO[clave]
+        if clave in _PREFIJOS_FICHA:
+            return clave
+    return None
+
+
+def _tokens_modelo(entrada) -> frozenset[str]:
+    """Tokens del modelo + sinonimos de variable (OLEAJE<->AGITACION)."""
+    prefijo = _prefijo_entrada(entrada) or ""
+    partes = [
+        prefijo,
+        getattr(entrada, "modo_fallo", "") or "",
+        getattr(entrada, "variable", "") or "",
+        getattr(entrada, "familia", "") or "",
+    ]
+    tokens = set(_slug_palabras(" ".join(partes)))
+    if prefijo:
+        tokens.add(prefijo)
+    # Ampliar con el grupo de variable completo si hay solape.
+    for grupo in _GRUPOS_VARIABLE:
+        if tokens & grupo:
+            tokens |= set(grupo)
+    return frozenset(tokens)
+
+
+def _grupo_variable_de(tokens: frozenset[str]) -> frozenset[str] | None:
+    """Primer grupo de variable presente en ``tokens``, o None."""
+    for grupo in _GRUPOS_VARIABLE:
+        if tokens & grupo:
+            return grupo
+    return None
+
+
+def _score_ficha_modelo(tokens_docx: frozenset[str], entrada) -> int:
+    """Score de emparejamiento; 0 = no valido.
+
+    Requiere:
+    - mismo prefijo PI/CAPEX/OPEX
+    - al menos un token del grupo de variable del modelo
+    Score = tokens en comun (mejor gana).
+    """
+    if not tokens_docx:
+        return 0
+    prefijo = _prefijo_entrada(entrada)
+    if not prefijo or prefijo not in tokens_docx:
+        return 0
+    tokens_modelo = _tokens_modelo(entrada)
+    grupo = _grupo_variable_de(tokens_modelo)
+    if grupo is None or not (tokens_docx & grupo):
+        return 0
+    return len(tokens_modelo & tokens_docx)
 
 
 def emparejar_nombre_ficha(nombre: str) -> str | None:
     """Devuelve ``entrada.id`` del catalogo o None.
 
-    ``nombre`` puede ser hoja antigua, stem de archivo o titulo de modelo.
+    Empareja por palabras clave (prefijo + variable), no por aliases de diagrama
+    compartidos (p.ej. ``PI_AGITACION`` / superacion de umbral).
     """
     from core.modelos.catalogo_impactos import CATALOGO_MODOS_IMPACTO
 
-    clave = _normalizar(Path(str(nombre or "")).stem)
-    if not clave:
+    tokens = _slug_palabras(Path(str(nombre or "")).stem)
+    if not tokens:
         return None
 
     mejor_id: str | None = None
-    mejor_score = -1
+    mejor_clave: tuple[int, int, str] | None = None
     for entrada in CATALOGO_MODOS_IMPACTO:
-        aliases = _aliases_catalogo(entrada)
-        if clave in aliases:
-            return entrada.id
-        for a in aliases:
-            if not a:
-                continue
-            if a in clave or clave in a:
-                score = min(len(a), len(clave))
-                if score > mejor_score:
-                    mejor_score = score
-                    mejor_id = entrada.id
+        score = _score_ficha_modelo(tokens, entrada)
+        if score <= 0:
+            continue
+        # Desempate: mayor score; luego modo mas corto; luego id estable.
+        clave = (score, -len(entrada.modo_fallo or ""), entrada.id)
+        if mejor_clave is None or clave > mejor_clave:
+            mejor_clave = clave
+            mejor_id = entrada.id
     return mejor_id
+
+
+def _asignar_docx_a_catalogo() -> dict[str, Path]:
+    """Asignacion 1:1 catalogo_id -> ruta .docx (mejor score gana; sin reutilizar)."""
+    from core.modelos.catalogo_impactos import CATALOGO_MODOS_IMPACTO
+
+    docxs = _listar_docx()
+    if not docxs:
+        return {}
+
+    candidatos: list[tuple[int, str, str, Path]] = []
+    for entrada in CATALOGO_MODOS_IMPACTO:
+        for ruta in docxs:
+            score = _score_ficha_modelo(_slug_palabras(ruta.stem), entrada)
+            if score <= 0:
+                continue
+            # Orden: score desc, nombre archivo asc, id asc.
+            candidatos.append((-score, ruta.name.lower(), entrada.id, ruta))
+
+    candidatos.sort()
+    usados_id: set[str] = set()
+    usados_ruta: set[Path] = set()
+    asignados: dict[str, Path] = {}
+    for neg_score, _nombre, catalogo_id, ruta in candidatos:
+        del neg_score
+        if catalogo_id in usados_id or ruta in usados_ruta:
+            continue
+        usados_id.add(catalogo_id)
+        usados_ruta.add(ruta)
+        asignados[catalogo_id] = ruta
+    return asignados
 
 
 def _listar_docx() -> list[Path]:
@@ -833,29 +925,38 @@ def _html_desde_python_docx(ruta: Path) -> tuple[str, tuple[EcuacionFicha, ...]]
     if not bloques:
         return "", tuple(ecuaciones)
 
-    body = "\n".join(bloques)
+    body = html_ficha_sin_imagenes("\n".join(bloques))
     html = f'<div class="pde-ficha-word"><style>{_CSS_FICHA}</style>{body}</div>'
     return html, tuple(ecuaciones)
 
-def _html_desde_mammoth(ruta: Path) -> str:
-    """Fallback opcional: convierte el .docx a HTML con mammoth."""
-    import mammoth
 
-    def _convert_image(image):
-        with image.open() as image_bytes:
-            raw = image_bytes.read()
-        encoded = base64.b64encode(raw).decode("ascii")
-        content_type = getattr(image, "content_type", None) or "image/png"
-        return {"src": f"data:{content_type};base64,{encoded}"}
+def html_ficha_sin_imagenes(html: str) -> str:
+    """Quita etiquetas ``<img>`` del HTML de ficha.
+
+    Las imagenes siguen disponibles via ``imagenes_ficha_por_entrada`` para
+    el modal flotante del boton ⓘ; no deben mostrarse en el detalle.
+    """
+    if not html:
+        return html or ""
+    return _RE_IMG_TAG.sub("", html)
+
+
+def _html_desde_mammoth(ruta: Path) -> str:
+    """Fallback opcional: convierte el .docx a HTML con mammoth.
+
+    No incrusta imagenes en el HTML (van al modal ⓘ via extraccion a disco).
+    """
+    import mammoth
 
     with ruta.open("rb") as f:
         result = mammoth.convert_to_html(
             f,
-            convert_image=mammoth.images.img_element(_convert_image),
+            convert_image=mammoth.images.ignore,
         )
     body = (result.value or "").strip()
     if not body:
         return ""
+    body = html_ficha_sin_imagenes(body)
     return f'<div class="pde-ficha-word"><style>{_CSS_FICHA}</style>{body}</div>'
 
 
@@ -946,20 +1047,23 @@ def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
     El parseo del .docx esta cacheado (por ruta+size+mtime), pero el
     emparejamiento con el catalogo se recalcula siempre para que los cambios
     en catalogo o en la carpeta ``Fichas/`` se apliquen sin reiniciar.
+
+    Asignacion 1:1 por palabras clave (prefijo + variable): un .docx no se
+    reparte entre varios modelos aunque compartan motor ``PI_AGITACION``.
     """
     resultado: dict[str, FichaWordModelo] = {}
-    for ruta in _listar_docx():
+    asignados = _asignar_docx_a_catalogo()
+    rutas_asignadas = set(asignados.values())
+
+    def _ficha_de(ruta: Path, catalogo_id: str | None) -> FichaWordModelo | None:
         try:
             stat = ruta.stat()
         except OSError:
-            continue
-        stem = ruta.stem
-        catalogo_id = emparejar_nombre_ficha(stem)
+            return None
         html, imagenes, ecuaciones = _parsear_ficha(
             str(ruta), int(stat.st_size), int(stat.st_mtime_ns)
         )
-        key = catalogo_id or f"docx:{stem}"
-        resultado[key] = FichaWordModelo(
+        return FichaWordModelo(
             archivo=ruta.name,
             html=html,
             imagenes=imagenes,
@@ -967,6 +1071,19 @@ def _cargar_fichas_word() -> dict[str, FichaWordModelo]:
             ruta=ruta,
             ecuaciones=ecuaciones,
         )
+
+    for catalogo_id, ruta in asignados.items():
+        ficha = _ficha_de(ruta, catalogo_id)
+        if ficha is not None:
+            resultado[catalogo_id] = ficha
+
+    # Docx sin pareja al catalogo: accesibles por clave sintetica (debug/UI).
+    for ruta in _listar_docx():
+        if ruta in rutas_asignadas:
+            continue
+        ficha = _ficha_de(ruta, None)
+        if ficha is not None:
+            resultado[f"docx:{ruta.stem}"] = ficha
     return resultado
 
 
@@ -981,21 +1098,14 @@ def ficha_word_por_catalogo_id(catalogo_id: str) -> FichaWordModelo | None:
 
 
 def ficha_word_por_entrada(entrada) -> FichaWordModelo | None:
-    """Resuelve ficha Word para una entrada del catalogo."""
+    """Resuelve ficha Word para una entrada del catalogo (matching por tokens)."""
     if entrada is None:
         return None
-    directa = ficha_word_por_catalogo_id(entrada.id)
-    if directa is not None:
-        return directa
-    for ficha in _cargar_fichas_word().values():
-        if ficha.catalogo_id == entrada.id:
-            return ficha
-        if emparejar_nombre_ficha(ficha.archivo) == entrada.id:
-            return ficha
-    return None
+    return ficha_word_por_catalogo_id(entrada.id)
 
 
 def imagenes_ficha_por_entrada(entrada) -> tuple[Path, ...]:
+    """Imagenes embebidas del .docx emparejado a esta entrada (solo la suya)."""
     ficha = ficha_word_por_entrada(entrada)
     if ficha is None:
         return ()

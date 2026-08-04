@@ -2605,22 +2605,16 @@ _KEY_MODAL_IMAGEN_IDX = "pde_img_modal_entrada_idx"
 def _rutas_imagen_por_idx(idx: int) -> tuple:
     """Devuelve las rutas de imagen asociadas a la entrada de índice ``idx``.
 
-    Combina las imágenes extraídas del Word (``Fichas/*.docx``) con el
-    esquema local (``Flujo de modelos/ESQUEMA …``) cuando este es imagen.
+    Solo usa imagenes del ``.docx`` emparejado a ESA entrada (palabras clave).
+    No se mezcla el esquema de ``diagrama_modelo_id``: varios modos (oleaje,
+    viento, corriente, …) comparten ``PI_AGITACION`` y contaminarian el boton ⓘ.
     """
     from core.modelos.fichas_word import imagenes_ficha_por_entrada
-    from core.modelos.flujos import buscar_esquema
 
     if idx is None or idx < 0 or idx >= len(CATALOGO_MODOS_IMPACTO):
         return ()
     entrada = CATALOGO_MODOS_IMPACTO[idx]
-    imgs = list(imagenes_ficha_por_entrada(entrada))
-    modelo_id = entrada.diagrama_modelo_id or ""
-    if modelo_id:
-        esquema = buscar_esquema(modelo_id)
-        if esquema is not None and esquema.tipo == "imagen":
-            imgs.append(esquema.ruta)
-    return tuple(imgs)
+    return tuple(imagenes_ficha_por_entrada(entrada))
 
 
 def _tiene_imagen_ficha(idx: int) -> bool:
@@ -2938,13 +2932,16 @@ def _mostrar_ficha_catalogo(
 
 
 def _mostrar_ficha_html(html: str) -> None:
-    """Renderiza la ficha Word/HTML.
+    """Renderiza la ficha Word/HTML (sin imagenes embebidas).
 
+    Las imagenes del Word solo se abren con el boton ⓘ (ventana flotante).
     Preferir ``st.html`` (Streamlit >=1.45) o ``components.v1.html``.
     Nunca ``st.markdown``/``st.code``/``st.text``: escapan el HTML y el
     usuario ve etiquetas como texto gris.
     """
-    body = (html or "").strip()
+    from core.modelos.fichas_word import html_ficha_sin_imagenes
+
+    body = html_ficha_sin_imagenes((html or "").strip())
     if not body:
         return
     low = body.lower()
@@ -2963,14 +2960,14 @@ def _mostrar_ficha_html(html: str) -> None:
     import streamlit.components.v1 as components
 
     n_rows = max(1, low.count("<tr") + low.count("<p"))
-    has_img = "data:image" in low or "<img" in low
-    height = min(2200, max(480, 72 + n_rows * 36 + (280 if has_img else 0)))
+    height = min(2200, max(480, 72 + n_rows * 36))
     doc = (
         "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'/>"
         "<style>"
         "html,body{margin:0;padding:8px;background:#fff;"
         "font-family:Calibri,Segoe UI,Arial,sans-serif;}"
+        ".pde-ficha-word img{display:none!important;}"
         "</style></head><body>"
         f"{body}"
         "</body></html>"
@@ -3037,8 +3034,10 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
     """Detalle al seleccionar un modelo: ficha (Word) y diagrama de flujo.
 
-    La imagen/esquema no se muestra inline: se abre en ventana flotante al
-    pulsar la «i» de la tarjeta (ver :func:`_render_modal_imagen_si_toca`).
+    La imagen/esquema NO se muestra aqui ni se auto-abre: solo al pulsar ⓘ
+    en la tarjeta (:func:`_abrir_modal_imagen` /
+    :func:`_render_modal_imagen_si_toca`). Tampoco llamar
+    :func:`_mostrar_esquema_catalogo` desde este detalle.
     """
     etiqueta = _etiqueta_catalogo_modo(entrada)
     modelo_id = entrada.diagrama_modelo_id or ""
