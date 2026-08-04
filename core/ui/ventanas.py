@@ -276,12 +276,12 @@ def _mime_imagen(ruta):
 
 
 def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
-    """Modal con imagen(es) y botones Minimizar / Maximizar / Cerrar.
+    """Modal con imagen(es) y botones-icono (arriba-derecha):
 
-    Estados:
-      - Normal: modal con imagen a tamano medio.
-      - Maximizada: modal ocupa 95vw (imagen aprovecha todo el ancho).
-      - Minimizada: solo se ve el titulo y los controles.
+    - ⇩ Descargar
+    - − Minimizar / ☐ Restaurar (colapsa el contenido)
+    - □ Maximizar / ❐ Restaurar (ocupa 95vw)
+    - ✕ Cerrar
 
     ``rutas_imagen`` puede ser una ruta unica o iterable de rutas.
     """
@@ -304,52 +304,50 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
         if maximizada:
             _inyectar_css_dialogo_maximizado()
 
-        c_min, c_max, c_dl, c_cerrar = st.columns(
-            [1.1, 1.1, 1.3, 1], gap="small"
+        _inyectar_css_toolbar_iconos()
+
+        c_spacer, c_dl, c_min, c_max, c_cerrar = st.columns(
+            [8, 0.9, 0.9, 0.9, 0.9], gap="small", vertical_alignment="center"
         )
+
+        with c_dl:
+            _btn_icono_descarga(
+                rutas[0] if rutas else None,
+                key=f"{key_prefix}_btn_dl",
+                mime_fn=_mime_imagen,
+            )
         with c_min:
             st.button(
-                "Restaurar" if minimizada else "Minimizar",
+                "☐" if minimizada else "−",
                 key=f"{key_prefix}_btn_min",
+                help="Restaurar" if minimizada else "Minimizar",
                 use_container_width=True,
                 on_click=_toggle_minimizado,
                 disabled=maximizada,
             )
         with c_max:
             st.button(
-                "Restaurar" if maximizada else "Maximizar",
+                "❐" if maximizada else "□",
                 key=f"{key_prefix}_btn_max",
+                help="Restaurar tama\u00f1o" if maximizada else "Maximizar",
                 use_container_width=True,
                 on_click=_toggle_maximizado,
                 disabled=minimizada,
             )
-        with c_dl:
-            if rutas and Path(rutas[0]).is_file():
-                try:
-                    _dl_bytes = Path(rutas[0]).read_bytes()
-                    st.download_button(
-                        "Descargar",
-                        data=_dl_bytes,
-                        file_name=Path(rutas[0]).name,
-                        mime=_mime_imagen(rutas[0]),
-                        key=f"{key_prefix}_btn_dl",
-                        use_container_width=True,
-                    )
-                except OSError:
-                    pass
         with c_cerrar:
             if st.button(
-                "Cerrar",
+                "✕",
                 key=f"{key_prefix}_btn_cerrar",
-                use_container_width=True,
+                help="Cerrar",
                 type="primary",
+                use_container_width=True,
             ):
                 cerrar_dialogo_imagen(state_key)
                 st.rerun()
 
         if minimizada:
             st.caption(
-                "Ventana minimizada — pulsa «Restaurar» para ver la imagen."
+                "Ventana minimizada — pulsa ☐ para restaurar."
             )
             return
 
@@ -371,4 +369,59 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
                 )
 
     _dlg()
+
+
+def _inyectar_css_toolbar_iconos():
+    """CSS: compacta los botones de la fila superior del modal."""
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stModal"] [data-testid="stHorizontalBlock"]:first-of-type
+        button {
+            min-height: 34px;
+            padding: 2px 4px;
+            font-size: 1.05rem;
+            line-height: 1;
+        }
+        div[data-testid="stModal"] [data-testid="stHorizontalBlock"]:first-of-type
+        [data-testid="stDownloadButton"] button {
+            min-height: 34px;
+            padding: 2px 4px;
+            font-size: 1.05rem;
+            line-height: 1;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _btn_icono_descarga(ruta, *, key, mime_fn):
+    """Boton icono de descarga. Si no hay ruta, muestra placeholder deshabilitado."""
+    if ruta is not None and Path(ruta).is_file():
+        try:
+            data = Path(ruta).read_bytes()
+        except OSError:
+            data = None
+    else:
+        data = None
+    if data is None:
+        st.button(
+            "⇩",
+            key=key,
+            help="Descargar (no disponible)",
+            use_container_width=True,
+            disabled=True,
+        )
+        return
+    st.download_button(
+        "⇩",
+        data=data,
+        file_name=Path(ruta).name,
+        mime=mime_fn(ruta),
+        key=key,
+        help="Descargar",
+        use_container_width=True,
+    )
+
 # --- END abrir_dialogo_imagen ---
