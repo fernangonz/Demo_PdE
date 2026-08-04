@@ -2065,7 +2065,7 @@ def _mostrar_ficha_modelo(
             st.caption(regla)
 
 
-def _mostrar_vista_cp_im(vista) -> None:
+def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
     """Resultados organizados: CP (activo) → diagnóstico / detalle IM / resumen.
 
     Jerarquía plegada por defecto:
@@ -2081,7 +2081,7 @@ def _mostrar_vista_cp_im(vista) -> None:
 
     with st.expander(
         f"CP {vista.cp_numero}/{vista.cp_total} — {vista.activo}",
-        expanded=False,
+        expanded=expanded,
     ):
         diagnostico = getattr(vista, "diagnostico", None) or []
         if diagnostico:
@@ -2234,16 +2234,73 @@ def _mostrar_vista_cp_im(vista) -> None:
                         )
 
 
-def _selector_activo_cp(config_df: pd.DataFrame) -> tuple[str, str, int, int, pd.Series | None]:
-    """Devuelve activo (display), activo raw, CP índice, CP total y fila config."""
+def _tabla_activos_config_ui(config_df: pd.DataFrame) -> list[str]:
+    """Lista visible de todos los CP/activos de Configuración del puerto."""
     activos = listar_activos_config(config_df)
+    if not activos:
+        st.info("No hay activos en Configuración del puerto.")
+        return []
+
+    cols = list(config_df.columns)
+    col_tipo = columna_por_patron(cols, "tipo de uo", "tipo")
+    col_tas = columna_por_patron(cols, "tipo activo", "servicio")
+    filas = []
+    for cp_num, activo_raw in enumerate(activos, start=1):
+        fila = fila_configuracion(config_df, activo=activo_raw)
+        tipo_uo = ""
+        tipo_act = ""
+        if fila is not None:
+            if col_tipo:
+                tipo_uo = str(fila.get(col_tipo, "") or "").strip()
+            if col_tas and pd.notna(fila.get(col_tas)):
+                tipo_act = str(fila.get(col_tas, "") or "").strip()
+        filas.append({
+            "CP": cp_num,
+            "Activo": nombre_activo_resumen(activo_raw),
+            "Tipo UO": tipo_uo,
+            "Tipo activo/servicio": tipo_act,
+        })
+
+    st.caption(f"{len(activos)} activo(s) detectado(s) en Configuración del puerto")
+    _mostrar_tabla(
+        pd.DataFrame(filas),
+        column_order=["CP", "Activo", "Tipo UO", "Tipo activo/servicio"],
+        column_config={
+            "CP": st.column_config.NumberColumn("CP", width="small"),
+            "Activo": st.column_config.TextColumn("Activo", width="large"),
+            "Tipo UO": st.column_config.TextColumn("Tipo UO", width="medium"),
+            "Tipo activo/servicio": st.column_config.TextColumn(
+                "Tipo activo/servicio", width="medium"
+            ),
+        },
+        altura_max=420,
+    )
+    return activos
+
+
+def _selector_activo_cp(config_df: pd.DataFrame) -> tuple[str, str, int, int, pd.Series | None]:
+    """Devuelve activo (display), activo raw, CP índice, CP total y fila config.
+
+    Muestra la lista completa de activos (incl. los añadidos al final del Excel).
+    """
+    activos = _tabla_activos_config_ui(config_df)
     if not activos:
         return "—", "", 0, 0, None
 
     cp_total = len(activos)
-    activo_raw = activos[0]
-    cp_num = 1
-
+    etiquetas = [
+        f"CP {i} — {nombre_activo_resumen(a)}" for i, a in enumerate(activos, start=1)
+    ]
+    _ajustar_selectbox("calc_activo_sel", etiquetas)
+    etiqueta_sel = st.selectbox(
+        "Activo (vista / foco)",
+        options=etiquetas,
+        key="calc_activo_sel",
+        help="Lista completa de activos del puerto. El cálculo itera todos; "
+        "esta selección centra la vista de resultados.",
+    )
+    cp_num = etiquetas.index(etiqueta_sel) + 1
+    activo_raw = activos[cp_num - 1]
     fila = fila_configuracion(config_df, activo=activo_raw)
     return nombre_activo_resumen(activo_raw), activo_raw, cp_num, cp_total, fila
 
@@ -3185,7 +3242,51 @@ def _resultados_impactos_puerto() -> None:
 
     cp_total = resultado_puerto.cp_total or len(resultados)
     st.subheader("Activos")
+
+    # Índice + filtro: evita que activos al final del Excel (p. ej. Personal)
+    # queden ocultos tras decenas de expanders.
+    etiquetas_res = []
+    por_etiqueta: dict[str, object] = {}
     for resultado in resultados:
+        iters = iteraciones_desde_calculo_activo(resultado)
+        if not iters:
+            continue
+        etiqueta = (
+            f"CP {resultado.cp_numero}/{cp_total} — "
+            f"{resultado.activo_raw or resultado.activo}"
+        )
+        etiquetas_res.append(etiqueta)
+        por_etiqueta[etiqueta] = resultado
+
+    if not etiquetas_res:
+        st.info("No hay activos con iteraciones calculadas para mostrar.")
+        return
+
+    opciones_res = ["Todos"] + etiquetas_res
+    foco_calc = st.session_state.get("calc_activo_sel")
+    if isinstance(foco_calc, str):
+        nombre_foco = foco_calc.split(" — ", 1)[-1].strip().lower()
+        for et in etiquetas_res:
+            if et.split(" — ", 1)[-1].strip().lower() == nombre_foco:
+                # Si el usuario eligió un activo arriba, centrar resultados en él.
+                actual = st.session_state.get("resultados_activo_filtro")
+                if actual not in opciones_res or actual == "Todos":
+                    st.session_state["resultados_activo_filtro"] = et
+                break
+    _ajustar_selectbox("resultados_activo_filtro", opciones_res)
+    filtro_res = st.selectbox(
+        "Mostrar activo",
+        options=opciones_res,
+        key="resultados_activo_filtro",
+    )
+    resultados_mostrar = (
+        list(por_etiqueta.values())
+        if filtro_res == "Todos"
+        else [por_etiqueta[filtro_res]]
+    )
+    expandir_unico = filtro_res != "Todos" and len(resultados_mostrar) == 1
+
+    for resultado in resultados_mostrar:
         iteraciones = iteraciones_desde_calculo_activo(resultado)
         fb_esperado = getattr(resultado, "resultado_francobordo", None) is not None
         fb_en_iter = any("francobordo" in it.modo_fallo.lower() for it in iteraciones)
@@ -3218,7 +3319,7 @@ def _resultados_impactos_puerto() -> None:
         if vista is None:
             continue
         st.divider()
-        _mostrar_vista_cp_im(vista)
+        _mostrar_vista_cp_im(vista, expanded=expandir_unico)
 
 
 def _mostrar_informe_validacion_puerto(validacion: ResultadoValidacionPuerto) -> None:
