@@ -172,7 +172,7 @@ def link_button_nueva_pestana(label, url):
 
 def abrir_dialogo_pdf(*, titulo, ruta_pdf, state_key, url_pestana_nueva=None, key_suffix=""):
     """Abre el modal PDF si ``state_key`` está activo en ``session_state``."""
-    if not st.session_state.get(state_key):
+    if st.session_state.get(state_key) is None:
         return
 
     maximizado = bool(st.session_state.get(KEY_MODAL_MAXIMIZADO, False))
@@ -285,7 +285,7 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
 
     ``rutas_imagen`` puede ser una ruta unica o iterable de rutas.
     """
-    if not st.session_state.get(state_key):
+    if st.session_state.get(state_key) is None:
         return
 
     if rutas_imagen is None:
@@ -298,8 +298,13 @@ def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
     maximizada = bool(st.session_state.get(KEY_MODAL_MAXIMIZADO, False))
     minimizada = bool(st.session_state.get(KEY_MODAL_MINIMIZADO, False))
     key_prefix = key_suffix or state_key
+    # Ancho dinamico del dialogo: small (minimizada) / medium (normal) /
+    # large (maximizada). Streamlit 1.58 acepta estos tres literales.
+    ancho_dialogo = (
+        "small" if minimizada else "large" if maximizada else "medium"
+    )
 
-    @st.dialog(titulo, width="large")
+    @st.dialog(titulo, width=ancho_dialogo)
     def _dlg():
         if maximizada:
             _inyectar_css_dialogo_maximizado()
