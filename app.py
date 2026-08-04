@@ -64,6 +64,7 @@ from core.modelos.catalogo_impactos import (
 from core.modelos.flujos import buscar_diagrama
 from core.ui.ventanas import (
     abrir_dialogo_pdf,
+    link_button_nueva_pestana,
     preparar_pdf_publico,
     url_pdf_publico,
 )
@@ -2646,11 +2647,7 @@ def _controles_diagrama_detalle(*, modelo_id: str, key_suffix: str) -> None:
         )
     with c_link:
         if url_nueva:
-            st.link_button(
-                "Abrir en pestaña nueva",
-                url=url_nueva,
-                use_container_width=True,
-            )
+            link_button_nueva_pestana("Abrir en pestaña nueva", url_nueva)
     with c_txt:
         if txt is not None:
             st.button(
