@@ -243,3 +243,132 @@ def abrir_dialogo_pdf(*, titulo, ruta_pdf, state_key, url_pestana_nueva=None, ke
             st.error(err)
 
     _dlg()
+
+
+# --- BEGIN abrir_dialogo_imagen ---
+KEY_MODAL_MINIMIZADO = "pde_img_modal_min"
+
+
+def _toggle_minimizado():
+    st.session_state[KEY_MODAL_MINIMIZADO] = not st.session_state.get(
+        KEY_MODAL_MINIMIZADO, False
+    )
+
+
+def cerrar_dialogo_imagen(state_key):
+    """Cierra el modal de imagen y limpia estados asociados."""
+    st.session_state.pop(state_key, None)
+    st.session_state.pop(KEY_MODAL_MAXIMIZADO, None)
+    st.session_state.pop(KEY_MODAL_MINIMIZADO, None)
+
+
+def _mime_imagen(ruta):
+    ext = Path(ruta).suffix.lower()
+    return {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp",
+        ".svg": "image/svg+xml",
+    }.get(ext, "application/octet-stream")
+
+
+def abrir_dialogo_imagen(*, titulo, rutas_imagen, state_key, key_suffix=""):
+    """Modal con imagen(es) y botones Minimizar / Maximizar / Cerrar.
+
+    Estados:
+      - Normal: modal con imagen a tamano medio.
+      - Maximizada: modal ocupa 95vw (imagen aprovecha todo el ancho).
+      - Minimizada: solo se ve el titulo y los controles.
+
+    ``rutas_imagen`` puede ser una ruta unica o iterable de rutas.
+    """
+    if not st.session_state.get(state_key):
+        return
+
+    if rutas_imagen is None:
+        rutas = []
+    elif isinstance(rutas_imagen, (str, Path)):
+        rutas = [Path(rutas_imagen)]
+    else:
+        rutas = [Path(r) for r in rutas_imagen]
+
+    maximizada = bool(st.session_state.get(KEY_MODAL_MAXIMIZADO, False))
+    minimizada = bool(st.session_state.get(KEY_MODAL_MINIMIZADO, False))
+    key_prefix = key_suffix or state_key
+
+    @st.dialog(titulo, width="large")
+    def _dlg():
+        if maximizada:
+            _inyectar_css_dialogo_maximizado()
+
+        c_min, c_max, c_dl, c_cerrar = st.columns(
+            [1.1, 1.1, 1.3, 1], gap="small"
+        )
+        with c_min:
+            st.button(
+                "Restaurar" if minimizada else "Minimizar",
+                key=f"{key_prefix}_btn_min",
+                use_container_width=True,
+                on_click=_toggle_minimizado,
+                disabled=maximizada,
+            )
+        with c_max:
+            st.button(
+                "Restaurar" if maximizada else "Maximizar",
+                key=f"{key_prefix}_btn_max",
+                use_container_width=True,
+                on_click=_toggle_maximizado,
+                disabled=minimizada,
+            )
+        with c_dl:
+            if rutas and Path(rutas[0]).is_file():
+                try:
+                    _dl_bytes = Path(rutas[0]).read_bytes()
+                    st.download_button(
+                        "Descargar",
+                        data=_dl_bytes,
+                        file_name=Path(rutas[0]).name,
+                        mime=_mime_imagen(rutas[0]),
+                        key=f"{key_prefix}_btn_dl",
+                        use_container_width=True,
+                    )
+                except OSError:
+                    pass
+        with c_cerrar:
+            if st.button(
+                "Cerrar",
+                key=f"{key_prefix}_btn_cerrar",
+                use_container_width=True,
+                type="primary",
+            ):
+                cerrar_dialogo_imagen(state_key)
+                st.rerun()
+
+        if minimizada:
+            st.caption(
+                "Ventana minimizada — pulsa «Restaurar» para ver la imagen."
+            )
+            return
+
+        if not rutas:
+            st.warning("No hay imagen disponible para este modelo.")
+            return
+
+        for ruta in rutas:
+            if not ruta.is_file():
+                st.warning(f"No se encuentra: `{ruta.name}`")
+                continue
+            st.caption(f"Archivo: `{ruta.name}`")
+            try:
+                st.image(str(ruta), use_container_width=True)
+            except Exception as exc:  # pragma: no cover
+                st.error(
+                    f"No se pudo renderizar la imagen `{ruta.name}`: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+    _dlg()
+# --- END abrir_dialogo_imagen ---

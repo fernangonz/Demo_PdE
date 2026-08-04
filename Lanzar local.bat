@@ -32,7 +32,7 @@ if errorlevel 1 (
 echo [3/3] Lanzando Streamlit con:
 "%VENV_PY%" -c "import sys; print(sys.executable)"
 echo.
-"%VENV_PY%" -m streamlit run app.py
+"%VENV_PY%" -m streamlit run app.py --server.enableStaticServing true
 set "EC=%ERRORLEVEL%"
 if not "%EC%"=="0" pause
 exit /b %EC%

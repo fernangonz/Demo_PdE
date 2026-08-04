@@ -63,7 +63,9 @@ from core.modelos.catalogo_impactos import (
 )
 from core.modelos.flujos import buscar_diagrama
 from core.ui.ventanas import (
+    abrir_dialogo_imagen,
     abrir_dialogo_pdf,
+    cerrar_dialogo_imagen,
     link_button_nueva_pestana,
     preparar_pdf_publico,
     url_pdf_publico,
@@ -2594,6 +2596,73 @@ def _render_modal_flujo_si_toca() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Ventana modal de la imagen/esquema del modelo (botón i)
+# ---------------------------------------------------------------------------
+_KEY_MODAL_IMAGEN_IDX = "pde_img_modal_entrada_idx"
+
+
+def _rutas_imagen_por_idx(idx: int) -> tuple:
+    """Devuelve las rutas de imagen asociadas a la entrada de índice ``idx``.
+
+    Combina las imágenes extraídas del Word (``Fichas/*.docx``) con el
+    esquema local (``Flujo de modelos/ESQUEMA …``) cuando este es imagen.
+    """
+    from core.modelos.fichas_word import imagenes_ficha_por_entrada
+    from core.modelos.flujos import buscar_esquema
+
+    if idx is None or idx < 0 or idx >= len(CATALOGO_MODOS_IMPACTO):
+        return ()
+    entrada = CATALOGO_MODOS_IMPACTO[idx]
+    imgs = list(imagenes_ficha_por_entrada(entrada))
+    modelo_id = entrada.diagrama_modelo_id or ""
+    if modelo_id:
+        esquema = buscar_esquema(modelo_id)
+        if esquema is not None and esquema.tipo == "imagen":
+            imgs.append(esquema.ruta)
+    return tuple(imgs)
+
+
+def _tiene_imagen_ficha(idx: int) -> bool:
+    """True si el modelo tiene al menos una imagen para mostrar en la ventana."""
+    return bool(_rutas_imagen_por_idx(idx))
+
+
+def _abrir_modal_imagen(idx: int) -> None:
+    """Marca el modal de imagen como abierto para el índice ``idx``."""
+    if idx is None or idx < 0:
+        return
+    st.session_state[_KEY_MODAL_IMAGEN_IDX] = int(idx)
+    # Reiniciamos estados de tamaño al abrir para no arrastrar
+    # maximizada/minimizada de una ventana anterior.
+    st.session_state.pop("pde_pdf_modal_max", None)
+    st.session_state.pop("pde_img_modal_min", None)
+
+
+def _render_modal_imagen_si_toca() -> None:
+    """Si hay un modelo con «i» pulsada, dispara el ``@st.dialog`` con su imagen."""
+    idx = st.session_state.get(_KEY_MODAL_IMAGEN_IDX)
+    if idx is None:
+        return
+    try:
+        idx_int = int(idx)
+    except (TypeError, ValueError):
+        cerrar_dialogo_imagen(_KEY_MODAL_IMAGEN_IDX)
+        return
+    rutas = _rutas_imagen_por_idx(idx_int)
+    if idx_int < 0 or idx_int >= len(CATALOGO_MODOS_IMPACTO):
+        cerrar_dialogo_imagen(_KEY_MODAL_IMAGEN_IDX)
+        return
+    entrada = CATALOGO_MODOS_IMPACTO[idx_int]
+    titulo = _etiqueta_catalogo_modo(entrada)
+    abrir_dialogo_imagen(
+        titulo=f"Imagen · {titulo}",
+        rutas_imagen=rutas,
+        state_key=_KEY_MODAL_IMAGEN_IDX,
+        key_suffix=f"pde_modal_img_{idx_int}",
+    )
+
+
 def _ocultar_txt_diagrama() -> None:
     if st.session_state.get(_KEY_CATALOGO_VISTA) == "txt":
         st.session_state[_KEY_CATALOGO_VISTA] = None
@@ -2910,23 +2979,40 @@ def _mostrar_ficha_html(html: str) -> None:
 
 
 def _tarjeta_modelo_catalogo(entrada, *, idx: int, seleccionado: bool) -> None:
-    """Tarjeta: solo el nombre. Clic abre ficha + diagrama en el detalle."""
+    """Tarjeta: nombre + botón «i» que abre la imagen en ventana flotante."""
     etiqueta = _etiqueta_catalogo_modo(entrada)
     tipo_btn = "primary" if seleccionado else "secondary"
+    hay_imagen = _tiene_imagen_ficha(idx)
 
     with st.container(border=True):
         st.markdown(
             '<span class="pde-modelo-card-marker"></span>',
             unsafe_allow_html=True,
         )
-        st.button(
-            etiqueta,
-            key=f"pde_cat_card_nom_{idx}",
-            use_container_width=True,
-            type=tipo_btn,
-            on_click=_set_catalogo_modo,
-            args=(idx, None),
-        )
+        c_nom, c_info = st.columns([6, 1], gap="small")
+        with c_nom:
+            st.button(
+                etiqueta,
+                key=f"pde_cat_card_nom_{idx}",
+                use_container_width=True,
+                type=tipo_btn,
+                on_click=_set_catalogo_modo,
+                args=(idx, None),
+            )
+        with c_info:
+            st.button(
+                "\u24D8",  # circled small i
+                key=f"pde_cat_card_info_{idx}",
+                use_container_width=True,
+                disabled=not hay_imagen,
+                help=(
+                    "Abrir imagen/esquema del modelo en ventana flotante"
+                    if hay_imagen
+                    else "Este modelo no tiene imagen/esquema asociado"
+                ),
+                on_click=_abrir_modal_imagen,
+                args=(idx,),
+            )
 
 
 def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
@@ -2949,10 +3035,11 @@ def _tarjeta_maestro_catalogo(*, seleccionado: bool) -> None:
 
 
 def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
-    """Detalle al seleccionar un modelo: ficha (+esquema) y diagrama si está abierto."""
-    from core.modelos.fichas_word import imagenes_ficha_por_entrada
-    from core.modelos.flujos import buscar_esquema
+    """Detalle al seleccionar un modelo: ficha (Word) y diagrama de flujo.
 
+    La imagen/esquema no se muestra inline: se abre en ventana flotante al
+    pulsar la «i» de la tarjeta (ver :func:`_render_modal_imagen_si_toca`).
+    """
     etiqueta = _etiqueta_catalogo_modo(entrada)
     modelo_id = entrada.diagrama_modelo_id or ""
     vista = st.session_state.get(_KEY_CATALOGO_VISTA)
@@ -2965,13 +3052,6 @@ def _detalle_modelo_catalogo(entrada, *, idx: int) -> None:
         key_suffix=str(idx),
         permitir_cerrar=True,
     )
-    imgs = imagenes_ficha_por_entrada(entrada)
-    esquema = buscar_esquema(modelo_id) if modelo_id else None
-    if imgs or esquema is not None:
-        st.divider()
-        _mostrar_esquema_catalogo(
-            modelo_id=modelo_id, key_suffix=str(idx), entrada=entrada
-        )
 
     st.divider()
     st.markdown("#### Diagrama de flujo")
@@ -2989,6 +3069,7 @@ def _bloque_catalogo_modos_impacto(*, expanded: bool = True) -> None:
     id_diagrama_flujo_unico = "DIAGRAMA_FLUJO_UNICO"
 
     _render_modal_flujo_si_toca()
+    _render_modal_imagen_si_toca()
 
     st.caption("Procedimiento maestro")
     idx_sel = st.session_state.get(_KEY_CATALOGO_SEL)
