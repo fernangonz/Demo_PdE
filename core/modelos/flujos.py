@@ -46,7 +46,7 @@ _ALIASES_FLUJO: dict[str, tuple[str, ...]] = {
         "PI AGITACIÓN",
         "PI_AGITACION",
     ),
-    # Diagrama propio (sin búsqueda de umbral; 2 indicadores predefinidos Excel 4).
+    # Diagrama propio (sin búsqueda de umbral; 1 o 2 indicadores predefinidos Excel 4).
     "PI_PRECIPITACION": (
         "PI EXCESO DE PRECIPITACIÓN",
         "PI EXCESO DE PRECIPITACION",

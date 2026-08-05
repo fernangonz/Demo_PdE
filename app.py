@@ -1729,21 +1729,39 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
         for c in tabla.columns
         if str(c).startswith("Cambio respecto al histórico (")
         or str(c).startswith("Cambio respecto al historico (")
-    ) >= 2:
-        # Dos indicadores predefinidos: 4 columnas (nunca sumar).
+    ) >= 1:
+        # 1 o 2 indicadores predefinidos: 2 o 4 columnas (nunca sumar).
         partes = [
             p.strip()
             for p in str(getattr(r, "indicador_seleccionado", "") or "").split("|")
             if p.strip()
         ]
-        etq1 = partes[0] if len(partes) > 0 else "indicador 1"
-        etq2 = partes[1] if len(partes) > 1 else "indicador 2"
-        st.caption(
-            "Sin umbral. **Dos indicadores predefinidos** (Excel 4); "
-            "cada uno tiene su propio cambio (futuro − histórico). "
-            f"**Ind. 1:** {etq1}. **Ind. 2:** {etq2}. "
-            + regla_variacion_cierre(variable="Precipitación")
+        n_inds = max(1, len(partes)) if partes else max(
+            1,
+            sum(
+                1
+                for c in tabla.columns
+                if str(c).startswith("Cambio respecto al histórico (")
+                or str(c).startswith("Cambio respecto al historico (")
+            ),
         )
+        if n_inds == 1:
+            etq = partes[0] if partes else "indicador 1"
+            st.caption(
+                "Sin umbral. **Un indicador predefinido** (Excel 4); "
+                "cambio = futuro − histórico. "
+                f"**Indicador:** {etq}. "
+                + regla_variacion_cierre(variable="Precipitación")
+            )
+        else:
+            etq1 = partes[0] if len(partes) > 0 else "indicador 1"
+            etq2 = partes[1] if len(partes) > 1 else "indicador 2"
+            st.caption(
+                "Sin umbral. **Dos indicadores predefinidos** (Excel 4); "
+                "cada uno tiene su propio cambio (futuro − histórico). "
+                f"**Ind. 1:** {etq1}. **Ind. 2:** {etq2}. "
+                + regla_variacion_cierre(variable="Precipitación")
+            )
         cols_precip = [
             str(c)
             for c in tabla.columns

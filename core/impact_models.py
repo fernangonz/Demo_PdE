@@ -109,7 +109,7 @@ COL_INTERP = "Interpretación"
 PREF_PRECIP_CAMBIO = "Cambio respecto al histórico ("
 PREF_PRECIP_INTERP = "Interpretación ("
 SUBCOLS_MODO_ESTANDAR = (COL_CAMBIO, COL_INTERP)
-# Fallback estático (1 mm / 20 mm típicos de Excel 4); el resumen usa columnas reales.
+# Fallback estático (1 mm / 20 mm típicos de Excel 4 con 2 indicadores).
 SUBCOLS_MODO_PRECIP = (
     "Cambio respecto al histórico (1 mm)",
     "Interpretación (1 mm)",
@@ -154,7 +154,7 @@ class ResumenActivo:
     activo: str
     filas: list[dict[str, object]] = field(default_factory=list)
     modos_fallo: list[str] = field(default_factory=lambda: list(MODOS_FALLO_PLANTILLA))
-    # Subcolumnas por modo (2 estándar; 4 para precipitación).
+    # Subcolumnas por modo (2 estándar; 2 o 4 para precipitación según N indicadores).
     subcols_por_modo: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def subcols_de(self, modo: str) -> tuple[str, ...]:
@@ -199,18 +199,18 @@ def _es_tabla_calado(tabla: pd.DataFrame) -> bool:
 
 
 def _es_tabla_precipitacion(tabla: pd.DataFrame) -> bool:
-    """True si hay >=2 columnas Cambio respecto al historico (umbral mm)."""
+    """True si hay >=1 columna Cambio respecto al historico (umbral mm)."""
     n_cambio = sum(
         1
         for c in tabla.columns
         if str(c).startswith(PREF_PRECIP_CAMBIO)
         or str(c).startswith("Cambio respecto al historico (")
     )
-    return n_cambio >= 2
+    return n_cambio >= 1
 
 
 def _subcols_precip_desde_tabla(tabla: pd.DataFrame) -> tuple[str, ...]:
-    """Orden del DF: pares Cambio/Interpretacion por indicador."""
+    """Orden del DF: pares Cambio/Interpretacion por indicador (1 o 2)."""
     out: list[str] = []
     for c in tabla.columns:
         s = str(c)
@@ -221,7 +221,10 @@ def _subcols_precip_desde_tabla(tabla: pd.DataFrame) -> tuple[str, ...]:
             or s.startswith("Interpretacion (")
         ):
             out.append(s)
-    return tuple(out) if len(out) >= 4 else SUBCOLS_MODO_PRECIP
+    # Al menos un par (2 cols); si no hay columnas reconocibles, fallback 2 indicadores.
+    if len(out) >= 2:
+        return tuple(out)
+    return SUBCOLS_MODO_PRECIP
 
 
 def _col_por_nombre(tabla: pd.DataFrame, nombre: str) -> str | None:
@@ -272,7 +275,7 @@ def _indexar_variaciones_por_modo(
                 )
                 if esc == "Histórico" or anio is None:
                     continue
-                # 4 columnas independientes (nunca sumar indicadores).
+                # Pares independientes por indicador (nunca sumar).
                 indice[(r.modo_fallo, esc, anio)] = {
                     col: row.get(col) for col in subcols
                 }
@@ -372,7 +375,7 @@ def construir_tabla_resumen_activo(
     if not modos:
         modos = list(MODOS_FALLO_PLANTILLA)
 
-    # Subcolumnas: precipitacion usa 4 (Cambio/Interpretacion x 2 indicadores).
+    # Subcolumnas: precipitacion usa 2 o 4 (Cambio/Interpretacion x 1 o 2 indicadores).
     subcols_por_modo: dict[str, tuple[str, ...]] = {}
     for it in iteraciones:
         if _es_tabla_precipitacion(it.tabla_resultado):

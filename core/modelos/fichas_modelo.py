@@ -288,8 +288,8 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     ),
     inputs=(
         CampoFicha(
-            nombre="Indicadores predefinidos (2)",
-            simbolo="I_1, I_2",
+            nombre="Indicadores predefinidos (1 o 2)",
+            simbolo="I_1[, I_2]",
             unidad="d/ano",
             fuente="Relacion_modelos_activos_e_indicadores (Excel 4)",
             descripcion="Selección indicador = Predefinido; sin búsqueda de umbral",
@@ -305,11 +305,12 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     outputs=(
         CampoFicha(
             nombre="Cambio respecto al histórico (umbral mm) / Interpretación",
-            simbolo=r"\Delta_1, \Delta_2",
+            simbolo=r"\Delta_i",
             unidad="d/ano",
             descripcion=(
                 "Futuro − histórico por indicador; cabeceras con umbral "
-                "(p. ej. 1 mm, 20 mm); Mejora / no mejora / Sin cambios"
+                "(p. ej. 1 mm, 20 mm); un par de columnas por indicador; "
+                "Mejora / no mejora / Sin cambios"
             ),
         ),
     ),
@@ -317,7 +318,7 @@ FICHA_PI_PRECIPITACION = FichaModelo(
         "Por cada indicador (misma polaridad que PI agitacion): "
         "\u0394 > 0 \u2192 no mejora; \u0394 < 0 \u2192 Mejora; \u0394 = 0 \u2192 Sin cambios."
     ),
-    notas="Sin umbral. Dos indicadores predefinidos desde Excel 4.",
+    notas="Sin umbral. Excel 4 define 1 o 2 indicadores predefinidos.",
 )
 
 

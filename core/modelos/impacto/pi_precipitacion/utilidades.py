@@ -18,10 +18,12 @@ from core.modelos.impacto.pi_precipitacion.schemas import (
     INTERP_NO_MEJORA,
     INTERP_REFERENCIA,
     INTERP_SIN_CAMBIOS,
-    NUM_INDICADORES_REQUERIDOS,
+    NUM_INDICADORES_MAX,
+    NUM_INDICADORES_MIN,
     PREF_CAMBIO,
     PREF_INTERP,
-    columnas_pares_indicadores,
+    col_cambio_indicador,
+    col_interpretacion_indicador,
     umbral_mm_desde_indicador,
 )
 from core.relacion_modelos import IndicadorRelacion, ReglaModeloActivo
@@ -32,7 +34,7 @@ def es_modo_exceso_precipitacion(
     variable: object,
     tipo_impacto: object | None = None,
 ) -> bool:
-    """ELO + Exceso de precipitacion / Precipitacion (sin umbral; 2 indicadores)."""
+    """ELO + Exceso de precipitacion / Precipitacion (sin umbral; 1 o 2 indicadores)."""
     if tipo_impacto is not None and str(tipo_impacto).strip() != "":
         if not es_tipo_impacto_pi_operacional(tipo_impacto):
             return False
@@ -89,14 +91,15 @@ def resolver_pestana_clima_precipitacion(
 def indicadores_predefinidos_precipitacion(
     regla: ReglaModeloActivo,
     *,
-    minimo: int = NUM_INDICADORES_REQUERIDOS,
+    minimo: int = NUM_INDICADORES_MIN,
+    maximo: int = NUM_INDICADORES_MAX,
 ) -> tuple[tuple[IndicadorRelacion, ...], str | None]:
-    """Toma los indicadores predefinidos de Excel 4 (>=2; si hay mas, los primeros N)."""
+    """Toma 1 o 2 indicadores predefinidos de Excel 4 (si hay mas, los primeros N<=max)."""
     if not regla.desde_excel:
         return (), (
             "Exceso de precipitacion requiere fila explicita en Excel 4 "
             "(Relacion_modelos_activos_e_indicadores) con Seleccion indicador = Predefinido "
-            f"y al menos {minimo} indicadores."
+            f"y entre {minimo} y {maximo} indicadores."
         )
     if not regla.regla_indicador.usa_predefinido:
         return (), (
@@ -108,10 +111,11 @@ def indicadores_predefinidos_precipitacion(
     if len(encontrados) < minimo:
         nombres = ", ".join(f"\u00ab{i.indicador}\u00bb" for i in encontrados) or "(ninguno)"
         return (), (
-            f"Se requieren al menos {minimo} indicadores predefinidos en Excel 4; "
-            f"encontrados {len(encontrados)}: {nombres}."
+            f"Se requiere al menos {minimo} indicador(es) predefinido(s) en Excel 4 "
+            f"(maximo {maximo}); encontrados {len(encontrados)}: {nombres}."
         )
-    return tuple(encontrados[:minimo]), None
+    tomar = min(len(encontrados), maximo)
+    return tuple(encontrados[:tomar]), None
 
 
 def buscar_fila_indicador_predefinido(
@@ -191,6 +195,51 @@ def _nombre_indicador_fila(fila: pd.Series, fallback: str = "") -> str:
     return fallback
 
 
+def tabla_resultado_indicadores(
+    filas_indicadores: list[pd.Series],
+    col_hist: ColumnaEscenario,
+    columnas_fut: list[ColumnaEscenario],
+    *,
+    nombres_indicadores: list[str] | tuple[str, ...] | None = None,
+) -> pd.DataFrame:
+    """Tabla por escenario: un par Cambio + Interpretacion por cada indicador (1 o 2)."""
+    if not filas_indicadores:
+        raise ValueError("Se requiere al menos una fila de indicador.")
+    nombres = list(nombres_indicadores or [])
+    while len(nombres) < len(filas_indicadores):
+        i = len(nombres)
+        nombres.append(
+            _nombre_indicador_fila(filas_indicadores[i], f"indicador {i + 1}")
+        )
+    nombres = nombres[: len(filas_indicadores)]
+
+    pares = [
+        (
+            col_cambio_indicador(nom, i),
+            col_interpretacion_indicador(nom, i),
+        )
+        for i, nom in enumerate(nombres, start=1)
+    ]
+    hist_vals = [_valor_indicador(fila, col_hist.columna) for fila in filas_indicadores]
+
+    fila_hist: dict = {"Escenario": "Hist\u00f3rico"}
+    for c_cambio, c_interp in pares:
+        fila_hist[c_cambio] = 0
+        fila_hist[c_interp] = interpretar_delta_precip(0, es_historico=True)
+    filas: list[dict] = [fila_hist]
+
+    for col in columnas_fut:
+        fila_esc: dict = {"Escenario": etiqueta_escenario(col.escenario, col.anio)}
+        for idx, (fila_ind, hist) in enumerate(zip(filas_indicadores, hist_vals)):
+            c_cambio, c_interp = pares[idx]
+            val = _valor_indicador(fila_ind, col.columna)
+            delta = (val - hist) if val is not None and hist is not None else None
+            fila_esc[c_cambio] = delta
+            fila_esc[c_interp] = interpretar_delta_precip(delta)
+        filas.append(fila_esc)
+    return pd.DataFrame(filas)
+
+
 def tabla_resultado_dos_indicadores(
     fila_ind_1: pd.Series,
     fila_ind_2: pd.Series,
@@ -200,34 +249,13 @@ def tabla_resultado_dos_indicadores(
     nombre_ind_1: str = "",
     nombre_ind_2: str = "",
 ) -> pd.DataFrame:
-    """Tabla por escenario: Cambio + Interpretacion independientes para cada indicador."""
-    nom_1 = (nombre_ind_1 or "").strip() or _nombre_indicador_fila(fila_ind_1, "indicador 1")
-    nom_2 = (nombre_ind_2 or "").strip() or _nombre_indicador_fila(fila_ind_2, "indicador 2")
-    c_c1, c_i1, c_c2, c_i2 = columnas_pares_indicadores(nom_1, nom_2)
-
-    hist_1 = _valor_indicador(fila_ind_1, col_hist.columna)
-    hist_2 = _valor_indicador(fila_ind_2, col_hist.columna)
-
-    filas: list[dict] = [{
-        "Escenario": "Hist\u00f3rico",
-        c_c1: 0,
-        c_i1: interpretar_delta_precip(0, es_historico=True),
-        c_c2: 0,
-        c_i2: interpretar_delta_precip(0, es_historico=True),
-    }]
-    for col in columnas_fut:
-        val_1 = _valor_indicador(fila_ind_1, col.columna)
-        val_2 = _valor_indicador(fila_ind_2, col.columna)
-        delta_1 = (val_1 - hist_1) if val_1 is not None and hist_1 is not None else None
-        delta_2 = (val_2 - hist_2) if val_2 is not None and hist_2 is not None else None
-        filas.append({
-            "Escenario": etiqueta_escenario(col.escenario, col.anio),
-            c_c1: delta_1,
-            c_i1: interpretar_delta_precip(delta_1),
-            c_c2: delta_2,
-            c_i2: interpretar_delta_precip(delta_2),
-        })
-    return pd.DataFrame(filas)
+    """Compat: dos indicadores. Preferir ``tabla_resultado_indicadores``."""
+    return tabla_resultado_indicadores(
+        [fila_ind_1, fila_ind_2],
+        col_hist,
+        columnas_fut,
+        nombres_indicadores=[nombre_ind_1, nombre_ind_2],
+    )
 
 
 __all__ = [
@@ -240,5 +268,6 @@ __all__ = [
     "modos_exceso_precipitacion",
     "resolver_pestana_clima_precipitacion",
     "tabla_resultado_dos_indicadores",
+    "tabla_resultado_indicadores",
     "umbral_mm_desde_indicador",
 ]

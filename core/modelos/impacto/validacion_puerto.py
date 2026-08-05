@@ -740,7 +740,7 @@ def _validar_fila_precipitacion(
     info_clima: dict,
     baseline_year: int,
 ) -> bool:
-    """Valida exceso de precipitación: Excel 4 con ≥2 indicadores predefinidos; sin umbral."""
+    """Valida exceso de precipitación: Excel 4 con 1 o 2 indicadores predefinidos; sin umbral."""
     modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
     variable = str(fila_rel.get("Variable", "")).strip()
     estado_limite = str(fila_rel.get("Tipo de impacto", "")).strip() or None
@@ -794,7 +794,7 @@ def _validar_fila_precipitacion(
                 variable=variable,
                 tipo_impacto=estado_limite or "",
                 motor_id=motor_id,
-                input_faltante="≥2 indicadores predefinidos",
+                input_faltante="1 o 2 indicadores predefinidos",
                 archivo=etiqueta_archivo_fuente("relacion_modelos"),
                 mensaje=f"{activo_resumen} - {etiqueta_im}: {error_inds}",
                 n_relacion=n_rel,

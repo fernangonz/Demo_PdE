@@ -17,10 +17,14 @@ from core.schemas.base import MetadatosModelo
 from core.schemas.serializacion import dataframe_a_registros
 
 MODELO_ID = "PI_PRECIPITACION"
-MODELO_VERSION = "1.1.0"
+MODELO_VERSION = "1.2.0"
 MODO_FALLO_DEFAULT = "Exceso de precipitaci\u00f3n"
 VARIABLE_DEFAULT = "Precipitaci\u00f3n"
-NUM_INDICADORES_REQUERIDOS = 2
+# Excel 4 puede definir 1 o 2 indicadores predefinidos (no 0; max 2).
+NUM_INDICADORES_MIN = 1
+NUM_INDICADORES_MAX = 2
+# Compat: antes se exigian exactamente 2.
+NUM_INDICADORES_REQUERIDOS = NUM_INDICADORES_MIN
 
 PREF_CAMBIO = "Cambio respecto al hist\u00f3rico"
 PREF_INTERP = "Interpretaci\u00f3n"
@@ -63,16 +67,15 @@ def col_interpretacion_indicador(nombre_indicador: str, indice: int = 1) -> str:
     return f"{PREF_INTERP} ({etiqueta_umbral_columna(nombre_indicador, indice)})"
 
 
-def columnas_pares_indicadores(
-    nombre_ind_1: str,
-    nombre_ind_2: str,
-) -> tuple[str, str, str, str]:
-    return (
-        col_cambio_indicador(nombre_ind_1, 1),
-        col_interpretacion_indicador(nombre_ind_1, 1),
-        col_cambio_indicador(nombre_ind_2, 2),
-        col_interpretacion_indicador(nombre_ind_2, 2),
-    )
+def columnas_pares_indicadores(*nombres_indicadores: str) -> tuple[str, ...]:
+    """Pares Cambio/Interpretacion por indicador (1 o 2)."""
+    if not nombres_indicadores:
+        raise ValueError("Se requiere al menos un nombre de indicador.")
+    cols: list[str] = []
+    for i, nombre in enumerate(nombres_indicadores, start=1):
+        cols.append(col_cambio_indicador(nombre, i))
+        cols.append(col_interpretacion_indicador(nombre, i))
+    return tuple(cols)
 
 
 METADATOS = MetadatosModelo(
@@ -82,7 +85,7 @@ METADATOS = MetadatosModelo(
     categoria="impacto",
     descripcion=(
         "Misma cadena procedural que PI superaci\u00f3n de umbral, sin b\u00fasqueda de umbral: "
-        "dos indicadores predefinidos desde Excel 4; cambio futuro \u2212 hist\u00f3rico "
+        "1 o 2 indicadores predefinidos desde Excel 4; cambio futuro \u2212 hist\u00f3rico "
         "por indicador con interpretaci\u00f3n Mejora / no mejora / Sin cambios."
     ),
 )
@@ -158,6 +161,8 @@ __all__ = [
     "MODELO_ID",
     "MODELO_VERSION",
     "MODO_FALLO_DEFAULT",
+    "NUM_INDICADORES_MAX",
+    "NUM_INDICADORES_MIN",
     "NUM_INDICADORES_REQUERIDOS",
     "PREF_CAMBIO",
     "PREF_INTERP",

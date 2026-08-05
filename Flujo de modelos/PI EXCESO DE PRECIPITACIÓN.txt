@@ -163,7 +163,7 @@ Exigido:
 
 • Selección indicador = Predefinido
 
-• No indicadores = 2 (exactamente dos)
+• No indicadores = 1 o 2 (si hay más, se usan los 2 primeros; si hay 0 ? error)
 
 
 
@@ -193,11 +193,13 @@ Usar del Excel 4:
 
 • Selección indicador = Predefinido
 
-• Exactamente 2 indicadores climáticos
+• 1 o 2 indicadores climáticos
 
-  (indicador 1 / indicador 2; umbrales del indicador en mm
+  (si 1 ? un solo par cambio/interpretación;
 
-  según Excel 4, p. ej. 1 mm y 20 mm)
+  si 2 ? dos pares; umbrales mm según Excel 4,
+
+  p. ej. 1 mm y 20 mm)
 
 
 
@@ -217,7 +219,7 @@ No se puede calcular.
 
 Exceso de precipitación exige fila explícita en Excel 4 con
 
-Selección = Predefinido y al menos 2 indicadores.
+Selección = Predefinido y al menos 1 indicador (máx. 2).
 
 No hay búsqueda por umbral ni lógica clásica.
 
@@ -245,7 +247,7 @@ Los indicadores vienen predefinidos de Excel 4.
 
 
 
-7. Seleccionar los 2 indicadores predefinidos
+7. Seleccionar el/los indicador(es) predefinido(s)
 
 
 
@@ -253,13 +255,13 @@ Entrar al Excel: Indicadores climáticos
 
 
 
-Para cada indicador definido en Excel 4:
+Para cada indicador definido en Excel 4 (1 o 2):
 
 
 
-• indicador 1 (umbrales del indicador en mm según Excel 4, p. ej. 1 mm)
+• indicador i (umbrales del indicador en mm según Excel 4, p. ej. 1 mm;
 
-• indicador 2 (umbrales del indicador en mm según Excel 4, p. ej. 20 mm)
+  si hay segundo, p. ej. 20 mm)
 
 
 
@@ -277,9 +279,9 @@ Extraer:
 
 
 
-• Valor del escenario Histórico (ambos indicadores)
+• Valor del escenario Histórico (de cada indicador usado)
 
-• Valores de todos los escenarios futuros (ambos indicadores)
+• Valores de todos los escenarios futuros (de cada indicador usado)
 
 
 
@@ -315,7 +317,9 @@ Donde:
 
 
 
-Se obtienen dos series independientes (indicador 1 e indicador 2).
+Se obtiene una serie independiente por indicador
+
+(1 par si hay 1 indicador; 2 pares si hay 2).
 
 
 
@@ -327,7 +331,7 @@ Se obtienen dos series independientes (indicador 1 e indicador 2).
 
 
 
-Mostrar:
+Mostrar (ejemplo con 2 indicadores; si Excel 4 trae 1, solo el primer par):
 
 
 
@@ -347,7 +351,9 @@ Mostrar:
 
 (Las etiquetas de columna pueden usar el umbral en mm del nombre
 
-del indicador, p. ej. Cambio (1 mm) / Interpretación (20 mm).)
+del indicador, p. ej. Cambio (1 mm) / Interpretación (20 mm).
+
+Si hay 1 indicador predefinido ? solo un par de columnas.)
 
 
 

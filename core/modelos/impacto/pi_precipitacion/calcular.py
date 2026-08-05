@@ -28,7 +28,6 @@ from core.modelos.impacto.pi_precipitacion.pasos import construir_pasos_precipit
 from core.modelos.impacto.pi_precipitacion.schemas import (
     METADATOS,
     MODELO_ID,
-    NUM_INDICADORES_REQUERIDOS,
     IteracionResultado,
     ParametrosEntrada,
     ResultadoPIPrecipitacion,
@@ -38,7 +37,7 @@ from core.modelos.impacto.pi_precipitacion.utilidades import (
     indicadores_predefinidos_precipitacion,
     modos_exceso_precipitacion,
     resolver_pestana_clima_precipitacion,
-    tabla_resultado_dos_indicadores,
+    tabla_resultado_indicadores,
 )
 
 _ATTR_PESTANA = "pesta" + "\u00f1" + "a"
@@ -79,7 +78,7 @@ def calcular(
     config_puerto: pd.DataFrame | None = None,
     df_relacion: pd.DataFrame | None = None,
 ) -> ResultadoPIPrecipitacion:
-    """Ejecuta PI exceso de precipitacion: 2 indicadores predefinidos, sin umbral."""
+    """Ejecuta PI exceso de precipitacion: 1 o 2 indicadores predefinidos, sin umbral."""
     params = params or ParametrosEntrada(
         modo_fallo="Exceso de precipitaci\u00f3n",
         variable_climatica="Precipitaci\u00f3n",
@@ -251,9 +250,9 @@ def calcular(
             else:
                 filas_ok.append(fila_ind)
 
-        if len(filas_ok) < NUM_INDICADORES_REQUERIDOS or faltantes:
+        if faltantes or len(filas_ok) != len(indicadores):
             encontrados = [i.indicador for i in indicadores if i.indicador not in faltantes]
-            falt_txt = ", ".join(f"\u00ab{f}\u00bb" for f in faltantes)
+            falt_txt = ", ".join(f"\u00ab{f}\u00bb" for f in faltantes) or "(ninguno)"
             enc_txt = (
                 ", ".join(f"\u00ab{e}\u00bb" for e in encontrados)
                 if encontrados
@@ -277,13 +276,11 @@ def calcular(
             ))
             continue
 
-        tabla = tabla_resultado_dos_indicadores(
-            filas_ok[0],
-            filas_ok[1],
+        tabla = tabla_resultado_indicadores(
+            filas_ok,
             col_hist,
             columnas_fut,
-            nombre_ind_1=indicadores[0].indicador,
-            nombre_ind_2=indicadores[1].indicador,
+            nombres_indicadores=[ind.indicador for ind in indicadores],
         )
         pasos_modo = construir_pasos_precipitacion(
             numero_iteracion=numero,

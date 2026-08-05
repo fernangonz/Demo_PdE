@@ -29,7 +29,7 @@ def construir_pasos_precipitacion(
     columnas_fut: list[ColumnaEscenario],
     tabla_variacion: pd.DataFrame,
 ) -> list[PasoResultado]:
-    """Pasos 5-8: sin umbral; dos indicadores predefinidos y sus cambios."""
+    """Pasos 5-8: sin umbral; 1 o 2 indicadores predefinidos y sus cambios."""
     pasos: list[PasoResultado] = []
 
     pasos.append(PasoResultado(
@@ -153,9 +153,10 @@ def construir_pasos_precipitacion(
     for _, row in tabla_variacion.iterrows():
         filas_out.append({c: row.get(c) for c in cols_out if c in tabla_variacion.columns})
 
+    n_inds = len(indicadores)
     pasos.append(PasoResultado(
         numero=8,
-        nombre="Cambio futuro vs historico (2 indicadores)",
+        nombre=f"Cambio futuro vs historico ({n_inds} indicador{'es' if n_inds != 1 else ''})",
         excel=f"Indicadores climaticos / hoja {pestana_clima}",
         tablas=[TablaPaso(
             titulo="Output",
@@ -167,7 +168,8 @@ def construir_pasos_precipitacion(
             "Interpretacion = no mejora si delta > 0, Mejora si delta < 0, "
             "Sin cambios si delta = 0 (misma polaridad que PI agitacion). "
             f"Referencia historica: {col_hist.etiqueta}; "
-            f"{len(columnas_fut)} escenarios futuros."
+            f"{len(columnas_fut)} escenarios futuros; "
+            f"{n_inds} par(es) Cambio/Interpretacion."
         ),
     ))
     return pasos

@@ -142,12 +142,12 @@ _FUENTES_PI_PRECIPITACION = (
     ),
     _fuente(
         "relacion_modelos",
-        descripcion="percentil y 2 indicadores predefinidos (paso 5b; sin umbral)",
+        descripcion="percentil y 1 o 2 indicadores predefinidos (paso 5b; sin umbral)",
     ),
     _fuente(
         "clima",
         hoja="Precipitacion",
-        descripcion="valores de los 2 indicadores predefinidos",
+        descripcion="valores de los indicadores predefinidos (1 o 2)",
     ),
 )
 
