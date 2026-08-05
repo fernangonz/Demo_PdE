@@ -123,6 +123,7 @@ _GRUPOS_VARIABLE = (
     frozenset({"INUNDACION"}),
     frozenset({"FRANCOBORDO"}),
     frozenset({"CALADO"}),
+    frozenset({"PRECIPITACION"}),
 )
 
 
