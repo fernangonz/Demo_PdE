@@ -284,6 +284,31 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertEqual(precip[0].estado, "ok", precip[0].motivo)
         self.assertNotIn("fila explicita", (precip[0].motivo or "").lower())
 
+    def test_lluvia_intensa_fallback_percentil_p98(self) -> None:
+        """P98 pedido + lluvia intensa solo en P50/P99 no debe fallar (ni con P98 ajeno)."""
+        from core.modelos.impacto.pi_precipitacion.utilidades import (
+            buscar_fila_indicador_predefinido,
+        )
+
+        df = self.repo.info_clima["por_variable"]["Precipitacion"]["df"].copy()
+        fake = df.iloc[0].copy()
+        fake["Percentil"] = "P98"
+        fake["Indicador"] = "Indicador dummy P98"
+        df = pd.concat([df, pd.DataFrame([fake])], ignore_index=True)
+
+        fila, estados = buscar_fila_indicador_predefinido(
+            df,
+            percentil="P98",
+            nombre_indicador="N\u00famero de d\u00edas con lluvia intensa",
+        )
+        self.assertIsNotNone(fila, estados)
+        assert fila is not None
+        self.assertIn(
+            str(fila.get("Percentil", "")).strip().upper(),
+            {"P99", "P50"},
+        )
+        self.assertTrue(any(e.seleccionado for e in estados))
+
     def test_manipulacion_mercancia_n63_cuatro_columnas(self) -> None:
         r = calcular_impactos_activo(
             self.repo,

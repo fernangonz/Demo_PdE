@@ -2200,6 +2200,20 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                             + (f" · **Tipo:** {tipo_imp}" if tipo_imp else "")
                         )
 
+                        motivo = getattr(grupo, "motivo", None) or (
+                            getattr(it, "motivo", None) if it is not None else None
+                        )
+                        if estado != "ok":
+                            codigo = getattr(grupo, "error_code", None) or (
+                                getattr(it, "error_code", None) if it is not None else None
+                            )
+                            msg = (motivo or "").strip() or "No calculó"
+                            if codigo:
+                                msg = f"{msg} ({codigo})"
+                            # Mostrar el error antes de la ficha: si va debajo, queda
+                            # oculto tras la ecuación expandida y solo se ve el badge ERROR.
+                            st.error(msg)
+
                         ficha = resolver_ficha(
                             motor_id=motor,
                             familia=familia,
@@ -2221,24 +2235,12 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                             _mostrar_ficha_modelo(
                                 ficha,
                                 key=im_key,
-                                expanded=True,
+                                expanded=(estado == "ok"),
                                 variable=var_it,
                                 indicador=ind_it,
                             )
                         else:
                             st.caption("Sin ficha de modelo para este motor.")
-
-                        motivo = getattr(grupo, "motivo", None) or (
-                            getattr(it, "motivo", None) if it is not None else None
-                        )
-                        if estado != "ok":
-                            codigo = getattr(grupo, "error_code", None) or (
-                                getattr(it, "error_code", None) if it is not None else None
-                            )
-                            msg = motivo or "No calculó"
-                            if codigo:
-                                msg = f"{msg} ({codigo})"
-                            st.error(msg)
 
                         if (
                             it is not None

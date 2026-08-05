@@ -141,39 +141,97 @@ def indicadores_predefinidos_precipitacion(
     return tuple(encontrados[:tomar]), None
 
 
+def _percentil_num(valor: object) -> int | None:
+    texto = str(valor or "").strip().upper().lstrip("P")
+    if texto.isdigit():
+        return int(texto)
+    return None
+
+
+def _elegir_fila_por_percentil(
+    candidatas: list[pd.Series],
+    percentil: str,
+) -> pd.Series | None:
+    """Prefiere coincidencia exacta de percentil; si no, el mas cercano disponible."""
+    if not candidatas:
+        return None
+    objetivo = (percentil or "").strip().upper()
+    exactas = [
+        r
+        for r in candidatas
+        if str(r.get("Percentil", "")).strip().upper() == objetivo
+    ]
+    if exactas:
+        return exactas[0]
+
+    objetivo_n = _percentil_num(objetivo)
+    if objetivo_n is None:
+        # Sin percentil pedible: preferir P99 si existe, si no la primera.
+        for pref in ("P99", "P95", "P90", "P50"):
+            for r in candidatas:
+                if str(r.get("Percentil", "")).strip().upper() == pref:
+                    return r
+        return candidatas[0]
+
+    def _clave(row: pd.Series) -> tuple[int, int]:
+        n = _percentil_num(row.get("Percentil"))
+        if n is None:
+            return (10_000, 10_000)
+        # Empate: preferir percentil mas alto (extremos) frente al mas bajo.
+        return (abs(n - objetivo_n), -n)
+
+    return sorted(candidatas, key=_clave)[0]
+
+
 def buscar_fila_indicador_predefinido(
     df_clima: pd.DataFrame,
     *,
     percentil: str,
     nombre_indicador: str,
 ) -> tuple[pd.Series | None, list[IndicadorEvaluado]]:
-    """Localiza un indicador predefinido en la hoja climatica (percentil filtrado)."""
+    """Localiza un indicador predefinido en la hoja climatica.
+
+    1. Busca por nombre en toda la hoja (no filtra el sheet entero por percentil:
+       un P98 de otro indicador no debe ocultar lluvia intensa en P99).
+    2. Prefiere la fila con el percentil pedido; si no existe, el percentil mas
+       cercano disponible para ese mismo indicador.
+    """
     if df_clima.empty or "Indicador" not in df_clima.columns:
         return None, []
 
-    sub = df_clima.copy()
-    if "Percentil" in sub.columns and percentil:
-        mask_pct = sub["Percentil"].astype(str).str.strip().str.upper() == percentil.upper()
-        if mask_pct.any():
-            sub = sub[mask_pct]
-
     etiqueta = (nombre_indicador or "").strip() or "\u2014"
-    candidato: pd.Series | None = None
+    candidatas: list[pd.Series] = []
     estados: list[IndicadorEvaluado] = []
-    for _, row in sub.iterrows():
+    vistos_descartados: set[str] = set()
+
+    for _, row in df_clima.iterrows():
         ind = str(row.get("Indicador", "")).strip()
         if not ind or ind.lower() == "nan":
             continue
         if indicador_coincide_nombre(ind, nombre_indicador):
-            if candidato is None:
-                candidato = row
-        else:
-            estados.append(IndicadorEvaluado(nombre=ind[:80], seleccionado=False, descartado=True))
+            candidatas.append(row)
+            continue
+        clave = ind[:80]
+        if clave not in vistos_descartados:
+            vistos_descartados.add(clave)
+            estados.append(
+                IndicadorEvaluado(nombre=clave, seleccionado=False, descartado=True)
+            )
+
+    candidato = _elegir_fila_por_percentil(candidatas, percentil)
 
     if candidato is not None:
-        estados.insert(0, IndicadorEvaluado(nombre=etiqueta, seleccionado=True))
+        pct_usado = str(candidato.get("Percentil", "")).strip().upper()
+        pct_pedido = (percentil or "").strip().upper()
+        etiqueta_sel = etiqueta
+        if pct_usado and pct_pedido and pct_usado != pct_pedido:
+            etiqueta_sel = f"{etiqueta} ({pct_usado}; pedido {pct_pedido})"
+        estados.insert(0, IndicadorEvaluado(nombre=etiqueta_sel, seleccionado=True))
     else:
-        estados.insert(0, IndicadorEvaluado(nombre=etiqueta, seleccionado=False, descartado=True))
+        estados.insert(
+            0,
+            IndicadorEvaluado(nombre=etiqueta, seleccionado=False, descartado=True),
+        )
     return candidato, estados
 
 
