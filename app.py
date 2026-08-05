@@ -2278,31 +2278,15 @@ def _tabla_activos_config_ui(config_df: pd.DataFrame) -> list[str]:
     return activos
 
 
-def _selector_activo_cp(config_df: pd.DataFrame) -> tuple[str, str, int, int, pd.Series | None]:
-    """Devuelve activo (display), activo raw, CP índice, CP total y fila config.
+def _selector_activo_cp(config_df: pd.DataFrame) -> int:
+    """Muestra la tabla de activos del puerto y devuelve el total de CP.
 
-    Muestra la lista completa de activos (incl. los añadidos al final del Excel).
+    La lista incluye los activos añadidos al final del Excel. El filtrado
+    de resultados se hace en la sección de resultados («Filtrar por activos»).
     """
+    st.subheader("Activos")
     activos = _tabla_activos_config_ui(config_df)
-    if not activos:
-        return "—", "", 0, 0, None
-
-    cp_total = len(activos)
-    etiquetas = [
-        f"CP {i} — {nombre_activo_resumen(a)}" for i, a in enumerate(activos, start=1)
-    ]
-    _ajustar_selectbox("calc_activo_sel", etiquetas)
-    etiqueta_sel = st.selectbox(
-        "Filtrar por activos",
-        options=etiquetas,
-        key="calc_activo_sel",
-        help="Lista completa de activos del puerto. El cálculo itera todos; "
-        "esta selección centra la vista de resultados.",
-    )
-    cp_num = etiquetas.index(etiqueta_sel) + 1
-    activo_raw = activos[cp_num - 1]
-    fila = fila_configuracion(config_df, activo=activo_raw)
-    return nombre_activo_resumen(activo_raw), activo_raw, cp_num, cp_total, fila
+    return len(activos)
 
 
 def _fila_config_activo(config_df: pd.DataFrame, *, activo_raw: str | None = None) -> pd.Series | None:
@@ -3263,19 +3247,9 @@ def _resultados_impactos_puerto() -> None:
         return
 
     opciones_res = ["Todos"] + etiquetas_res
-    foco_calc = st.session_state.get("calc_activo_sel")
-    if isinstance(foco_calc, str):
-        nombre_foco = foco_calc.split(" — ", 1)[-1].strip().lower()
-        for et in etiquetas_res:
-            if et.split(" — ", 1)[-1].strip().lower() == nombre_foco:
-                # Si el usuario eligió un activo arriba, centrar resultados en él.
-                actual = st.session_state.get("resultados_activo_filtro")
-                if actual not in opciones_res or actual == "Todos":
-                    st.session_state["resultados_activo_filtro"] = et
-                break
     _ajustar_selectbox("resultados_activo_filtro", opciones_res)
     filtro_res = st.selectbox(
-        "Mostrar activo",
+        "Filtrar por activos",
         options=opciones_res,
         key="resultados_activo_filtro",
     )
@@ -3427,8 +3401,7 @@ def _seccion_calculo_impactos() -> None:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
         return
 
-    _activo, activo_raw, cp_num, cp_total, fila_cfg = _selector_activo_cp(config_df)
-    st.session_state.cp_numero_actual = cp_num
+    cp_total = _selector_activo_cp(config_df)
     st.session_state.cp_total_activos = cp_total
 
     pulsar, params = _bloque_calculo_activo()
