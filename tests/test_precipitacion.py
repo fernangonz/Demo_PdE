@@ -40,9 +40,15 @@ from core.modelos.impacto.pi_precipitacion.utilidades import (
 )
 from core.modelos.metodologias import resolver_motor_fila
 from core.modelos.registro import MODELOS_IMPACTO
-from core.relacion_modelos import IndicadorRelacion, ORIGEN_EXCEL, ReglaModeloActivo
+from core.relacion_modelos import (
+    IndicadorRelacion,
+    ORIGEN_EXCEL,
+    ReglaModeloActivo,
+    buscar_regla_modelo,
+)
 
 ACTIVO = "Manipulaci\u00f3n de mercanc\u00eda"
+ACTIVO_PERSONAL = "Personal del puerto"
 MODO = "Exceso de precipitaci\u00f3n"
 VARIABLE = "Precipitaci\u00f3n"
 TITULO = "PI Exceso de precipitaci\u00f3n"
@@ -241,6 +247,42 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertEqual(interpretar_delta_precip(-3), INTERP_MEJORA)
         self.assertEqual(interpretar_delta_precip(0), INTERP_SIN_CAMBIOS)
         self.assertEqual(interpretar_delta_precip(0, es_historico=True), "Referencia")
+
+    def test_excel4_personal_del_puerto_predefinido(self) -> None:
+        """Personal + precip exige fila Excel 4 Predefinido (no diagrama)."""
+        regla = buscar_regla_modelo(
+            self.repo.relacion_modelos,
+            modelo_id=MOTOR_PI_PRECIPITACION,
+            activo=ACTIVO_PERSONAL,
+            modo_fallo=MODO,
+            variable=VARIABLE,
+            estado_limite="ELO",
+        )
+        self.assertEqual(regla.origen, ORIGEN_EXCEL, regla)
+        self.assertTrue(regla.regla_indicador.usa_predefinido)
+        inds, err = indicadores_predefinidos_precipitacion(regla)
+        self.assertIsNone(err, err)
+        self.assertGreaterEqual(len(inds), 1)
+        self.assertTrue(any("lluvia" in i.indicador.lower() for i in inds), inds)
+
+        r = calcular_impactos_activo(
+            self.repo,
+            params_agitacion=ParametrosEntrada(activo=ACTIVO_PERSONAL),
+            incluir_agitacion=False,
+            incluir_francobordo=False,
+            incluir_calado=False,
+            incluir_precipitacion=True,
+        )
+        self.assertTrue(r.ok, r.advertencias)
+        assert r.resultado_precipitacion is not None
+        precip = [
+            it
+            for it in r.resultado_precipitacion.iteraciones
+            if "precipit" in it.modo_fallo.lower()
+        ]
+        self.assertEqual(len(precip), 1, [it.modo_fallo for it in r.resultado_precipitacion.iteraciones])
+        self.assertEqual(precip[0].estado, "ok", precip[0].motivo)
+        self.assertNotIn("fila explicita", (precip[0].motivo or "").lower())
 
     def test_manipulacion_mercancia_n63_cuatro_columnas(self) -> None:
         r = calcular_impactos_activo(

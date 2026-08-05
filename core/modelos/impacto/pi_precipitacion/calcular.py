@@ -191,7 +191,15 @@ def calcular(
             estado_limite=estado_limite,
         )
         percentil = regla_modelo.percentil
-        indicadores, error_inds = indicadores_predefinidos_precipitacion(regla_modelo)
+        indicadores, error_inds = indicadores_predefinidos_precipitacion(
+            regla_modelo,
+            df_relacion=relacion_modelos,
+            modelo_id=MODELO_ID,
+            activo=activo_raw,
+            modo_fallo=modo_fallo,
+            variable=variable,
+            estado_limite=estado_limite,
+        )
         if error_inds:
             iteraciones.append(_iteracion_error(
                 numero=numero,

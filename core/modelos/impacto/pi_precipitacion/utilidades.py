@@ -26,7 +26,11 @@ from core.modelos.impacto.pi_precipitacion.schemas import (
     col_interpretacion_indicador,
     umbral_mm_desde_indicador,
 )
-from core.relacion_modelos import IndicadorRelacion, ReglaModeloActivo
+from core.relacion_modelos import (
+    IndicadorRelacion,
+    ReglaModeloActivo,
+    diagnosticar_busqueda_regla,
+)
 
 
 def es_modo_exceso_precipitacion(
@@ -93,26 +97,45 @@ def indicadores_predefinidos_precipitacion(
     *,
     minimo: int = NUM_INDICADORES_MIN,
     maximo: int = NUM_INDICADORES_MAX,
+    df_relacion: object | None = None,
+    modelo_id: str = "pi_precipitacion",
+    activo: str = "",
+    modo_fallo: str = "",
+    variable: str = "",
+    estado_limite: str | None = None,
 ) -> tuple[tuple[IndicadorRelacion, ...], str | None]:
     """Toma 1 o 2 indicadores predefinidos de Excel 4 (si hay mas, los primeros N<=max)."""
     if not regla.desde_excel:
+        detalle = ""
+        if df_relacion is not None and (activo or modo_fallo or variable):
+            detalle = " " + diagnosticar_busqueda_regla(
+                df_relacion,  # type: ignore[arg-type]
+                modelo_id=modelo_id,
+                activo=activo,
+                modo_fallo=modo_fallo,
+                variable=variable,
+                estado_limite=estado_limite,
+            )
         return (), (
             "Exceso de precipitacion requiere fila explicita en Excel 4 "
             "(Relacion_modelos_activos_e_indicadores) con Seleccion indicador = Predefinido "
-            f"y entre {minimo} y {maximo} indicadores."
+            f"y entre {minimo} y {maximo} indicadores.{detalle}"
         )
     if not regla.regla_indicador.usa_predefinido:
+        fila = f" (fila {regla.fila})" if regla.fila else ""
         return (), (
-            "Exceso de precipitacion exige Seleccion indicador = Predefinido en Excel 4 "
-            "(no se busca umbral)."
+            "Exceso de precipitacion exige Seleccion indicador = Predefinido en Excel 4"
+            f"{fila} (no se busca umbral)."
         )
 
     encontrados = [ind for ind in regla.indicadores if (ind.indicador or "").strip()]
     if len(encontrados) < minimo:
         nombres = ", ".join(f"\u00ab{i.indicador}\u00bb" for i in encontrados) or "(ninguno)"
+        fila = f" fila {regla.fila}" if regla.fila else ""
         return (), (
-            f"Se requiere al menos {minimo} indicador(es) predefinido(s) en Excel 4 "
-            f"(maximo {maximo}); encontrados {len(encontrados)}: {nombres}."
+            f"Se requiere al menos {minimo} indicador(es) predefinido(s) en Excel 4"
+            f"{fila} (maximo {maximo}); encontrados {len(encontrados)}: {nombres}. "
+            "Revise columnas Indicador climatico / Indicador climatico.1."
         )
     tomar = min(len(encontrados), maximo)
     return tuple(encontrados[:tomar]), None

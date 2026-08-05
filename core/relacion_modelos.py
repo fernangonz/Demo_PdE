@@ -110,14 +110,22 @@ def _parsear_modo_seleccion(valor: object, indicador: object) -> str:
     if _es_comodin(valor):
         return MODO_POR_UMBRAL
     n = _normalizar(valor)
+    n_compact = n.replace(" ", "").replace("_", "").replace("-", "")
     # Soporte explicito para desplegable en Excel:
-    # - "predefinido"
+    # - "predefinido" / "Predefinido" / "pre-definido"
     # - "no predefinido"
-    if "nopredefinido" in n or "no predefinido" in n:
+    if (
+        "nopredefinido" in n_compact
+        or n_compact.startswith("nopredef")
+        or "no predefinido" in n
+    ):
         return MODO_POR_UMBRAL
-    if any(x in n for x in ("predefinido", "fijo", "nombre", "excel")):
+    if any(
+        x in n or x in n_compact
+        for x in ("predefinido", "predef", "fijo", "nombre", "excel")
+    ):
         return MODO_PREDEFINIDO
-    if any(x in n for x in ("umbral", "por umbral", "porumbral")):
+    if any(x in n or x in n_compact for x in ("umbral", "porumbral")):
         return MODO_POR_UMBRAL
     return MODO_POR_UMBRAL
 
@@ -161,29 +169,48 @@ def _columnas_tripletas_indicador(df: pd.DataFrame) -> list[tuple[str, str, str]
 
 
 def mapear_columnas_relacion_modelos(df: pd.DataFrame) -> dict[str, str]:
-    """Localiza columnas del Excel por patrones de nombre."""
+    """Localiza columnas del Excel por patrones de nombre (acentos/orden flexibles)."""
     cols: dict[str, str] = {}
     for c in df.columns:
         n = _normalizar(c)
+        n_compact = n.replace(" ", "")
         if "modelo" in n and "modelo" not in cols:
             cols["modelo"] = c
-        elif ("activo" in n and "fisico" in n) or n == "activo":
-            cols["activo"] = c
-        elif ("modo" in n and ("fallo" in n or "parada" in n)) or "modos de fallo" in n:
-            cols["modo_fallo"] = c
-        elif "variable" in n:
-            cols["variable"] = c
-        elif "impacto" in n or ("estado" in n and "limite" in n):
-            cols["estado_limite"] = c
+        elif (
+            ("activo" in n and "fisico" in n)
+            or n == "activo"
+            or n_compact in ("activofisico", "activofisicuoperacional", "activooperacional")
+        ):
+            cols.setdefault("activo", c)
+        elif (
+            ("modo" in n and ("fallo" in n or "parada" in n))
+            or "modos de fallo" in n
+            or n_compact in ("modofallo", "modosdefallo", "mododeparada")
+        ):
+            cols.setdefault("modo_fallo", c)
+        elif n == "variable" or n.startswith("variable"):
+            cols.setdefault("variable", c)
+        elif (
+            "tipo de impacto" in n
+            or n_compact == "tipodeimpacto"
+            or ("impacto" in n and "indicador" not in n)
+            or ("estado" in n and "limite" in n)
+        ):
+            cols.setdefault("estado_limite", c)
         elif "percentil" in n:
-            cols["percentil"] = c
-        elif "seleccion" in n and "indicador" in n:
-            cols["modo_seleccion"] = c
-        elif "no" in n and "indicador" in n:
-            cols["no_indicadores"] = c
+            cols.setdefault("percentil", c)
+        elif (
+            ("seleccion" in n and "indicador" in n)
+            or n_compact in ("seleccionindicador", "modoseleccion", "mododeindicador")
+        ):
+            cols.setdefault("modo_seleccion", c)
+        elif ("no" in n and "indicador" in n) or n_compact in ("noindicadores", "nindicadores"):
+            cols.setdefault("no_indicadores", c)
         elif "indicador" in n and "clim" in n and "indicador" not in cols:
             cols["indicador"] = c
-        elif n == "indicador" or ("indicador" in n and "etiqueta" not in n and "seleccion" not in n):
+        elif n == "indicador" or (
+            "indicador" in n and "etiqueta" not in n and "seleccion" not in n
+        ):
             cols.setdefault("indicador", c)
         elif "etiqueta" in n and "etiqueta" not in cols:
             cols["etiqueta"] = c
@@ -205,12 +232,18 @@ def _indicadores_desde_fila(
     row: pd.Series,
     cols: dict[str, str],
 ) -> tuple[int, tuple[IndicadorRelacion, ...]]:
+    """Lee indicadores de la fila.
+
+    Recorre todas las tripletas rellenas (no se corta por ``No indicadores`` cacheado
+    o por fórmulas de Excel no recalculadas). ``No indicadores`` solo trunca si es
+    mayor que 1 y menor que las tripletas halladas.
+    """
     col_no = cols.get("no_indicadores")
-    num = _parsear_num_indicadores(row.get(col_no) if col_no else None)
+    num_declarado = _parsear_num_indicadores(row.get(col_no) if col_no else None)
 
     triplets = cols.get("tripletas") or []
     indicadores: list[IndicadorRelacion] = []
-    for col_pest, col_ind, col_etq in triplets[:num]:
+    for col_pest, col_ind, col_etq in triplets:
         pest = row.get(col_pest)
         ind = row.get(col_ind)
         etq = row.get(col_etq)
@@ -238,6 +271,9 @@ def _indicadores_desde_fila(
                 )
             )
 
+    if indicadores and 1 < num_declarado < len(indicadores):
+        indicadores = indicadores[:num_declarado]
+    num = len(indicadores) if indicadores else num_declarado
     return num, tuple(indicadores)
 
 
@@ -338,6 +374,94 @@ def resumen_relacion_modelos(
         "filas": str(len(df)) if df is not None and not df.empty else "0",
         "origen": "excel" if df is not None and not df.empty else "diagrama",
     }
+
+
+def diagnosticar_busqueda_regla(
+    df: pd.DataFrame | None,
+    *,
+    modelo_id: str,
+    activo: str,
+    modo_fallo: str,
+    variable: str,
+    estado_limite: str | None = None,
+) -> str:
+    """Explica por qué no hay fila Excel 4 usable (celdas concretas)."""
+    if df is None or df.empty:
+        return "Excel 4 esta vacio o no se cargo."
+
+    cols = mapear_columnas_relacion_modelos(df)
+    faltan = [k for k in ("modo_fallo", "variable") if k not in cols]
+    if faltan:
+        return (
+            "Excel 4 no tiene columnas reconocibles para "
+            + ", ".join(faltan)
+            + f" (cabeceras: {list(df.columns)[:8]}…)."
+        )
+
+    col_act = cols.get("activo")
+    col_modo = cols["modo_fallo"]
+    col_var = cols["variable"]
+    col_modelo = cols.get("modelo")
+    col_tipo = cols.get("estado_limite")
+    col_sel = cols.get("modo_seleccion")
+
+    candidatos_modo_var: list[int] = []
+    candidatos_activo: list[int] = []
+    for idx, row in df.iterrows():
+        try:
+            fila_excel = int(idx) + 2  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            fila_excel = -1
+        modo_ok = match_texto(row.get(col_modo), modo_fallo)
+        var_ok = match_texto(row.get(col_var), variable)
+        if modo_ok and var_ok:
+            candidatos_modo_var.append(fila_excel)
+        act_ok = (not col_act) or match_activo(row.get(col_act), activo)
+        if act_ok and (modo_ok or var_ok or "precipitacion" in _normalizar(variable)):
+            if act_ok and (modo_ok or var_ok):
+                candidatos_activo.append(fila_excel)
+
+        if not (modo_ok and var_ok):
+            continue
+        if col_act and not match_activo(row.get(col_act), activo):
+            continue
+        if col_modelo and not _modelo_aplica(row.get(col_modelo), modelo_id, variable):
+            return (
+                f"Fila {fila_excel}: Modelo={row.get(col_modelo)!r} no aplica a "
+                f"{modelo_id!r} / variable {variable!r}."
+            )
+        if col_tipo and estado_limite and not _celda_coincide(row.get(col_tipo), estado_limite):
+            return (
+                f"Fila {fila_excel}: Tipo de impacto={row.get(col_tipo)!r} "
+                f"no coincide con {estado_limite!r}."
+            )
+        if _es_comodin(row.get(col_modo)) or _es_comodin(row.get(col_var)):
+            return (
+                f"Fila {fila_excel}: Modos/Variable son comodin; se exige fila explicita."
+            )
+        sel = row.get(col_sel) if col_sel else None
+        return (
+            f"Fila {fila_excel} coincide en Activo/Modo/Variable pero no se acepto "
+            f"(Seleccion indicador={sel!r})."
+        )
+
+    if candidatos_modo_var:
+        return (
+            f"Hay fila(s) {candidatos_modo_var} con Modo={modo_fallo!r} y "
+            f"Variable={variable!r}, pero Activo no es {activo!r} "
+            f"(ni Tipo/Modelo compatibles)."
+        )
+    if candidatos_activo:
+        return (
+            f"Hay fila(s) {candidatos_activo[:5]} para activo {activo!r}, pero no con "
+            f"Modo={modo_fallo!r} y Variable={variable!r} explicitos."
+        )
+    return (
+        f"No hay fila en Excel 4 con Activo={activo!r}, "
+        f"Modos={modo_fallo!r}, Variable={variable!r}"
+        + (f", Tipo={estado_limite!r}" if estado_limite else "")
+        + "."
+    )
 
 
 def buscar_regla_modelo(

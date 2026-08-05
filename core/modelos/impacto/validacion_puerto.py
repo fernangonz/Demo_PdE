@@ -782,7 +782,15 @@ def _validar_fila_precipitacion(
         variable=variable,
         estado_limite=estado_limite,
     )
-    indicadores, error_inds = indicadores_predefinidos_precipitacion(regla_modelo)
+    indicadores, error_inds = indicadores_predefinidos_precipitacion(
+        regla_modelo,
+        df_relacion=relacion_modelos,
+        modelo_id=motor_id,
+        activo=activo_raw,
+        modo_fallo=modo_fallo,
+        variable=variable,
+        estado_limite=estado_limite,
+    )
     if error_inds:
         resultado.avisos.append(
             _aviso(
