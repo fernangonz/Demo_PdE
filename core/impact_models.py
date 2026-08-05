@@ -105,6 +105,20 @@ PLANTILLA_FILAS_RESUMEN = [
 COL_CAMBIO = "Cambio respecto al historico"
 COL_INTERP = "Interpretación"
 
+# Columnas del resultado PI precipitación (un par por cada indicador predefinido).
+COL_PRECIP_INC_1 = "Incremento ind. 1"
+COL_PRECIP_AN_1 = "Análisis ind. 1"
+COL_PRECIP_INC_2 = "Incremento ind. 2"
+COL_PRECIP_AN_2 = "Análisis ind. 2"
+COLS_PRECIP_RESULTADO = (
+    COL_PRECIP_INC_1,
+    COL_PRECIP_AN_1,
+    COL_PRECIP_INC_2,
+    COL_PRECIP_AN_2,
+)
+SUBCOLS_MODO_ESTANDAR = (COL_CAMBIO, COL_INTERP)
+SUBCOLS_MODO_PRECIP = COLS_PRECIP_RESULTADO
+
 
 @dataclass
 class ResumenIteracion:
@@ -142,6 +156,11 @@ class ResumenActivo:
     activo: str
     filas: list[dict[str, object]] = field(default_factory=list)
     modos_fallo: list[str] = field(default_factory=lambda: list(MODOS_FALLO_PLANTILLA))
+    # Subcolumnas por modo (2 estándar; 4 para precipitación).
+    subcols_por_modo: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def subcols_de(self, modo: str) -> tuple[str, ...]:
+        return self.subcols_por_modo.get(modo) or SUBCOLS_MODO_ESTANDAR
 
     @property
     def tabla_resumen(self) -> pd.DataFrame:
@@ -149,7 +168,10 @@ class ResumenActivo:
 
     @property
     def columnas(self) -> list[str]:
-        return columnas_export_resumen_activo(self.modos_fallo)
+        return columnas_export_resumen_activo(
+            self.modos_fallo,
+            subcols_por_modo=self.subcols_por_modo,
+        )
 
 
 @dataclass
@@ -179,12 +201,19 @@ def _es_tabla_calado(tabla: pd.DataFrame) -> bool:
 
 
 def _es_tabla_precipitacion(tabla: pd.DataFrame) -> bool:
-    return (
-        "Incremento ind. 1" in tabla.columns
-        and "Análisis ind. 1" in tabla.columns
-        and "Incremento ind. 2" in tabla.columns
-        and "Análisis ind. 2" in tabla.columns
-    )
+    """True si hay incremento para ind. 1 e ind. 2 (formato precip, no sumado)."""
+    cols = {str(c) for c in tabla.columns}
+    return COL_PRECIP_INC_1 in cols and COL_PRECIP_INC_2 in cols
+
+
+def _col_por_nombre(tabla: pd.DataFrame, nombre: str) -> str | None:
+    if nombre in tabla.columns:
+        return nombre
+    objetivo = nombre.lower().replace("á", "a")
+    for c in tabla.columns:
+        if str(c).lower().replace("á", "a") == objetivo:
+            return str(c)
+    return None
 
 
 def _indexar_variaciones_por_modo(
@@ -192,7 +221,7 @@ def _indexar_variaciones_por_modo(
     *,
     baseline_year: int = BASELINE_YEAR,
 ) -> dict[tuple[str, str, int], dict[str, object]]:
-    """Clave: (modo_fallo, escenario_datos, año) → cambio e interpretación."""
+    """Clave: (modo_fallo, escenario_datos, año) → celdas del modo."""
     indice: dict[tuple[str, str, int], dict[str, object]] = {}
     for r in iteraciones:
         if r.tabla_resultado is None or r.tabla_resultado.empty:
@@ -212,6 +241,10 @@ def _indexar_variaciones_por_modo(
                 }
             continue
         if _es_tabla_precipitacion(r.tabla_resultado):
+            c_i1 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_INC_1) or COL_PRECIP_INC_1
+            c_a1 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_AN_1) or COL_PRECIP_AN_1
+            c_i2 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_INC_2) or COL_PRECIP_INC_2
+            c_a2 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_AN_2) or COL_PRECIP_AN_2
             for _, row in r.tabla_resultado.iterrows():
                 esc, _horizonte, anio, _orden = _parse_etiqueta_escenario(
                     str(row.get("Escenario", "")),
@@ -219,10 +252,12 @@ def _indexar_variaciones_por_modo(
                 )
                 if esc == "Histórico" or anio is None:
                     continue
-                # Resumen consolidado: ind. 1 como columna principal del modo.
+                # 4 columnas independientes (nunca sumar ind.1 + ind.2).
                 indice[(r.modo_fallo, esc, anio)] = {
-                    COL_CAMBIO: row.get("Incremento ind. 1"),
-                    COL_INTERP: row.get("Análisis ind. 1", ""),
+                    COL_PRECIP_INC_1: row.get(c_i1),
+                    COL_PRECIP_AN_1: row.get(c_a1, ""),
+                    COL_PRECIP_INC_2: row.get(c_i2),
+                    COL_PRECIP_AN_2: row.get(c_a2, ""),
                 }
             continue
         for _, row in r.tabla_resultado.iterrows():
@@ -262,17 +297,24 @@ def _valor_celda_resumen(
 
 def columnas_export_resumen_activo(
     modos: list[str] | None = None,
+    *,
+    subcols_por_modo: dict[str, tuple[str, ...]] | None = None,
 ) -> list[str]:
     modos = modos or MODOS_FALLO_PLANTILLA
+    subcols_por_modo = subcols_por_modo or {}
     cols = ["Escenarios", "Horizontes temporales", "Año representativo"]
     for modo in modos:
-        cols.append(f"{modo} | {COL_CAMBIO}")
-        cols.append(f"{modo} | {COL_INTERP}")
+        subcols = subcols_por_modo.get(modo) or SUBCOLS_MODO_ESTANDAR
+        for sub in subcols:
+            cols.append(f"{modo} | {sub}")
     return cols
 
 
 def tabla_resumen_activo_a_dataframe(resumen: ResumenActivo) -> pd.DataFrame:
-    columnas = columnas_export_resumen_activo(resumen.modos_fallo)
+    columnas = columnas_export_resumen_activo(
+        resumen.modos_fallo,
+        subcols_por_modo=resumen.subcols_por_modo,
+    )
     filas_export: list[dict[str, object]] = []
     for fila in resumen.filas:
         registro = {
@@ -283,8 +325,8 @@ def tabla_resumen_activo_a_dataframe(resumen: ResumenActivo) -> pd.DataFrame:
         modos = fila.get("modos", {})
         for modo in resumen.modos_fallo:
             datos = modos.get(modo, {})
-            registro[f"{modo} | {COL_CAMBIO}"] = datos.get(COL_CAMBIO, "")
-            registro[f"{modo} | {COL_INTERP}"] = datos.get(COL_INTERP, "")
+            for sub in resumen.subcols_de(modo):
+                registro[f"{modo} | {sub}"] = datos.get(sub, "")
         filas_export.append(registro)
     return pd.DataFrame(filas_export, columns=columnas)
 
@@ -313,24 +355,46 @@ def construir_tabla_resumen_activo(
     if not modos:
         modos = list(MODOS_FALLO_PLANTILLA)
 
+    # Subcolumnas: precipitación usa 4 (Incremento/Análisis × 2 indicadores).
+    subcols_por_modo: dict[str, tuple[str, ...]] = {}
+    for it in iteraciones:
+        if _es_tabla_precipitacion(it.tabla_resultado):
+            subcols_por_modo[it.modo_fallo] = SUBCOLS_MODO_PRECIP
+        else:
+            subcols_por_modo.setdefault(it.modo_fallo, SUBCOLS_MODO_ESTANDAR)
+
     filas: list[dict[str, object]] = []
     for esc, horizonte, anio in PLANTILLA_FILAS_RESUMEN:
         es_historico = esc == "Histórico"
         esc_datos = _escenario_plantilla_a_datos(esc)
         modos_valores: dict[str, dict[str, str]] = {}
         for modo in modos:
+            subcols = subcols_por_modo.get(modo) or SUBCOLS_MODO_ESTANDAR
             if es_historico:
-                modos_valores[modo] = {COL_CAMBIO: "", COL_INTERP: ""}
+                modos_valores[modo] = {sub: "" for sub in subcols}
                 continue
             datos = indice.get((modo, esc_datos, anio), {})
             es_calado = "Calado" in modo
-            cambio_txt, interp_txt = _valor_celda_resumen(
-                es_historico=False,
-                cambio=datos.get(COL_CAMBIO),
-                interpretacion=datos.get(COL_INTERP),
-                es_calado=es_calado,
-            )
-            modos_valores[modo] = {COL_CAMBIO: cambio_txt, COL_INTERP: interp_txt}
+            celdas: dict[str, str] = {}
+            if subcols == SUBCOLS_MODO_PRECIP:
+                for sub in subcols:
+                    val = datos.get(sub, "")
+                    if sub.startswith("Incremento") and val != "" and val is not None:
+                        try:
+                            celdas[sub] = str(int(val))
+                        except (TypeError, ValueError):
+                            celdas[sub] = str(val)
+                    else:
+                        celdas[sub] = "" if val is None else str(val)
+            else:
+                cambio_txt, interp_txt = _valor_celda_resumen(
+                    es_historico=False,
+                    cambio=datos.get(COL_CAMBIO),
+                    interpretacion=datos.get(COL_INTERP),
+                    es_calado=es_calado,
+                )
+                celdas = {COL_CAMBIO: cambio_txt, COL_INTERP: interp_txt}
+            modos_valores[modo] = celdas
 
         filas.append({
             "Escenarios": esc,
@@ -343,6 +407,7 @@ def construir_tabla_resumen_activo(
         activo=iteraciones[0].activo,
         filas=filas,
         modos_fallo=modos,
+        subcols_por_modo=subcols_por_modo,
     )
 
 
@@ -357,6 +422,8 @@ def html_tabla_resumen_activo(resumen: ResumenActivo) -> str:
             return ""
         return html_lib.escape(str(val))
 
+    total_subcols = sum(len(resumen.subcols_de(m)) for m in modos)
+
     filas_html: list[str] = []
     for fila in resumen.filas:
         celdas = [
@@ -367,16 +434,16 @@ def html_tabla_resumen_activo(resumen: ResumenActivo) -> str:
         modos_datos = fila.get("modos", {})
         for modo in modos:
             datos = modos_datos.get(modo, {})
-            celdas.append(f"<td>{esc(datos.get(COL_CAMBIO, ''))}</td>")
-            celdas.append(f"<td>{esc(datos.get(COL_INTERP, ''))}</td>")
+            for sub in resumen.subcols_de(modo):
+                celdas.append(f"<td>{esc(datos.get(sub, ''))}</td>")
         filas_html.append(f"<tr>{''.join(celdas)}</tr>")
 
     subcols = "".join(
-        f"<th>{COL_CAMBIO}</th><th>{COL_INTERP}</th>"
-        for _ in modos
+        "".join(f"<th>{esc(sub)}</th>" for sub in resumen.subcols_de(modo))
+        for modo in modos
     )
     modos_hdr = "".join(
-        f'<th colspan="2">{esc(modo)}</th>'
+        f'<th colspan="{len(resumen.subcols_de(modo))}">{esc(modo)}</th>'
         for modo in modos
     )
 
@@ -407,7 +474,7 @@ def html_tabla_resumen_activo(resumen: ResumenActivo) -> str:
       <th rowspan="3">Escenarios</th>
       <th rowspan="3">Horizontes temporales</th>
       <th rowspan="3">Año representativo</th>
-      <th colspan="{len(modos) * 2}">Modos de fallo / Modos de parada</th>
+      <th colspan="{total_subcols}">Modos de fallo / Modos de parada</th>
     </tr>
     <tr>
       {modos_hdr}
@@ -441,7 +508,7 @@ def export_resumen_activo_xlsx(resumen: ResumenActivo, *, hoja: str = "Resumen a
     negrita = Font(bold=True)
 
     modos = resumen.modos_fallo
-    n_modos = len(modos)
+    total_subcols = sum(len(resumen.subcols_de(m)) for m in modos)
 
     ws.merge_cells(start_row=1, start_column=1, end_row=3, end_column=1)
     ws.cell(1, 1, "Escenarios")
@@ -449,16 +516,30 @@ def export_resumen_activo_xlsx(resumen: ResumenActivo, *, hoja: str = "Resumen a
     ws.cell(1, 2, "Horizontes temporales")
     ws.merge_cells(start_row=1, start_column=3, end_row=3, end_column=3)
     ws.cell(1, 3, "Año representativo")
-    ws.merge_cells(start_row=1, start_column=4, end_row=1, end_column=3 + n_modos * 2)
-    ws.cell(1, 4, "Modos de fallo / Modos de parada")
+    if total_subcols > 0:
+        ws.merge_cells(
+            start_row=1,
+            start_column=4,
+            end_row=1,
+            end_column=3 + total_subcols,
+        )
+        ws.cell(1, 4, "Modos de fallo / Modos de parada")
 
     col = 4
     for modo in modos:
-        ws.merge_cells(start_row=2, start_column=col, end_row=2, end_column=col + 1)
+        subcols = resumen.subcols_de(modo)
+        n_sub = len(subcols)
+        if n_sub > 1:
+            ws.merge_cells(
+                start_row=2,
+                start_column=col,
+                end_row=2,
+                end_column=col + n_sub - 1,
+            )
         ws.cell(2, col, modo)
-        ws.cell(3, col, COL_CAMBIO)
-        ws.cell(3, col + 1, COL_INTERP)
-        col += 2
+        for i, sub in enumerate(subcols):
+            ws.cell(3, col + i, sub)
+        col += n_sub
 
     fila_excel = 4
     for fila in resumen.filas:
@@ -469,12 +550,13 @@ def export_resumen_activo_xlsx(resumen: ResumenActivo, *, hoja: str = "Resumen a
         modos_datos = fila.get("modos", {})
         for modo in modos:
             datos = modos_datos.get(modo, {})
-            ws.cell(fila_excel, col, datos.get(COL_CAMBIO, ""))
-            ws.cell(fila_excel, col + 1, datos.get(COL_INTERP, ""))
-            col += 2
+            for sub in resumen.subcols_de(modo):
+                ws.cell(fila_excel, col, datos.get(sub, ""))
+                col += 1
         fila_excel += 1
 
-    for row in ws.iter_rows(min_row=1, max_row=fila_excel - 1, min_col=1, max_col=3 + n_modos * 2):
+    max_col = max(3, 3 + total_subcols)
+    for row in ws.iter_rows(min_row=1, max_row=fila_excel - 1, min_col=1, max_col=max_col):
         for cell in row:
             cell.border = borde
             cell.alignment = centro

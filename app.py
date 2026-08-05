@@ -1726,35 +1726,48 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
         }
     elif (
         "Incremento ind. 1" in tabla.columns
-        and "Análisis ind. 1" in tabla.columns
+        and "Incremento ind. 2" in tabla.columns
     ):
-        st.caption(
-            "Sin umbral. Dos indicadores predefinidos (Excel 4). "
-            "Incremento = valor escenario − histórico. "
-            "Análisis = INCREMENTA si Δ > 0; si no NO."
-        )
-        cols_tabla = [
-            "Escenario",
-            "Incremento ind. 1",
-            "Análisis ind. 1",
-            "Incremento ind. 2",
-            "Análisis ind. 2",
+        # Dos indicadores predefinidos: 4 columnas (nunca sumar ind.1 + ind.2).
+        partes = [
+            p.strip()
+            for p in str(getattr(r, "indicador_seleccionado", "") or "").split("|")
+            if p.strip()
         ]
+        etq1 = partes[0] if len(partes) > 0 else "indicador 1"
+        etq2 = partes[1] if len(partes) > 1 else "indicador 2"
+        st.caption(
+            "Sin umbral. **Dos indicadores predefinidos** (Excel 4); "
+            "cada uno tiene su propio incremento (futuro − histórico). "
+            f"**Ind. 1:** {etq1}. **Ind. 2:** {etq2}."
+        )
+        # Resolver nombres reales en el DF (acentos).
+        def _pick(*nombres: str) -> str | None:
+            for n in nombres:
+                if n in tabla.columns:
+                    return n
+            objetivo = nombres[0].lower().replace("á", "a")
+            for c in tabla.columns:
+                if str(c).lower().replace("á", "a") == objetivo:
+                    return str(c)
+            return None
+
+        c_i1 = _pick("Incremento ind. 1")
+        c_a1 = _pick("Análisis ind. 1", "Analisis ind. 1")
+        c_i2 = _pick("Incremento ind. 2")
+        c_a2 = _pick("Análisis ind. 2", "Analisis ind. 2")
+        cols_tabla = [c for c in ("Escenario", c_i1, c_a1, c_i2, c_a2) if c]
         cfg = {
             "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
-            "Incremento ind. 1": st.column_config.NumberColumn(
-                "Incremento ind. 1", format="%d"
-            ),
-            "Análisis ind. 1": st.column_config.TextColumn(
-                "Análisis ind. 1", width="small"
-            ),
-            "Incremento ind. 2": st.column_config.NumberColumn(
-                "Incremento ind. 2", format="%d"
-            ),
-            "Análisis ind. 2": st.column_config.TextColumn(
-                "Análisis ind. 2", width="small"
-            ),
         }
+        if c_i1:
+            cfg[c_i1] = st.column_config.NumberColumn("Incremento ind. 1", format="%d")
+        if c_a1:
+            cfg[c_a1] = st.column_config.TextColumn("Análisis ind. 1", width="small")
+        if c_i2:
+            cfg[c_i2] = st.column_config.NumberColumn("Incremento ind. 2", format="%d")
+        if c_a2:
+            cfg[c_a2] = st.column_config.TextColumn("Análisis ind. 2", width="small")
     else:
         st.caption(
             "Indicador = valor físico del Excel. "
