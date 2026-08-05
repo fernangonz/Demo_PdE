@@ -1,4 +1,4 @@
-DIAGRAMA DE FLUJO EXCESO DE PRECIPITACIÓN:
+DIAGRAMA DE FLUJO EXCESO DE PRECIPITACIï¿½N:
 
 
 INICIO
@@ -13,31 +13,15 @@ INICIO
 
 
 
-• Configuración del puerto
+ï¿½ Configuraciï¿½n del puerto
 
-• Relación impactos vs variables climáticas
+ï¿½ Relaciï¿½n impactos vs variables climï¿½ticas
 
-• Relación umbrales y curvas de daño vs activos
+ï¿½ Relaciï¿½n umbrales y curvas de daï¿½o vs activos
 
-• Indicadores climáticos
+ï¿½ Indicadores climï¿½ticos
 
-• Relacion_modelos_activos_e_indicadores.xlsx (Excel 4)
-
-
-
-?
-
-
-
-2. Configuración del cálculo
-
-
-
-El percentil se resuelve en el paso 5b (por iteración IM).
-
-Selección de indicador: siempre Predefinido (Excel 4);
-
-no hay búsqueda por umbral.
+ï¿½ Relacion_modelos_activos_e_indicadores.xlsx (Excel 4)
 
 
 
@@ -45,15 +29,31 @@ no hay búsqueda por umbral.
 
 
 
-3. Iteración por Activos (CP)
+2. Configuraciï¿½n del cï¿½lculo
 
 
 
-Entrar al Excel: Configuración del puerto
+El percentil se resuelve en el paso 5b (por iteraciï¿½n IM).
+
+Selecciï¿½n de indicador: siempre Predefinido (Excel 4);
+
+no hay bï¿½squeda por umbral.
 
 
 
-Recorrer cada Activo Físico u Operacional.
+?
+
+
+
+3. Iteraciï¿½n por Activos (CP)
+
+
+
+Entrar al Excel: Configuraciï¿½n del puerto
+
+
+
+Recorrer cada Activo Fï¿½sico u Operacional.
 
 
 
@@ -63,9 +63,9 @@ Para cada activo:
 
 Extraer:
 
-• Activo Físico u Operacional
+ï¿½ Activo Fï¿½sico u Operacional
 
-• Tipo de UO asociado
+ï¿½ Tipo de UO asociado
 
 
 
@@ -77,7 +77,7 @@ Extraer:
 
 
 
-Entrar al Excel: Relación impactos vs variables climáticas
+Entrar al Excel: Relaciï¿½n impactos vs variables climï¿½ticas
 
 
 
@@ -85,7 +85,7 @@ Buscar:
 
 
 
-Activo Físico u Operacional = Activo obtenido en la iteración CP
+Activo Fï¿½sico u Operacional = Activo obtenido en la iteraciï¿½n CP
 
 
 
@@ -93,11 +93,11 @@ Extraer:
 
 
 
-• Filas con Modo de fallo «Exceso de precipitación»
+ï¿½ Filas con Modo de fallo ï¿½Exceso de precipitaciï¿½nï¿½
 
-• Variable climática Precipitación
+ï¿½ Variable climï¿½tica Precipitaciï¿½n
 
-• Tipo de impacto ELO
+ï¿½ Tipo de impacto ELO
 
 
 
@@ -105,7 +105,7 @@ Extraer:
 
 
 
-5. Iteración por Modos de fallo (IM)
+5. Iteraciï¿½n por Modos de fallo (IM)
 
 
 
@@ -123,11 +123,11 @@ Para cada fila:
 
 Extraer:
 
-• Modo de fallo / Modo de parada
+ï¿½ Modo de fallo / Modo de parada
 
-• Variable climática
+ï¿½ Variable climï¿½tica
 
-• Tipo de impacto ELO
+ï¿½ Tipo de impacto ELO
 
 
 
@@ -135,7 +135,7 @@ Extraer:
 
 
 
-5b. ¿Existe regla en Relacion_modelos_activos_e_indicadores.xlsx?
+5b. ï¿½Existe regla en Relacion_modelos_activos_e_indicadores.xlsx?
 
 
 
@@ -143,31 +143,31 @@ Entrar al Excel: Relacion_modelos_activos_e_indicadores.xlsx (Excel 4)
 
 
 
-Buscar una fila explícita que coincida con:
+Buscar una fila explï¿½cita que coincida con:
 
 
 
-1. Modelo (PI exceso de precipitación)
+1. Modelo (PI exceso de precipitaciï¿½n)
 
-2. Activo Físico u Operacional (si está definido en la fila)
+2. Activo Fï¿½sico u Operacional (si estï¿½ definido en la fila)
 
 3. Modo de fallo / Modo de parada
 
-4. Variable climática (Precipitación)
+4. Variable climï¿½tica (Precipitaciï¿½n)
 
-5. Tipo de impacto ELO (si está definido en la fila)
+5. Tipo de impacto ELO (si estï¿½ definido en la fila)
 
 
 
 Exigido:
 
-• Selección indicador = Predefinido
+ï¿½ Selecciï¿½n indicador = Predefinido
 
-• No indicadores = 1 o 2 (si hay más, se usan los 2 primeros; si hay 0 ? error)
+ï¿½ No indicadores = 1 o 2 (si hay mï¿½s, se usan los 2 primeros; si hay 0 ? error)
 
 
 
-La fila debe tener modo de fallo y variable explícitos (no comodines).
+La fila debe tener modo de fallo y variable explï¿½citos (no comodines).
 
 
 
@@ -175,11 +175,11 @@ La fila debe tener modo de fallo y variable explícitos (no comodines).
 
 
 
-¿Hay fila válida?
+ï¿½Hay fila vï¿½lida?
 
 
 
-Sí
+Sï¿½
 
 
 
@@ -189,15 +189,15 @@ Sí
 
 Usar del Excel 4:
 
-• Percentil
+ï¿½ Percentil
 
-• Selección indicador = Predefinido
+ï¿½ Selecciï¿½n indicador = Predefinido
 
-• 1 o 2 indicadores climáticos
+ï¿½ 1 o 2 indicadores climï¿½ticos
 
-  (si 1 ? un solo par cambio/interpretación;
+  (si 1 ? un solo par cambio/interpretaciï¿½n;
 
-  si 2 ? dos pares; umbrales mm según Excel 4,
+  si 2 ? dos pares; umbrales mm segï¿½n Excel 4,
 
   p. ej. 1 mm y 20 mm)
 
@@ -207,7 +207,7 @@ Usar del Excel 4:
 
 
 
-No (no hay fila válida)
+No (no hay fila vï¿½lida)
 
 
 
@@ -217,11 +217,11 @@ No (no hay fila válida)
 
 No se puede calcular.
 
-Exceso de precipitación exige fila explícita en Excel 4 con
+Exceso de precipitaciï¿½n exige fila explï¿½cita en Excel 4 con
 
-Selección = Predefinido y al menos 1 indicador (máx. 2).
+Selecciï¿½n = Predefinido y al menos 1 indicador (mï¿½x. 2).
 
-No hay búsqueda por umbral ni lógica clásica.
+No hay bï¿½squeda por umbral ni lï¿½gica clï¿½sica.
 
 
 
@@ -229,17 +229,17 @@ No hay búsqueda por umbral ni lógica clásica.
 
 
 
-6. Buscar el umbral correspondiente — OMITIDO
+6. Buscar el umbral correspondiente ï¿½ OMITIDO
 
 
 
-No aplica: no existe umbral numérico a buscar
+No aplica: no existe umbral numï¿½rico a buscar
 
-para exceso de precipitación.
+para exceso de precipitaciï¿½n.
 
 Los indicadores vienen predefinidos de Excel 4.
 
-(El Excel 2 de umbrales / curvas no se usa aquí.)
+(El Excel 2 de umbrales / curvas no se usa aquï¿½.)
 
 
 
@@ -251,7 +251,7 @@ Los indicadores vienen predefinidos de Excel 4.
 
 
 
-Entrar al Excel: Indicadores climáticos
+Entrar al Excel: Indicadores climï¿½ticos
 
 
 
@@ -259,7 +259,7 @@ Para cada indicador definido en Excel 4 (1 o 2):
 
 
 
-• indicador i (umbrales del indicador en mm según Excel 4, p. ej. 1 mm;
+ï¿½ indicador i (umbrales del indicador en mm segï¿½n Excel 4, p. ej. 1 mm;
 
   si hay segundo, p. ej. 20 mm)
 
@@ -269,7 +269,7 @@ Aplicar los filtros:
 
 
 
-1. Variable climática
+1. Variable climï¿½tica
 
 2. Percentil (del Excel en 5b)
 
@@ -279,9 +279,9 @@ Extraer:
 
 
 
-• Valor del escenario Histórico (de cada indicador usado)
+ï¿½ Valor del escenario Histï¿½rico (de cada indicador usado)
 
-• Valores de todos los escenarios futuros (de cada indicador usado)
+ï¿½ Valores de todos los escenarios futuros (de cada indicador usado)
 
 
 
@@ -289,7 +289,7 @@ Criterio espacial:
 
 
 
-• Si existen varios puntos o indicadores candidatos, seleccionar el indicador cuya Lon/Lat esté más cerca del centroide del área donde se localiza el activo analizado.
+ï¿½ Si existen varios puntos o indicadores candidatos, seleccionar el indicador cuya Lon/Lat estï¿½ mï¿½s cerca del centroide del ï¿½rea donde se localiza el activo analizado.
 
 
 
@@ -297,7 +297,7 @@ Criterio espacial:
 
 
 
-8. Calcular el cambio respecto al histórico
+8. Calcular el cambio respecto al histï¿½rico
 
 
 
@@ -305,7 +305,7 @@ Para cada escenario futuro y cada indicador:
 
 
 
-Cambio = Valor del escenario ? Valor Histórico
+Cambio = Valor del escenario ? Valor Histï¿½rico
 
 
 
@@ -313,7 +313,7 @@ Donde:
 
 
 
-• Histórico ? Cambio = 0 (referencia)
+ï¿½ Histï¿½rico ? Cambio = 0 (referencia)
 
 
 
@@ -339,11 +339,11 @@ Mostrar (ejemplo con 2 indicadores; si Excel 4 trae 1, solo el primer par):
 
 | ------------- | -------------- | --------------- | -------------- | --------------- |
 
-| Histórico     | 0              | Referencia      | 0              | Referencia      |
+| Histï¿½rico     | 0              | Referencia      | 0              | Referencia      |
 
-| SSP2-4.5 2040 | Futuro ? Hist. | Mejora / …      | Futuro ? Hist. | Mejora / …      |
+| SSP2-4.5 2040 | Futuro ? Hist. | Mejora / ï¿½      | Futuro ? Hist. | Mejora / ï¿½      |
 
-| SSP5-8.5 2040 | Futuro ? Hist. | Mejora / …      | Futuro ? Hist. | Mejora / …      |
+| SSP5-8.5 2040 | Futuro ? Hist. | Mejora / ï¿½      | Futuro ? Hist. | Mejora / ï¿½      |
 
 | ...           | ...            | ...             | ...            | ...             |
 
@@ -351,7 +351,7 @@ Mostrar (ejemplo con 2 indicadores; si Excel 4 trae 1, solo el primer par):
 
 (Las etiquetas de columna pueden usar el umbral en mm del nombre
 
-del indicador, p. ej. Cambio (1 mm) / Interpretación (20 mm).
+del indicador, p. ej. Cambio (1 mm) / Interpretaciï¿½n (20 mm).
 
 Si hay 1 indicador predefinido ? solo un par de columnas.)
 
@@ -365,15 +365,15 @@ Si hay 1 indicador predefinido ? solo un par de columnas.)
 
 
 
-Para cada indicador, según el cambio ?:
+Para cada indicador, segï¿½n el cambio ?:
 
 
 
-• ? < 0 ? Mejora
+ï¿½ ? < 0 ? Mejora
 
-• ? > 0 ? Empeora
+ï¿½ ? > 0 ? Empeora
 
-• ? = 0 ? Sin cambios
+ï¿½ ? = 0 ? Sin cambios
 
 
 
@@ -381,11 +381,11 @@ Para cada indicador, según el cambio ?:
 
 
 
-11. ¿Quedan modos de fallo por analizar para el mismo activo?
+11. ï¿½Quedan modos de fallo por analizar para el mismo activo?
 
 
 
-Sí
+Sï¿½
 
 
 
@@ -407,11 +407,11 @@ No
 
 
 
-12. ¿Quedan Activos Físicos u Operacionales por analizar?
+12. ï¿½Quedan Activos Fï¿½sicos u Operacionales por analizar?
 
 
 
-Sí
+Sï¿½
 
 
 
@@ -419,7 +419,7 @@ Sí
 
 ? Volver al paso 3
 
-? Extraer el siguiente Activo Físico u Operacional y su Tipo de UO
+? Extraer el siguiente Activo Fï¿½sico u Operacional y su Tipo de UO
 
 ? Continuar desde el paso 4 en adelante
 
