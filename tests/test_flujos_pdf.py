@@ -8,6 +8,7 @@ from core.modelos.flujos import (
     CARPETA_FLUJOS,
     RAIZ_PROYECTO,
     buscar_diagrama_pdf,
+    buscar_diagrama_texto,
 )
 
 
@@ -36,6 +37,21 @@ class TestFlujosPdf(unittest.TestCase):
         self.assertTrue(diagrama.ruta.is_file())
         stem = diagrama.ruta.stem.upper()
         self.assertTrue("UNICO" in stem or "UNICO" in stem.replace("\u00da", "U"))
+
+    def test_pi_precipitacion_resuelve_pdf_propio(self) -> None:
+        diagrama = buscar_diagrama_pdf("PI_PRECIPITACION")
+        self.assertIsNotNone(diagrama)
+        assert diagrama is not None
+        self.assertTrue(diagrama.ruta.is_file())
+        self.assertGreater(diagrama.ruta.stat().st_size, 1000)
+        stem = diagrama.ruta.stem.upper()
+        self.assertIn("PRECIPITACION", stem.replace("Ó", "O").replace("\u00d3", "O"))
+        self.assertNotIn("SUPERACION", stem.replace("Ó", "O").replace("\u00d3", "O"))
+        txt = buscar_diagrama_texto("PI_PRECIPITACION")
+        self.assertIsNotNone(txt)
+        assert txt is not None
+        self.assertTrue(txt.ruta.is_file())
+        self.assertEqual(txt.ruta.suffix.lower(), ".txt")
 
 
 if __name__ == "__main__":

@@ -46,12 +46,10 @@ _ALIASES_FLUJO: dict[str, tuple[str, ...]] = {
         "PI AGITACIÓN",
         "PI_AGITACION",
     ),
-    # Reutiliza el PDF/TXT de PI SUPERACIÓN DE UMBRAL (misma cadena; sin umbral).
+    # Diagrama propio (sin búsqueda de umbral; 2 indicadores predefinidos Excel 4).
     "PI_PRECIPITACION": (
-        "PI SUPERACION DE UMBRAL",
-        "PI SUPERACIÓN DE UMBRAL",
-        "PI EXCESO DE PRECIPITACION",
         "PI EXCESO DE PRECIPITACIÓN",
+        "PI EXCESO DE PRECIPITACION",
         "PI_PRECIPITACION",
     ),
     "PI_CALADO_ELO": (

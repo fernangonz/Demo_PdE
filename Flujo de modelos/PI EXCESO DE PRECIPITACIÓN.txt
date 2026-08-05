@@ -1,0 +1,430 @@
+DIAGRAMA DE FLUJO EXCESO DE PRECIPITACIÓN:
+
+
+INICIO
+
+
+
+?
+
+
+
+1. Cargar archivos de entrada
+
+
+
+• Configuración del puerto
+
+• Relación impactos vs variables climáticas
+
+• Relación umbrales y curvas de daño vs activos
+
+• Indicadores climáticos
+
+• Relacion_modelos_activos_e_indicadores.xlsx (Excel 4)
+
+
+
+?
+
+
+
+2. Configuración del cálculo
+
+
+
+El percentil se resuelve en el paso 5b (por iteración IM).
+
+Selección de indicador: siempre Predefinido (Excel 4);
+
+no hay búsqueda por umbral.
+
+
+
+?
+
+
+
+3. Iteración por Activos (CP)
+
+
+
+Entrar al Excel: Configuración del puerto
+
+
+
+Recorrer cada Activo Físico u Operacional.
+
+
+
+Para cada activo:
+
+
+
+Extraer:
+
+• Activo Físico u Operacional
+
+• Tipo de UO asociado
+
+
+
+?
+
+
+
+4. Buscar impactos asociados al activo
+
+
+
+Entrar al Excel: Relación impactos vs variables climáticas
+
+
+
+Buscar:
+
+
+
+Activo Físico u Operacional = Activo obtenido en la iteración CP
+
+
+
+Extraer:
+
+
+
+• Filas con Modo de fallo «Exceso de precipitación»
+
+• Variable climática Precipitación
+
+• Tipo de impacto ELO
+
+
+
+?
+
+
+
+5. Iteración por Modos de fallo (IM)
+
+
+
+Sobre la tabla filtrada obtenida en el paso 4.
+
+
+
+Recorrer cada fila coincidente.
+
+
+
+Para cada fila:
+
+
+
+Extraer:
+
+• Modo de fallo / Modo de parada
+
+• Variable climática
+
+• Tipo de impacto ELO
+
+
+
+?
+
+
+
+5b. ¿Existe regla en Relacion_modelos_activos_e_indicadores.xlsx?
+
+
+
+Entrar al Excel: Relacion_modelos_activos_e_indicadores.xlsx (Excel 4)
+
+
+
+Buscar una fila explícita que coincida con:
+
+
+
+1. Modelo (PI exceso de precipitación)
+
+2. Activo Físico u Operacional (si está definido en la fila)
+
+3. Modo de fallo / Modo de parada
+
+4. Variable climática (Precipitación)
+
+5. Tipo de impacto ELO (si está definido en la fila)
+
+
+
+Exigido:
+
+• Selección indicador = Predefinido
+
+• No indicadores = 2 (exactamente dos)
+
+
+
+La fila debe tener modo de fallo y variable explícitos (no comodines).
+
+
+
+?
+
+
+
+¿Hay fila válida?
+
+
+
+Sí
+
+
+
+?
+
+
+
+Usar del Excel 4:
+
+• Percentil
+
+• Selección indicador = Predefinido
+
+• Exactamente 2 indicadores climáticos
+
+  (indicador 1 / indicador 2; umbrales del indicador en mm
+
+  según Excel 4, p. ej. 1 mm y 20 mm)
+
+
+
+?
+
+
+
+No (no hay fila válida)
+
+
+
+?
+
+
+
+No se puede calcular.
+
+Exceso de precipitación exige fila explícita en Excel 4 con
+
+Selección = Predefinido y al menos 2 indicadores.
+
+No hay búsqueda por umbral ni lógica clásica.
+
+
+
+?
+
+
+
+6. Buscar el umbral correspondiente — OMITIDO
+
+
+
+No aplica: no existe umbral numérico a buscar
+
+para exceso de precipitación.
+
+Los indicadores vienen predefinidos de Excel 4.
+
+(El Excel 2 de umbrales / curvas no se usa aquí.)
+
+
+
+?
+
+
+
+7. Seleccionar los 2 indicadores predefinidos
+
+
+
+Entrar al Excel: Indicadores climáticos
+
+
+
+Para cada indicador definido en Excel 4:
+
+
+
+• indicador 1 (umbrales del indicador en mm según Excel 4, p. ej. 1 mm)
+
+• indicador 2 (umbrales del indicador en mm según Excel 4, p. ej. 20 mm)
+
+
+
+Aplicar los filtros:
+
+
+
+1. Variable climática
+
+2. Percentil (del Excel en 5b)
+
+
+
+Extraer:
+
+
+
+• Valor del escenario Histórico (ambos indicadores)
+
+• Valores de todos los escenarios futuros (ambos indicadores)
+
+
+
+Criterio espacial:
+
+
+
+• Si existen varios puntos o indicadores candidatos, seleccionar el indicador cuya Lon/Lat esté más cerca del centroide del área donde se localiza el activo analizado.
+
+
+
+?
+
+
+
+8. Calcular el cambio respecto al histórico
+
+
+
+Para cada escenario futuro y cada indicador:
+
+
+
+Cambio = Valor del escenario ? Valor Histórico
+
+
+
+Donde:
+
+
+
+• Histórico ? Cambio = 0 (referencia)
+
+
+
+Se obtienen dos series independientes (indicador 1 e indicador 2).
+
+
+
+?
+
+
+
+9. Generar la tabla de resultados
+
+
+
+Mostrar:
+
+
+
+| Escenario     | Cambio (ind.1) | Interp. (ind.1) | Cambio (ind.2) | Interp. (ind.2) |
+
+| ------------- | -------------- | --------------- | -------------- | --------------- |
+
+| Histórico     | 0              | Referencia      | 0              | Referencia      |
+
+| SSP2-4.5 2040 | Futuro ? Hist. | Mejora / …      | Futuro ? Hist. | Mejora / …      |
+
+| SSP5-8.5 2040 | Futuro ? Hist. | Mejora / …      | Futuro ? Hist. | Mejora / …      |
+
+| ...           | ...            | ...             | ...            | ...             |
+
+
+
+(Las etiquetas de columna pueden usar el umbral en mm del nombre
+
+del indicador, p. ej. Cambio (1 mm) / Interpretación (20 mm).)
+
+
+
+?
+
+
+
+10. Interpretar el resultado (por indicador)
+
+
+
+Para cada indicador, según el cambio ?:
+
+
+
+• ? < 0 ? Mejora
+
+• ? > 0 ? no mejora
+
+• ? = 0 ? Sin cambios
+
+
+
+?
+
+
+
+11. ¿Quedan modos de fallo por analizar para el mismo activo?
+
+
+
+Sí
+
+
+
+? IM = IM + 1
+
+? Volver al paso 5
+
+? Extraer el siguiente Modo de fallo / Modo de parada
+
+? Continuar desde el paso 5b en adelante
+
+
+
+No
+
+
+
+?
+
+
+
+12. ¿Quedan Activos Físicos u Operacionales por analizar?
+
+
+
+Sí
+
+
+
+? CP = CP + 1
+
+? Volver al paso 3
+
+? Extraer el siguiente Activo Físico u Operacional y su Tipo de UO
+
+? Continuar desde el paso 4 en adelante
+
+
+
+No
+
+
+
+?
+
+
+
+FIN

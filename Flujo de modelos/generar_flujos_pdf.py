@@ -1261,6 +1261,303 @@ def build_francobordo(out_path: Path):
     _draw_loops_and_end(pdf, cx, b10, b5, b3, out_path)
 
 
+def build_precipitacion(out_path: Path):
+    """PI Exceso de precipitación: misma cadena que superación, sin umbral;
+    exactamente 2 indicadores predefinidos (Excel 4)."""
+    pdf = FlowPDF(out_path, "DIAGRAMA DE FLUJO ? PI EXCESO DE PRECIPITACIÓN")
+    cx = CX
+    y = PAGE_H - 55
+
+    inicio = pdf.oval(cx, y - 18, 98, 36, "INICIO")
+    y = inicio["bottom"] - 28
+
+    b1 = pdf.process_box(
+        cx,
+        y,
+        302,
+        "1. Carga archivos de entrada",
+        [
+            "##data_modelos",
+            "EXCEL|1_Configuración_del_puerto",
+            "EXCEL|2_Relación_umbrales_y_curvas_de_daño_vs_activos",
+            "EXCEL|3_Indicadores_climáticos",
+            "EXCEL|4_Relación_modelos_activos_e_indicadores",
+            "EXCEL|Relación_impactos_variables_climáticas",
+        ],
+        line_h=14,
+        font_size=11,
+    )
+    connect_vertical(pdf, inicio, b1)
+    y = b1["bottom"] - 28
+
+    b2 = pdf.process_box(
+        cx,
+        y,
+        340,
+        "2. Configuración del cálculo",
+        [
+            "El percentil se resuelve en el paso 5b",
+            "(por iteración IM).",
+            "Selección de indicador: siempre Predefinido",
+            "(Excel 4); no hay búsqueda por umbral.",
+        ],
+        font_size=12,
+        line_h=16,
+    )
+    connect_vertical(pdf, b1, b2)
+    y = b2["bottom"] - 28
+
+    b3 = pdf.process_box(
+        cx,
+        y,
+        324,
+        "3. Iteración por Activos (CP)",
+        [
+            "Entrar al Excel:",
+            "EXCEL|1_Configuración_del_puerto",
+            "Recorrer cada Activo Físico u Operacional.",
+            "Para cada activo, extraer:",
+            "• Activo Físico u Operacional",
+            "• Tipo de UO asociado",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    connect_vertical(pdf, b2, b3)
+    y = b3["bottom"] - 28
+
+    b4 = pdf.process_box(
+        cx,
+        y,
+        360,
+        "4. Buscar impactos asociados al activo",
+        [
+            "Entrar al Excel:",
+            "EXCEL|Relación_impactos_variables_climáticas",
+            "Buscar:",
+            "Activo Físico u Operacional = Activo de la",
+            "iteración CP",
+            "Extraer:",
+            "• Filas con Modo de fallo «Exceso de precipitación»",
+            "• Variable climática Precipitación",
+            "• Tipo de impacto ELO",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    connect_vertical(pdf, b3, b4)
+    y = b4["bottom"] - 28
+
+    b5 = pdf.process_box(
+        cx,
+        y,
+        360,
+        "5. Iteración por Modos de fallo (IM)",
+        [
+            "Sobre la tabla filtrada obtenida en el paso 4.",
+            "Recorrer cada fila coincidente.",
+            "Para cada fila, extraer:",
+            "• Modo de fallo / Modo de parada",
+            "• Variable climática",
+            "• Tipo de impacto ELO",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    connect_vertical(pdf, b4, b5)
+    y = b5["bottom"] - 28
+
+    b5b = pdf.process_box(
+        cx,
+        y,
+        540,
+        "5.b ¿Existe regla en Relacion_modelos_activos_e_indicadores.xlsx?",
+        [
+            "Entrar al Excel:",
+            "EXCEL|4_Relación_modelos_activos_e_indicadores",
+            "Buscar una fila explícita que coincida con:",
+            "1. Modelo (PI exceso de precipitación)",
+            "2. Activo Físico u Operacional (si está definido)",
+            "3. Modo de fallo / Modo de parada",
+            "4. Variable climática (Precipitación)",
+            "5. Tipo de impacto ELO (si está definido)",
+            "Exigido: Selección indicador = Predefinido",
+            "y No indicadores = 2 (exactamente dos).",
+            "La fila debe tener modo de fallo y variable",
+            "explícitos (no comodines).",
+        ],
+        font_size=11,
+        line_h=14,
+        header_h=29,
+    )
+    connect_vertical(pdf, b5, b5b)
+    y = b5b["bottom"] - 40
+
+    d1 = pdf.diamond(cx, y - 34, 220, 70, "¿Fila válida?")
+    pdf.arrow_down(cx, b5b["bottom"] - 2, d1["top"] + 2)
+
+    left_cx = cx - 420
+    right_cx = cx + 400
+    branch_top = d1["bottom"] - 50
+    branch_from_diamond(pdf, d1, left_cx, right_cx, branch_top, "SI", "NO")
+
+    b_si = pdf.process_box(
+        left_cx,
+        branch_top,
+        300,
+        "Usar la configuración del Excel 4",
+        [
+            "• Percentil",
+            "• Selección indicador = Predefinido",
+            "• Exactamente 2 indicadores climáticos",
+            "  (indicador 1 / indicador 2;",
+            "  umbrales del indicador en mm",
+            "  según Excel 4, p. ej. 1 mm y 20 mm)",
+        ],
+        font_size=11,
+        line_h=14,
+    )
+    b_no = pdf.process_box(
+        right_cx,
+        branch_top,
+        300,
+        "No se puede calcular",
+        [
+            "Exceso de precipitación exige fila",
+            "explícita en Excel 4 con",
+            "Selección = Predefinido y al menos",
+            "2 indicadores. No hay búsqueda",
+            "por umbral ni lógica clásica.",
+        ],
+        font_size=11,
+        line_h=14,
+    )
+
+    y6 = b_si["bottom"] - 50
+    b6 = pdf.process_box(
+        cx,
+        y6,
+        500,
+        "6. Buscar el umbral correspondiente — OMITIDO",
+        [
+            "No aplica: no existe umbral numérico a buscar",
+            "para exceso de precipitación.",
+            "Los indicadores vienen predefinidos de Excel 4.",
+            "(El Excel 2 de umbrales / curvas no se usa aquí.)",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    # SI continúa al paso 6 (centro); NO queda como rama muerta
+    mid_y = (b_si["bottom"] + b6["top"]) / 2
+    pdf.polyline([
+        (b_si["cx"], b_si["bottom"]),
+        (b_si["cx"], mid_y),
+        (cx, mid_y),
+        (cx, b6["top"] + 2),
+    ])
+    pdf.label(right_cx, b_no["bottom"] - 18, "(fin / error)", size=10)
+
+    y = b6["bottom"] - 28
+    b7 = pdf.process_box(
+        cx,
+        y,
+        520,
+        "7. Seleccionar los 2 indicadores predefinidos",
+        [
+            "Entrar al Excel:",
+            "EXCEL|3_Indicadores_climáticos",
+            "Para cada indicador definido en Excel 4:",
+            "• indicador 1 (umbrales del indicador en mm según Excel 4,",
+            "  p. ej. 1 mm)",
+            "• indicador 2 (umbrales del indicador en mm según Excel 4,",
+            "  p. ej. 20 mm)",
+            "Filtrar por Variable climática y Percentil (paso 5b).",
+            "Extraer valor Histórico y valores de escenarios futuros",
+            "de ambos indicadores (criterio espacial Lon/Lat si aplica).",
+        ],
+        font_size=11,
+        line_h=14,
+    )
+    connect_vertical(pdf, b6, b7)
+
+    y = b7["bottom"] - 28
+    b8 = pdf.process_box(
+        cx,
+        y,
+        500,
+        "8. Calcular el cambio respecto al histórico",
+        [
+            "Para cada escenario futuro y cada indicador:",
+            "Cambio = Valor del escenario − Valor Histórico",
+            "Donde: Histórico → Cambio = 0 (referencia)",
+            "Se obtienen dos series independientes",
+            "(indicador 1 e indicador 2).",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    connect_vertical(pdf, b7, b8)
+
+    y = b8["bottom"] - 28
+    b9 = pdf.table_box(
+        cx,
+        y,
+        620,
+        "9. Generar la tabla de resultados",
+        [
+            ["Escenario", "Cambio (ind.1)", "Interp. (ind.1)", "Cambio (ind.2)", "Interp. (ind.2)"],
+            ["Histórico", "0", "Referencia", "0", "Referencia"],
+            ["SSP2-4.5 2040", "Fut-Hist", "Mejora/no mejora/…", "Fut-Hist", "Mejora/no mejora/…"],
+            ["SSP5-8.5 2040", "Fut-Hist", "Mejora/no mejora/…", "Fut-Hist", "Mejora/no mejora/…"],
+            ["...", "...", "...", "...", "..."],
+        ],
+        font_size=9,
+        line_h=13,
+    )
+    connect_vertical(pdf, b8, b9)
+
+    y = b9["bottom"] - 28
+    b10 = pdf.process_box(
+        cx,
+        y,
+        500,
+        "10. Interpretar el resultado (por indicador)",
+        [
+            "Para cada indicador, según el cambio Δ:",
+            "• Δ < 0 → Mejora",
+            "• Δ > 0 → no mejora",
+            "• Δ = 0 → Sin cambios",
+            "(Etiquetas de columna pueden usar el umbral en mm",
+            "del nombre del indicador, p. ej. 1 mm / 20 mm.)",
+        ],
+        font_size=12,
+        line_h=15,
+    )
+    connect_vertical(pdf, b9, b10)
+
+    _draw_loops_and_end(pdf, cx, b10, b5, b3, out_path)
+
+
+def _build_pdf_safe(builder, out_path: Path) -> None:
+    """Escribe el PDF; si está bloqueado, usa temp y reemplaza."""
+    try:
+        builder(out_path)
+        return
+    except PermissionError:
+        tmp = out_path.with_name(out_path.stem + "_tmp.pdf")
+        print(f"PDF bloqueado ({out_path.name}). Escribiendo en {tmp.name}…")
+        builder(tmp)
+        try:
+            tmp.replace(out_path)
+            print(f"Reemplazado OK: {out_path}")
+        except PermissionError:
+            print(
+                f"No se pudo reemplazar {out_path.name}. "
+                "Cierre el visor PDF y renombre/mueva el _tmp.pdf."
+            )
+            raise
+
 
 def main():
     folder = Path(r"E:\PDE\DEMO\Flujo de modelos")
@@ -1421,6 +1718,11 @@ def main():
             "• Variación < 0 ? Mejora (disminuyen horas)",
             "• Variación = 0 ? Sin cambios",
         ],
+    )
+
+    _build_pdf_safe(
+        build_precipitacion,
+        folder / "PI EXCESO DE PRECIPITACIÓN.pdf",
     )
 
 
