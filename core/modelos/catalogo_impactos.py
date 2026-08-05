@@ -159,8 +159,8 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         diagrama_modelo_id=MOTOR_PI_PRECIPITACION,
         descripcion=(
             "Cadena procedural como PI superación de umbral, sin búsqueda de umbral: "
-            "dos indicadores predefinidos desde Excel 4; incremento futuro − histórico "
-            "por indicador (Análisis INCREMENTA / NO)."
+            "dos indicadores predefinidos desde Excel 4; cambio futuro − histórico "
+            "por indicador (Interpretaci\u00f3n Mejora / no mejora / Sin cambios)."
         ),
         notas_inputs=(
             "Automático: Excel 4 (Selección indicador = Predefinido, ≥ 2 indicadores) "

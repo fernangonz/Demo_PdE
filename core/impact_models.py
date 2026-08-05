@@ -105,19 +105,17 @@ PLANTILLA_FILAS_RESUMEN = [
 COL_CAMBIO = "Cambio respecto al historico"
 COL_INTERP = "Interpretación"
 
-# Columnas del resultado PI precipitación (un par por cada indicador predefinido).
-COL_PRECIP_INC_1 = "Incremento ind. 1"
-COL_PRECIP_AN_1 = "Análisis ind. 1"
-COL_PRECIP_INC_2 = "Incremento ind. 2"
-COL_PRECIP_AN_2 = "Análisis ind. 2"
-COLS_PRECIP_RESULTADO = (
-    COL_PRECIP_INC_1,
-    COL_PRECIP_AN_1,
-    COL_PRECIP_INC_2,
-    COL_PRECIP_AN_2,
-)
+# Prefijos de columnas PI precipitación (umbral mm en paréntesis; dinámicos).
+PREF_PRECIP_CAMBIO = "Cambio respecto al histórico ("
+PREF_PRECIP_INTERP = "Interpretación ("
 SUBCOLS_MODO_ESTANDAR = (COL_CAMBIO, COL_INTERP)
-SUBCOLS_MODO_PRECIP = COLS_PRECIP_RESULTADO
+# Fallback estático (1 mm / 20 mm típicos de Excel 4); el resumen usa columnas reales.
+SUBCOLS_MODO_PRECIP = (
+    "Cambio respecto al histórico (1 mm)",
+    "Interpretación (1 mm)",
+    "Cambio respecto al histórico (20 mm)",
+    "Interpretación (20 mm)",
+)
 
 
 @dataclass
@@ -201,9 +199,29 @@ def _es_tabla_calado(tabla: pd.DataFrame) -> bool:
 
 
 def _es_tabla_precipitacion(tabla: pd.DataFrame) -> bool:
-    """True si hay incremento para ind. 1 e ind. 2 (formato precip, no sumado)."""
-    cols = {str(c) for c in tabla.columns}
-    return COL_PRECIP_INC_1 in cols and COL_PRECIP_INC_2 in cols
+    """True si hay >=2 columnas Cambio respecto al historico (umbral mm)."""
+    n_cambio = sum(
+        1
+        for c in tabla.columns
+        if str(c).startswith(PREF_PRECIP_CAMBIO)
+        or str(c).startswith("Cambio respecto al historico (")
+    )
+    return n_cambio >= 2
+
+
+def _subcols_precip_desde_tabla(tabla: pd.DataFrame) -> tuple[str, ...]:
+    """Orden del DF: pares Cambio/Interpretacion por indicador."""
+    out: list[str] = []
+    for c in tabla.columns:
+        s = str(c)
+        if (
+            s.startswith(PREF_PRECIP_CAMBIO)
+            or s.startswith("Cambio respecto al historico (")
+            or s.startswith(PREF_PRECIP_INTERP)
+            or s.startswith("Interpretacion (")
+        ):
+            out.append(s)
+    return tuple(out) if len(out) >= 4 else SUBCOLS_MODO_PRECIP
 
 
 def _col_por_nombre(tabla: pd.DataFrame, nombre: str) -> str | None:
@@ -214,6 +232,11 @@ def _col_por_nombre(tabla: pd.DataFrame, nombre: str) -> str | None:
         if str(c).lower().replace("á", "a") == objetivo:
             return str(c)
     return None
+
+
+def _es_col_cambio_precip(nombre: str) -> bool:
+    s = str(nombre)
+    return s.startswith(PREF_PRECIP_CAMBIO) or s.startswith("Cambio respecto al historico (")
 
 
 def _indexar_variaciones_por_modo(
@@ -241,10 +264,7 @@ def _indexar_variaciones_por_modo(
                 }
             continue
         if _es_tabla_precipitacion(r.tabla_resultado):
-            c_i1 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_INC_1) or COL_PRECIP_INC_1
-            c_a1 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_AN_1) or COL_PRECIP_AN_1
-            c_i2 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_INC_2) or COL_PRECIP_INC_2
-            c_a2 = _col_por_nombre(r.tabla_resultado, COL_PRECIP_AN_2) or COL_PRECIP_AN_2
+            subcols = _subcols_precip_desde_tabla(r.tabla_resultado)
             for _, row in r.tabla_resultado.iterrows():
                 esc, _horizonte, anio, _orden = _parse_etiqueta_escenario(
                     str(row.get("Escenario", "")),
@@ -252,12 +272,9 @@ def _indexar_variaciones_por_modo(
                 )
                 if esc == "Histórico" or anio is None:
                     continue
-                # 4 columnas independientes (nunca sumar ind.1 + ind.2).
+                # 4 columnas independientes (nunca sumar indicadores).
                 indice[(r.modo_fallo, esc, anio)] = {
-                    COL_PRECIP_INC_1: row.get(c_i1),
-                    COL_PRECIP_AN_1: row.get(c_a1, ""),
-                    COL_PRECIP_INC_2: row.get(c_i2),
-                    COL_PRECIP_AN_2: row.get(c_a2, ""),
+                    col: row.get(col) for col in subcols
                 }
             continue
         for _, row in r.tabla_resultado.iterrows():
@@ -355,11 +372,11 @@ def construir_tabla_resumen_activo(
     if not modos:
         modos = list(MODOS_FALLO_PLANTILLA)
 
-    # Subcolumnas: precipitación usa 4 (Incremento/Análisis × 2 indicadores).
+    # Subcolumnas: precipitacion usa 4 (Cambio/Interpretacion x 2 indicadores).
     subcols_por_modo: dict[str, tuple[str, ...]] = {}
     for it in iteraciones:
         if _es_tabla_precipitacion(it.tabla_resultado):
-            subcols_por_modo[it.modo_fallo] = SUBCOLS_MODO_PRECIP
+            subcols_por_modo[it.modo_fallo] = _subcols_precip_desde_tabla(it.tabla_resultado)
         else:
             subcols_por_modo.setdefault(it.modo_fallo, SUBCOLS_MODO_ESTANDAR)
 
@@ -376,16 +393,19 @@ def construir_tabla_resumen_activo(
             datos = indice.get((modo, esc_datos, anio), {})
             es_calado = "Calado" in modo
             celdas: dict[str, str] = {}
-            if subcols == SUBCOLS_MODO_PRECIP:
+            if any(_es_col_cambio_precip(s) for s in subcols):
                 for sub in subcols:
                     val = datos.get(sub, "")
-                    if sub.startswith("Incremento") and val != "" and val is not None:
+                    if _es_col_cambio_precip(sub) and val != "" and val is not None:
                         try:
                             celdas[sub] = str(int(val))
                         except (TypeError, ValueError):
                             celdas[sub] = str(val)
                     else:
-                        celdas[sub] = "" if val is None else str(val)
+                        txt = "" if val is None else str(val)
+                        if txt.lower() in ("referencia",):
+                            txt = ""
+                        celdas[sub] = txt
             else:
                 cambio_txt, interp_txt = _valor_celda_resumen(
                     es_historico=False,

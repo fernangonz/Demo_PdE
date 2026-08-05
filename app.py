@@ -1724,11 +1724,13 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
             "Umbral": st.column_config.NumberColumn("Umbral", format="%.3f"),
             "Interpretación": st.column_config.TextColumn("Interpretación", width="medium"),
         }
-    elif (
-        "Incremento ind. 1" in tabla.columns
-        and "Incremento ind. 2" in tabla.columns
-    ):
-        # Dos indicadores predefinidos: 4 columnas (nunca sumar ind.1 + ind.2).
+    elif sum(
+        1
+        for c in tabla.columns
+        if str(c).startswith("Cambio respecto al histórico (")
+        or str(c).startswith("Cambio respecto al historico (")
+    ) >= 2:
+        # Dos indicadores predefinidos: 4 columnas (nunca sumar).
         partes = [
             p.strip()
             for p in str(getattr(r, "indicador_seleccionado", "") or "").split("|")
@@ -1738,36 +1740,30 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
         etq2 = partes[1] if len(partes) > 1 else "indicador 2"
         st.caption(
             "Sin umbral. **Dos indicadores predefinidos** (Excel 4); "
-            "cada uno tiene su propio incremento (futuro − histórico). "
-            f"**Ind. 1:** {etq1}. **Ind. 2:** {etq2}."
+            "cada uno tiene su propio cambio (futuro − histórico). "
+            f"**Ind. 1:** {etq1}. **Ind. 2:** {etq2}. "
+            + regla_variacion_cierre(variable="Precipitación")
         )
-        # Resolver nombres reales en el DF (acentos).
-        def _pick(*nombres: str) -> str | None:
-            for n in nombres:
-                if n in tabla.columns:
-                    return n
-            objetivo = nombres[0].lower().replace("á", "a")
-            for c in tabla.columns:
-                if str(c).lower().replace("á", "a") == objetivo:
-                    return str(c)
-            return None
-
-        c_i1 = _pick("Incremento ind. 1")
-        c_a1 = _pick("Análisis ind. 1", "Analisis ind. 1")
-        c_i2 = _pick("Incremento ind. 2")
-        c_a2 = _pick("Análisis ind. 2", "Analisis ind. 2")
-        cols_tabla = [c for c in ("Escenario", c_i1, c_a1, c_i2, c_a2) if c]
+        cols_precip = [
+            str(c)
+            for c in tabla.columns
+            if str(c) == "Escenario"
+            or str(c).startswith("Cambio respecto al histórico (")
+            or str(c).startswith("Cambio respecto al historico (")
+            or str(c).startswith("Interpretación (")
+            or str(c).startswith("Interpretacion (")
+        ]
+        cols_tabla = cols_precip
         cfg = {
             "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
         }
-        if c_i1:
-            cfg[c_i1] = st.column_config.NumberColumn("Incremento ind. 1", format="%d")
-        if c_a1:
-            cfg[c_a1] = st.column_config.TextColumn("Análisis ind. 1", width="small")
-        if c_i2:
-            cfg[c_i2] = st.column_config.NumberColumn("Incremento ind. 2", format="%d")
-        if c_a2:
-            cfg[c_a2] = st.column_config.TextColumn("Análisis ind. 2", width="small")
+        for c in cols_precip:
+            if c == "Escenario":
+                continue
+            if str(c).startswith("Cambio"):
+                cfg[c] = st.column_config.NumberColumn(c, format="%d")
+            else:
+                cfg[c] = st.column_config.TextColumn(c, width="small")
     else:
         st.caption(
             "Indicador = valor físico del Excel. "
@@ -2246,13 +2242,20 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                                         "Umbral", "Interpretación",
                                     ]
                                     prefijo = f"{cp_clave}_calado_im_{im_num}"
-                                elif "Incremento ind. 1" in it.tabla_resultado.columns:
+                                elif sum(
+                                    1
+                                    for c in it.tabla_resultado.columns
+                                    if str(c).startswith("Cambio respecto al histórico (")
+                                    or str(c).startswith("Cambio respecto al historico (")
+                                ) >= 2:
                                     cols_dl = [
-                                        "Escenario",
-                                        "Incremento ind. 1",
-                                        "Análisis ind. 1",
-                                        "Incremento ind. 2",
-                                        "Análisis ind. 2",
+                                        str(c)
+                                        for c in it.tabla_resultado.columns
+                                        if str(c) == "Escenario"
+                                        or str(c).startswith("Cambio respecto al histórico (")
+                                        or str(c).startswith("Cambio respecto al historico (")
+                                        or str(c).startswith("Interpretación (")
+                                        or str(c).startswith("Interpretacion (")
                                     ]
                                     prefijo = f"{cp_clave}_precip_im_{im_num}"
                                 else:

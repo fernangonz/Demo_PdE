@@ -282,8 +282,9 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     tipo_impacto="ELO",
     ecuacion=r"\Delta_i = I_{i,\mathrm{esc}} - I_{i,\mathrm{hist}}",
     ecuacion_umbral=(
-        r"\Delta_i > 0 \Rightarrow \mathrm{INCREMENTA};\quad "
-        r"\Delta_i \le 0 \Rightarrow \mathrm{NO}"
+        r"\Delta_i > 0 \Rightarrow \mathrm{no\ mejora};\quad "
+        r"\Delta_i < 0 \Rightarrow \mathrm{Mejora};\quad "
+        r"\Delta_i = 0 \Rightarrow \mathrm{Sin\ cambios}"
     ),
     inputs=(
         CampoFicha(
@@ -303,20 +304,18 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     ),
     outputs=(
         CampoFicha(
-            nombre="Incremento ind. 1 / Análisis ind. 1",
-            simbolo=r"\Delta_1",
+            nombre="Cambio respecto al histórico (umbral mm) / Interpretación",
+            simbolo=r"\Delta_1, \Delta_2",
             unidad="d/ano",
-            descripcion="Futuro − histórico; INCREMENTA si Δ>0, si no NO",
-        ),
-        CampoFicha(
-            nombre="Incremento ind. 2 / Análisis ind. 2",
-            simbolo=r"\Delta_2",
-            unidad="d/ano",
-            descripcion="Futuro − histórico; INCREMENTA si Δ>0, si no NO",
+            descripcion=(
+                "Futuro − histórico por indicador; cabeceras con umbral "
+                "(p. ej. 1 mm, 20 mm); Mejora / no mejora / Sin cambios"
+            ),
         ),
     ),
     regla_interpretacion=(
-        "Por cada indicador: Δ > 0 → INCREMENTA; Δ ≤ 0 → NO."
+        "Por cada indicador (misma polaridad que PI agitacion): "
+        "\u0394 > 0 \u2192 no mejora; \u0394 < 0 \u2192 Mejora; \u0394 = 0 \u2192 Sin cambios."
     ),
     notas="Sin umbral. Dos indicadores predefinidos desde Excel 4.",
 )

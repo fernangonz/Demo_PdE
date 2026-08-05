@@ -14,13 +14,15 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
     indicador_coincide_nombre,
 )
 from core.modelos.impacto.pi_precipitacion.schemas import (
-    ANALISIS_INCREMENTA,
-    ANALISIS_NO,
-    COL_ANALISIS_1,
-    COL_ANALISIS_2,
-    COL_INCREMENTO_1,
-    COL_INCREMENTO_2,
+    INTERP_MEJORA,
+    INTERP_NO_MEJORA,
+    INTERP_REFERENCIA,
+    INTERP_SIN_CAMBIOS,
     NUM_INDICADORES_REQUERIDOS,
+    PREF_CAMBIO,
+    PREF_INTERP,
+    columnas_pares_indicadores,
+    umbral_mm_desde_indicador,
 )
 from core.relacion_modelos import IndicadorRelacion, ReglaModeloActivo
 
@@ -30,10 +32,7 @@ def es_modo_exceso_precipitacion(
     variable: object,
     tipo_impacto: object | None = None,
 ) -> bool:
-    """ELO + Exceso de precipitacion / Precipitacion (sin umbral; 2 indicadores).
-
-    Matching robusto via ``_normalizar`` (acentos, mayusculas, espacios).
-    """
+    """ELO + Exceso de precipitacion / Precipitacion (sin umbral; 2 indicadores)."""
     if tipo_impacto is not None and str(tipo_impacto).strip() != "":
         if not es_tipo_impacto_pi_operacional(tipo_impacto):
             return False
@@ -69,7 +68,7 @@ def resolver_pestana_clima_precipitacion(
     variable: str,
     pestana: str = "",
 ) -> tuple[pd.DataFrame, str]:
-    """Localiza la hoja climatica de precipitacion (con/sin acento)."""
+    """Localiza la hoja climatica de precipitacion."""
     por_variable = info_clima.get("por_variable", {}) or {}
     candidatos = [
         p for p in (pestana, variable, "Precipitacion", "Precipitaci\u00f3n") if p
@@ -151,14 +150,31 @@ def buscar_fila_indicador_predefinido(
     return candidato, estados
 
 
-def analisis_incremento(delta: float | int | None) -> str:
-    """INCREMENTA si el delta futuro-historico es > 0; si no, NO."""
+def interpretar_delta_precip(
+    delta: float | int | None,
+    *,
+    es_historico: bool = False,
+) -> str:
+    """Polaridad como PI agitacion (>0 adverso), etiquetas Mejora / no mejora.
+
+    - historico -> Referencia
+    - delta > 0 (mas dias) -> no mejora
+    - delta < 0 (menos dias) -> Mejora
+    - delta == 0 -> Sin cambios
+    """
+    if es_historico:
+        return INTERP_REFERENCIA
     if delta is None or (isinstance(delta, float) and pd.isna(delta)):
-        return ANALISIS_NO
+        return "\u2014"
     try:
-        return ANALISIS_INCREMENTA if float(delta) > 0 else ANALISIS_NO
+        cambio = float(delta)
     except (TypeError, ValueError):
-        return ANALISIS_NO
+        return "\u2014"
+    if cambio > 0:
+        return INTERP_NO_MEJORA
+    if cambio < 0:
+        return INTERP_MEJORA
+    return INTERP_SIN_CAMBIOS
 
 
 def _valor_indicador(fila: pd.Series, columna: str) -> int | None:
@@ -168,22 +184,36 @@ def _valor_indicador(fila: pd.Series, columna: str) -> int | None:
     return int(round(raw))
 
 
+def _nombre_indicador_fila(fila: pd.Series, fallback: str = "") -> str:
+    raw = str(fila.get("Indicador", "") or "").strip()
+    if raw and raw.lower() != "nan":
+        return raw
+    return fallback
+
+
 def tabla_resultado_dos_indicadores(
     fila_ind_1: pd.Series,
     fila_ind_2: pd.Series,
     col_hist: ColumnaEscenario,
     columnas_fut: list[ColumnaEscenario],
+    *,
+    nombre_ind_1: str = "",
+    nombre_ind_2: str = "",
 ) -> pd.DataFrame:
-    """Tabla por escenario: incremento y analisis para cada uno de los 2 indicadores."""
+    """Tabla por escenario: Cambio + Interpretacion independientes para cada indicador."""
+    nom_1 = (nombre_ind_1 or "").strip() or _nombre_indicador_fila(fila_ind_1, "indicador 1")
+    nom_2 = (nombre_ind_2 or "").strip() or _nombre_indicador_fila(fila_ind_2, "indicador 2")
+    c_c1, c_i1, c_c2, c_i2 = columnas_pares_indicadores(nom_1, nom_2)
+
     hist_1 = _valor_indicador(fila_ind_1, col_hist.columna)
     hist_2 = _valor_indicador(fila_ind_2, col_hist.columna)
 
     filas: list[dict] = [{
         "Escenario": "Hist\u00f3rico",
-        COL_INCREMENTO_1: 0,
-        COL_ANALISIS_1: ANALISIS_NO,
-        COL_INCREMENTO_2: 0,
-        COL_ANALISIS_2: ANALISIS_NO,
+        c_c1: 0,
+        c_i1: interpretar_delta_precip(0, es_historico=True),
+        c_c2: 0,
+        c_i2: interpretar_delta_precip(0, es_historico=True),
     }]
     for col in columnas_fut:
         val_1 = _valor_indicador(fila_ind_1, col.columna)
@@ -192,20 +222,23 @@ def tabla_resultado_dos_indicadores(
         delta_2 = (val_2 - hist_2) if val_2 is not None and hist_2 is not None else None
         filas.append({
             "Escenario": etiqueta_escenario(col.escenario, col.anio),
-            COL_INCREMENTO_1: delta_1,
-            COL_ANALISIS_1: analisis_incremento(delta_1),
-            COL_INCREMENTO_2: delta_2,
-            COL_ANALISIS_2: analisis_incremento(delta_2),
+            c_c1: delta_1,
+            c_i1: interpretar_delta_precip(delta_1),
+            c_c2: delta_2,
+            c_i2: interpretar_delta_precip(delta_2),
         })
     return pd.DataFrame(filas)
 
 
 __all__ = [
-    "analisis_incremento",
+    "PREF_CAMBIO",
+    "PREF_INTERP",
     "buscar_fila_indicador_predefinido",
     "es_modo_exceso_precipitacion",
     "indicadores_predefinidos_precipitacion",
+    "interpretar_delta_precip",
     "modos_exceso_precipitacion",
     "resolver_pestana_clima_precipitacion",
     "tabla_resultado_dos_indicadores",
+    "umbral_mm_desde_indicador",
 ]
