@@ -29,7 +29,12 @@ if errorlevel 1 (
 )
 
 echo [3/4] Subiendo a GitHub...
-git push
+git rev-parse --abbrev-ref "@{upstream}" >nul 2>nul
+if errorlevel 1 (
+  git push -u origin HEAD
+) else (
+  git push
+)
 if errorlevel 1 (
   echo [ERROR] No se pudo hacer push. Revisa credenciales o conexion.
   pause
