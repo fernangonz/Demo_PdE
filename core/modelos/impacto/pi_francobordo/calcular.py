@@ -242,7 +242,7 @@ def calcular(
         )
         if col_hist is None or not columnas_fut:
             return ResultadoPIFrancobordo.error(
-                f"No se encontraron columnas climaticas para {pestana_clima}."
+                f"No se encontraron columnas clim\u00e1ticas para {pestana_clima}."
             )
 
         fila_ind, estados = clasificar_indicadores_francobordo(

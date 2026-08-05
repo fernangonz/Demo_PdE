@@ -105,19 +105,19 @@ PLANTILLA_FILAS_RESUMEN = [
 COL_CAMBIO = "Cambio respecto al hist\u00f3rico"
 COL_INTERP = "Interpretaci\u00f3n"
 
-# Prefijos de columnas PI precipitación (umbral mm en paréntesis; dinámicos).
-PREF_PRECIP_CAMBIO = "Cambio respecto al histórico ("
-PREF_PRECIP_INTERP = "Interpretación ("
-# Un solo indicador: mismos nombres que el modo estándar (sin sufijo).
-COL_PRECIP_CAMBIO_BARE = "Cambio respecto al histórico"
-COL_PRECIP_INTERP_BARE = "Interpretación"
+# Prefijos de columnas PI precipitaci\u00f3n (umbral mm en par\u00e9ntesis; din\u00e1micos).
+PREF_PRECIP_CAMBIO = "Cambio respecto al hist\u00f3rico ("
+PREF_PRECIP_INTERP = "Interpretaci\u00f3n ("
+# Un solo indicador: mismos nombres que el modo est\u00e1ndar (sin sufijo).
+COL_PRECIP_CAMBIO_BARE = COL_CAMBIO
+COL_PRECIP_INTERP_BARE = COL_INTERP
 SUBCOLS_MODO_ESTANDAR = (COL_CAMBIO, COL_INTERP)
-# Fallback estático (1 mm / 20 mm típicos de Excel 4 con 2 indicadores).
+# Fallback est\u00e1tico (1 mm / 20 mm t\u00edpicos de Excel 4 con 2 indicadores).
 SUBCOLS_MODO_PRECIP = (
-    "Cambio respecto al histórico (1 mm)",
-    "Interpretación (1 mm)",
-    "Cambio respecto al histórico (20 mm)",
-    "Interpretación (20 mm)",
+    "Cambio respecto al hist\u00f3rico (1 mm)",
+    "Interpretaci\u00f3n (1 mm)",
+    "Cambio respecto al hist\u00f3rico (20 mm)",
+    "Interpretaci\u00f3n (20 mm)",
 )
 SUBCOLS_MODO_PRECIP_UNO = (COL_PRECIP_CAMBIO_BARE, COL_PRECIP_INTERP_BARE)
 

@@ -203,13 +203,13 @@ FICHA_PI_AGITACION = FichaModelo(
     ),
     outputs=(
         CampoFicha(
-            nombre="Cambio respecto al historico",
+            nombre="Cambio respecto al hist\u00f3rico",
             simbolo=r"\Delta",
             unidad="h/ano o d/ano",
-            descripcion="I_escenario - I_historico",
+            descripcion="I_escenario - I_hist\u00f3rico",
         ),
         CampoFicha(
-            nombre="Interpretacion",
+            nombre="Interpretaci\u00f3n",
             simbolo="",
             unidad="",
             descripcion="Empeora / Mejora / Sin cambios",
@@ -257,13 +257,13 @@ FICHA_PI_FRANCOBORDO = FichaModelo(
     ),
     outputs=(
         CampoFicha(
-            nombre="Cambio respecto al historico",
+            nombre="Cambio respecto al hist\u00f3rico",
             simbolo=r"\Delta",
             unidad="d/ano",
-            descripcion="I_escenario - I_historico",
+            descripcion="I_escenario - I_hist\u00f3rico",
         ),
         CampoFicha(
-            nombre="Interpretacion",
+            nombre="Interpretaci\u00f3n",
             simbolo="",
             unidad="",
             descripcion="Empeora / Mejora / Sin cambios",
@@ -304,18 +304,21 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     ),
     outputs=(
         CampoFicha(
-            nombre="Cambio respecto al histórico (umbral mm) / Interpretación",
+            nombre=(
+                "Cambio respecto al hist\u00f3rico / Interpretaci\u00f3n "
+                "(con umbral mm si hay 2 indicadores)"
+            ),
             simbolo=r"\Delta_i",
             unidad="d/ano",
             descripcion=(
-                "Futuro − histórico por indicador; cabeceras con umbral "
-                "(p. ej. 1 mm, 20 mm); un par de columnas por indicador; "
+                "Futuro \u2212 hist\u00f3rico por indicador; con 1 indicador "
+                "cabeceras sin sufijo; con 2, umbral mm (p. ej. 1 mm, 20 mm); "
                 "Mejora / no mejora / Sin cambios"
             ),
         ),
     ),
     regla_interpretacion=(
-        "Por cada indicador (misma polaridad que PI agitacion): "
+        "Por cada indicador (misma polaridad que PI agitaci\u00f3n): "
         "\u0394 > 0 \u2192 no mejora; \u0394 < 0 \u2192 Mejora; \u0394 = 0 \u2192 Sin cambios."
     ),
     notas="Sin umbral. Excel 4 define 1 o 2 indicadores predefinidos.",

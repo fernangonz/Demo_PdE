@@ -444,10 +444,10 @@ def diagnosticar_busqueda_regla(
         return (
             f"Fila {fila_excel} SI puntua ({mejor_puntos}) para "
             f"Activo={activo!r} Modo={modo_fallo!r} Variable={variable!r}: "
-            f"Modelo={modelo_v!r}, Seleccion={sel_v!r}, "
+            f"Modelo={modelo_v!r}, Selecci\u00f3n={sel_v!r}, "
             f"No indicadores={num}, Indicadores parseados=[{ind_txt}], "
-            f"Indicador climatico celda={ind_v!r}. "
-            "Si aun asi falla, recargue Excel 4 / limpie cache de Streamlit."
+            f"Indicador clim\u00e1tico celda={ind_v!r}. "
+            "Si a\u00fan as\u00ed falla, recargue Excel 4 / limpie cach\u00e9 de Streamlit."
         )
 
     candidatos_modo_var: list[int] = []

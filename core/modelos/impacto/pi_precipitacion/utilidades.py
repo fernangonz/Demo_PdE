@@ -250,11 +250,11 @@ def interpretar_delta_precip(
     *,
     es_historico: bool = False,
 ) -> str:
-    """Polaridad como PI agitacion (>0 adverso), etiquetas Mejora / no mejora.
+    """Polaridad como PI agitaci\u00f3n (>0 adverso), etiquetas Mejora / no mejora.
 
-    - historico -> Referencia
-    - delta > 0 (mas dias) -> no mejora
-    - delta < 0 (menos dias) -> Mejora
+    - hist\u00f3rico -> Referencia
+    - delta > 0 (m\u00e1s d\u00edas) -> no mejora
+    - delta < 0 (menos d\u00edas) -> Mejora
     - delta == 0 -> Sin cambios
     """
     if es_historico:

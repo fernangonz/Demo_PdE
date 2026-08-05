@@ -1731,36 +1731,15 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
             "Umbral": st.column_config.NumberColumn("Umbral", format="%.3f"),
             "Interpretación": st.column_config.TextColumn("Interpretación", width="medium"),
         }
-    elif sum(
-        1
-        for c in tabla.columns
-        if str(c).startswith("Cambio respecto al histórico (")
-        or str(c).startswith("Cambio respecto al historico (")
-    ) >= 1 or (
-        # Un indicador precip: columnas bare sin columna Indicador.
-        "Indicador" not in tabla.columns
-        and any(
-            str(c) in ("Cambio respecto al histórico", "Cambio respecto al historico")
-            for c in tabla.columns
-        )
-        and any(
-            str(c) in ("Interpretación", "Interpretacion")
-            for c in tabla.columns
-        )
-    ):
+    elif _es_tabla_precipitacion(tabla):
         # 1 o 2 indicadores predefinidos: 2 o 4 columnas (nunca sumar).
         partes = [
             p.strip()
             for p in str(getattr(r, "indicador_seleccionado", "") or "").split("|")
             if p.strip()
         ]
-        n_paren = sum(
-            1
-            for c in tabla.columns
-            if str(c).startswith("Cambio respecto al histórico (")
-            or str(c).startswith("Cambio respecto al historico (")
-        )
-        n_inds = max(1, len(partes)) if partes else max(1, n_paren)
+        n_cambio = sum(1 for c in tabla.columns if _es_col_cambio_precip(c))
+        n_inds = max(1, len(partes)) if partes else max(1, n_cambio)
         if n_inds == 1:
             etq = partes[0] if partes else "indicador 1"
             st.caption(
@@ -1782,16 +1761,8 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
             str(c)
             for c in tabla.columns
             if str(c) == "Escenario"
-            or str(c).startswith("Cambio respecto al histórico (")
-            or str(c).startswith("Cambio respecto al historico (")
-            or str(c).startswith("Interpretación (")
-            or str(c).startswith("Interpretacion (")
-            or str(c) in (
-                "Cambio respecto al histórico",
-                "Cambio respecto al historico",
-                "Interpretación",
-                "Interpretacion",
-            )
+            or _es_col_cambio_precip(c)
+            or _es_col_interp_precip(c)
         ]
         cols_tabla = cols_precip
         cfg = {
@@ -1800,7 +1771,7 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
         for c in cols_precip:
             if c == "Escenario":
                 continue
-            if str(c).startswith("Cambio"):
+            if _es_col_cambio_precip(c):
                 cfg[c] = st.column_config.NumberColumn(c, format="%d")
             else:
                 cfg[c] = st.column_config.TextColumn(c, width="small")
@@ -2284,35 +2255,13 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                                         "Umbral", "Interpretación",
                                     ]
                                     prefijo = f"{cp_clave}_calado_im_{im_num}"
-                                elif sum(
-                                    1
-                                    for c in it.tabla_resultado.columns
-                                    if str(c).startswith("Cambio respecto al histórico (")
-                                    or str(c).startswith("Cambio respecto al historico (")
-                                ) >= 1 or (
-                                    "Indicador" not in it.tabla_resultado.columns
-                                    and any(
-                                        str(c) in (
-                                            "Cambio respecto al histórico",
-                                            "Cambio respecto al historico",
-                                        )
-                                        for c in it.tabla_resultado.columns
-                                    )
-                                ):
+                                elif _es_tabla_precipitacion(it.tabla_resultado):
                                     cols_dl = [
                                         str(c)
                                         for c in it.tabla_resultado.columns
                                         if str(c) == "Escenario"
-                                        or str(c).startswith("Cambio respecto al histórico (")
-                                        or str(c).startswith("Cambio respecto al historico (")
-                                        or str(c).startswith("Interpretación (")
-                                        or str(c).startswith("Interpretacion (")
-                                        or str(c) in (
-                                            "Cambio respecto al histórico",
-                                            "Cambio respecto al historico",
-                                            "Interpretación",
-                                            "Interpretacion",
-                                        )
+                                        or _es_col_cambio_precip(c)
+                                        or _es_col_interp_precip(c)
                                     ]
                                     prefijo = f"{cp_clave}_precip_im_{im_num}"
                                 else:

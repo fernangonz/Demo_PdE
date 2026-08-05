@@ -42,8 +42,8 @@ def construir_pasos_precipitacion(
             filas=[{"Modos de fallo / Modos de parada": modo_fallo}],
         )],
         procedimiento=(
-            "Exceso de precipitacion: mismos pasos que PI superacion de umbral, "
-            "sin busqueda de umbral; indicadores predefinidos (Excel 4)."
+            "Exceso de precipitaci\u00f3n: mismos pasos que PI superaci\u00f3n de umbral, "
+            "sin b\u00fasqueda de umbral; indicadores predefinidos (Excel 4)."
         ),
     ))
 
@@ -57,7 +57,7 @@ def construir_pasos_precipitacion(
             ),
         },
         {"Campo": "Percentil", "Valor": percentil.upper()},
-        {"Campo": "Seleccion indicador", "Valor": "Predefinido"},
+        {"Campo": "Selecci\u00f3n indicador", "Valor": "Predefinido"},
         {"Campo": "No indicadores", "Valor": len(indicadores)},
         {"Campo": "Umbral", "Valor": "No aplica (omitido)"},
     ]
@@ -109,7 +109,7 @@ def construir_pasos_precipitacion(
             columnas=["Campo", "Valor"],
             filas=[{
                 "Campo": "Umbral",
-                "Valor": "Omitido: no existe umbral a buscar para precipitacion.",
+                "Valor": "Omitido: no existe umbral a buscar para precipitaci\u00f3n.",
             }],
         )],
         procedimiento="Paso 6/7 por umbral omitido; se usan indicadores predefinidos.",
@@ -122,15 +122,15 @@ def construir_pasos_precipitacion(
             "N": i,
             "Indicador": ind.indicador,
             "Etiqueta": ind.etiqueta or ind.indicador,
-            "Pestana clima": pest or pestana_clima,
+            "Pesta\u00f1a clima": pest or pestana_clima,
         })
     pasos.append(PasoResultado(
         numero=7,
         nombre="Seleccionar indicadores predefinidos",
-        excel=f"Indicadores climaticos / hoja {pestana_clima}",
+        excel=f"Indicadores clim\u00e1ticos / hoja {pestana_clima}",
         tablas=[TablaPaso(
             titulo="Output",
-            columnas=["N", "Indicador", "Etiqueta", "Pestana clima"],
+            columnas=["N", "Indicador", "Etiqueta", "Pesta\u00f1a clima"],
             filas=filas_sel,
         )],
         procedimiento=(
@@ -156,20 +156,23 @@ def construir_pasos_precipitacion(
     n_inds = len(indicadores)
     pasos.append(PasoResultado(
         numero=8,
-        nombre=f"Cambio futuro vs historico ({n_inds} indicador{'es' if n_inds != 1 else ''})",
-        excel=f"Indicadores climaticos / hoja {pestana_clima}",
+        nombre=(
+            f"Cambio futuro vs hist\u00f3rico "
+            f"({n_inds} indicador{'es' if n_inds != 1 else ''})"
+        ),
+        excel=f"Indicadores clim\u00e1ticos / hoja {pestana_clima}",
         tablas=[TablaPaso(
             titulo="Output",
             columnas=[c for c in cols_out if c in tabla_variacion.columns],
             filas=filas_out,
         )],
         procedimiento=(
-            "Por cada indicador: delta = valor escenario - historico; "
-            "Interpretacion = no mejora si delta > 0, Mejora si delta < 0, "
-            "Sin cambios si delta = 0 (misma polaridad que PI agitacion). "
-            f"Referencia historica: {col_hist.etiqueta}; "
+            "Por cada indicador: delta = valor escenario \u2212 hist\u00f3rico; "
+            "Interpretaci\u00f3n = no mejora si delta > 0, Mejora si delta < 0, "
+            "Sin cambios si delta = 0 (misma polaridad que PI agitaci\u00f3n). "
+            f"Referencia hist\u00f3rica: {col_hist.etiqueta}; "
             f"{len(columnas_fut)} escenarios futuros; "
-            f"{n_inds} par(es) Cambio/Interpretacion."
+            f"{n_inds} par(es) Cambio/Interpretaci\u00f3n."
         ),
     ))
     return pasos

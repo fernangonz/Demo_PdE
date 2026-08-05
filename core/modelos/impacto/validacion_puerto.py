@@ -445,8 +445,8 @@ def _validar_fila_agitacion(
                 archivo=etiqueta_archivo_fuente("clima"),
                 hoja=hoja_clima,
                 mensaje=(
-                    f"{activo_resumen} - {etiqueta_im}: faltan columnas climaticas "
-                    f"para {hoja_clima} (historico o futuro)."
+                    f"{activo_resumen} - {etiqueta_im}: faltan columnas clim\u00e1ticas "
+                    f"para {hoja_clima} (hist\u00f3rico o futuro)."
                 ),
                 n_relacion=n_rel,
             )
@@ -684,8 +684,8 @@ def _validar_fila_francobordo(
                 archivo=etiqueta_archivo_fuente("clima"),
                 hoja=pestana_resuelta,
                 mensaje=(
-                    f"{activo_resumen} - {etiqueta_im}: faltan columnas climaticas "
-                    f"para {pestana_resuelta} (historico o futuro)."
+                    f"{activo_resumen} - {etiqueta_im}: faltan columnas clim\u00e1ticas "
+                    f"para {pestana_resuelta} (hist\u00f3rico o futuro)."
                 ),
                 n_relacion=n_rel,
             )
@@ -835,11 +835,11 @@ def _validar_fila_precipitacion(
                 variable=variable,
                 tipo_impacto=estado_limite or "",
                 motor_id=motor_id,
-                input_faltante="columnas climaticas",
+                input_faltante="columnas clim\u00e1ticas",
                 archivo=etiqueta_archivo_fuente("clima"),
                 hoja=pestana_clima,
                 mensaje=(
-                    f"{activo_resumen} - {etiqueta_im}: no hay columnas climaticas "
+                    f"{activo_resumen} - {etiqueta_im}: no hay columnas clim\u00e1ticas "
                     f"para {pestana_clima}."
                 ),
                 n_relacion=n_rel,
@@ -1088,7 +1088,7 @@ def _validar_fila_calado(
                 hoja="Nivel del mar",
                 mensaje=(
                     f"{activo_resumen} - {nombre_motor} ({etiqueta_im}): "
-                    f"faltan columnas climaticas de Nivel del mar."
+                    f"faltan columnas clim\u00e1ticas de Nivel del mar."
                 ),
                 n_relacion=n_rel,
             )

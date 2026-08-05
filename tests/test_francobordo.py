@@ -76,7 +76,10 @@ class TestFrancobordo(unittest.TestCase):
                 )
                 datos_fb = fila_futuro["modos"][MODO_FB]
                 self.assertTrue(
-                    bool(datos_fb.get("Cambio respecto al historico", "")),
+                    bool(
+                        datos_fb.get("Cambio respecto al hist\u00f3rico", "")
+                        or datos_fb.get("Cambio respecto al historico", "")
+                    ),
                     f"{patron}: resumen FB sin datos en escenario futuro",
                 )
 

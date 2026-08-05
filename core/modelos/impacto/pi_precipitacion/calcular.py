@@ -248,7 +248,7 @@ def calcular(
                 percentil=percentil,
                 origen_regla=regla_modelo.origen,
                 motivo=(
-                    f"No se encontraron columnas climaticas para {pestana_clima} "
+                    f"No se encontraron columnas clim\u00e1ticas para {pestana_clima} "
                     f"en {nombre_excel_clima(datos)}."
                 ),
                 error_code="COLUMNAS_CLIMA_FALTANTES",
