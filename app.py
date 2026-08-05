@@ -46,6 +46,21 @@ from core.branding import (
     mostrar_logo_puertos,
     mostrar_pie_branding,
 )
+from core.ui.flujo_fases import (
+    derivar_fases,
+    hay_resultado_calculo,
+    mostrar_barra_progreso,
+    puerto_seleccionado,
+    siguiente_fase_incompleta,
+    vista_para_fase,
+)
+from core.ui.plantilla_pagina import (
+    ContextoAnalisis,
+    KpiItem,
+    mostrar_franja_contexto,
+    mostrar_kpis,
+    plantilla_pagina,
+)
 from core.datos import RepositorioDatos
 from core.fuentes_datos import fuente, nombre_archivo_display
 from core.impact_models import (
@@ -119,6 +134,12 @@ V_MODELOS_ECONOMICOS = "Modelos económicos"
 V_CALCULO_IMPACTOS = "Cálculo de impactos"
 V_ADAPTACION = "__adaptacion__"
 V_RESUMEN = "__resumen__"
+V_RESULTADOS = "__resultados__"
+V_FUENTES = "__fuentes__"
+V_METODOLOGIA = "__metodologia__"
+V_CONFIG_AVANZADA = "__config_avanzada__"
+V_AYUDA = "__ayuda__"
+V_CATALOGO_MODELOS = "__catalogo_modelos__"
 
 
 @dataclass(frozen=True)
@@ -134,65 +155,96 @@ class _GrupoMenu:
     icono: str = ""  # Icono Material (p. ej. ":material/home:") mostrado antes del título.
 
 
+# Navegación primaria (IA rediseñada). Los Excel técnicos viven en Fuentes.
 GRUPOS_MENU: tuple[_GrupoMenu, ...] = (
+    _GrupoMenu("Inicio", icono=":material/home:"),
     _GrupoMenu(
-        "DATOS BASE",
-        (
-            _ItemMenu("Tipos de UO", V_TIPOS_UO),
-            _ItemMenu("Impactos a evaluar", V_IMPACTOS),
-            _ItemMenu("Relación impactos vs variables climáticas", V_RELACION_IVC),
-            _ItemMenu("Relación umbrales y curvas de daño vs activos", V_UMBRALES),
-            _ItemMenu("Relación modelos, activos e indicadores", V_RELACION_MODELOS),
-            _ItemMenu("Excels de entrada", V_HERRAMIENTA),
-        ),
-        icono=":material/home:",
-    ),
-    _GrupoMenu(
-        "INICIO",
-        (
-            _ItemMenu("Puertos", V_PUERTOS),
-        ),
-    ),
-    _GrupoMenu(
-        "CONFIGURACIÓN",
+        "Preparar análisis",
         (
             _ItemMenu("Configuración del puerto", V_CONFIG_PUERTO),
             _ItemMenu(
-                "Configuración de impactos no factibles",
+                "Impactos no factibles",
                 V_CONFIG_IMPACTOS_NO_FACTIBLES,
             ),
+            _ItemMenu("Fuentes de datos", V_FUENTES),
         ),
-        icono=":material/settings:",
+        icono=":material/tune:",
     ),
     _GrupoMenu(
-        "CLIMA",
+        "Analizar riesgo",
         (
             _ItemMenu("Indicadores climáticos", V_CLIMA),
             _ItemMenu("Explorador de indicadores", V_EXPLORADOR_INDICADORES),
-        ),
-        icono=":material/cloud:",
-    ),
-    _GrupoMenu(
-        "MODELOS",
-        (
-            _ItemMenu("Modelos de impactos", V_MODELOS_IMPACTOS),
-            _ItemMenu("Modelos económicos", V_MODELOS_ECONOMICOS),
-        ),
-        icono=":material/account_tree:",
-    ),
-    _GrupoMenu(
-        "RIESGO",
-        (
             _ItemMenu("Cálculo de impactos", V_CALCULO_IMPACTOS),
         ),
-        icono=":material/warning:",
+        icono=":material/analytics:",
     ),
-    _GrupoMenu("ADAPTACIÓN", icono=":material/eco:"),
+    _GrupoMenu("Resultados", icono=":material/assessment:"),
+    _GrupoMenu("Adaptación", icono=":material/eco:"),
+)
+
+# Menú secundario («Más»): catálogos, metodología y utilidades.
+GRUPOS_MENU_SECUNDARIO: tuple[_GrupoMenu, ...] = (
+    _GrupoMenu(
+        "Más",
+        (
+            _ItemMenu("Fuentes de datos", V_FUENTES),
+            _ItemMenu("Catálogo de modelos", V_CATALOGO_MODELOS),
+            _ItemMenu("Metodología", V_METODOLOGIA),
+            _ItemMenu("Configuración avanzada", V_CONFIG_AVANZADA),
+            _ItemMenu("Ayuda", V_AYUDA),
+        ),
+        icono=":material/more_horiz:",
+    ),
 )
 
 VISTAS_MENU: frozenset[str] = frozenset(
-    {V_ADAPTACION, V_RESUMEN}
+    {
+        V_ADAPTACION,
+        V_RESUMEN,
+        V_RESULTADOS,
+        V_FUENTES,
+        V_METODOLOGIA,
+        V_CONFIG_AVANZADA,
+        V_AYUDA,
+        V_CATALOGO_MODELOS,
+        V_PUERTOS,
+        V_HERRAMIENTA,
+        V_TIPOS_UO,
+        V_IMPACTOS,
+        V_RELACION_IVC,
+        V_UMBRALES,
+        V_RELACION_MODELOS,
+        V_CONFIG_PUERTO,
+        V_CONFIG_IMPACTOS_NO_FACTIBLES,
+        V_CLIMA,
+        V_EXPLORADOR_INDICADORES,
+        V_MODELOS_IMPACTOS,
+        V_MODELOS_ECONOMICOS,
+        V_CALCULO_IMPACTOS,
+    }
     | {item.vista for grupo in GRUPOS_MENU for item in grupo.items}
+    | {item.vista for grupo in GRUPOS_MENU_SECUNDARIO for item in grupo.items}
+)
+
+# Vistas donde se muestra la barra de fases del flujo.
+VISTAS_CON_FLUJO: frozenset[str] = frozenset(
+    {
+        V_CONFIG_PUERTO,
+        V_CONFIG_IMPACTOS_NO_FACTIBLES,
+        V_FUENTES,
+        V_HERRAMIENTA,
+        V_TIPOS_UO,
+        V_IMPACTOS,
+        V_RELACION_IVC,
+        V_UMBRALES,
+        V_RELACION_MODELOS,
+        V_CLIMA,
+        V_EXPLORADOR_INDICADORES,
+        V_CALCULO_IMPACTOS,
+        V_RESULTADOS,
+        V_CONFIG_AVANZADA,
+    }
 )
 
 # Orden de los tipos de impacto (estado límite): ELO, ELS, ELU; el resto al final.
@@ -700,10 +752,12 @@ def _seccion_herramienta() -> None:
 # Menú superior (navegación)
 # ---------------------------------------------------------------------------
 def _vista_por_defecto_grupo(grupo: _GrupoMenu) -> str:
-    if grupo.titulo == "ADAPTACIÓN":
+    if grupo.titulo in {"Adaptación", "ADAPTACIÓN"}:
         return V_ADAPTACION
-    if grupo.titulo == "RESUMEN":
-        return V_RESUMEN
+    if grupo.titulo in {"Resultados", "RESUMEN"}:
+        return V_RESULTADOS
+    if grupo.titulo in {"Inicio", "INICIO"}:
+        return V_PUERTOS
     if grupo.items:
         return grupo.items[0].vista
     return V_PUERTOS
@@ -721,8 +775,42 @@ def _resolver_vista_navegacion() -> str:
     return st.session_state["nav_vista"]
 
 
+def _todos_grupos_menu() -> tuple[_GrupoMenu, ...]:
+    return GRUPOS_MENU + GRUPOS_MENU_SECUNDARIO
+
+
 def _grupo_activo_para_vista(vista: str) -> str | None:
-    for grupo in GRUPOS_MENU:
+    # Fuentes y Excels → Preparar (no «Más»), salvo que solo esté en secundario.
+    if vista in {
+        V_FUENTES,
+        V_HERRAMIENTA,
+        V_TIPOS_UO,
+        V_IMPACTOS,
+        V_RELACION_IVC,
+        V_UMBRALES,
+        V_RELACION_MODELOS,
+        V_CONFIG_PUERTO,
+        V_CONFIG_IMPACTOS_NO_FACTIBLES,
+    }:
+        return "Preparar análisis"
+    if vista in {V_CLIMA, V_EXPLORADOR_INDICADORES, V_CALCULO_IMPACTOS}:
+        return "Analizar riesgo"
+    if vista == V_RESULTADOS or vista == V_RESUMEN:
+        return "Resultados"
+    if vista == V_PUERTOS:
+        return "Inicio"
+    if vista == V_ADAPTACION:
+        return "Adaptación"
+    if vista in {
+        V_CATALOGO_MODELOS,
+        V_MODELOS_IMPACTOS,
+        V_MODELOS_ECONOMICOS,
+        V_METODOLOGIA,
+        V_CONFIG_AVANZADA,
+        V_AYUDA,
+    }:
+        return "Más"
+    for grupo in _todos_grupos_menu():
         if grupo.items and any(item.vista == vista for item in grupo.items):
             return grupo.titulo
         if not grupo.items and _vista_por_defecto_grupo(grupo) == vista:
@@ -737,21 +825,24 @@ def _ir_a_vista(vista: str) -> None:
 
 
 def _menu_navegacion_popovers(vista_actual: str) -> None:
-    """Menu superior con desplegables nativos de Streamlit (clic fiable).
+    """Menu superior: áreas primarias + «Más» secundario.
 
-    Se emiten markers auxiliares (ocultos por CSS) para permitir que
-    core/branding.py estilice:
-      - `.pde-nav-slot`   -> franja blanca continua que agrupa los popovers.
-      - `.pde-nav-brand`  -> primera seccion (DATOS BASE) destacada mas grande.
-      - `.pde-nav-active` -> subrayado navy bajo la seccion activa.
+    Markers CSS (core/branding.py):
+      - `.pde-nav-slot`   -> franja blanca continua.
+      - `.pde-nav-brand`  -> primera sección (Inicio).
+      - `.pde-nav-active` -> subrayado navy bajo la sección activa.
+      - `.pde-nav-secondary` -> estilo más discreto para «Más».
     """
+    grupos = _todos_grupos_menu()
     grupo_activo = _grupo_activo_para_vista(vista_actual)
-    # Ancho proporcional al texto para que no se corten (DATOS BASE algo mayor).
-    pesos = [max(1.0, len(g.titulo) * 0.11 + (0.7 if g.icono else 0.3)) for g in GRUPOS_MENU]
-    pesos[0] += 0.6  # DATOS BASE destacado.
+    pesos = [
+        max(1.0, len(g.titulo) * 0.10 + (0.55 if g.icono else 0.25))
+        for g in grupos
+    ]
+    pesos[0] += 0.25  # Inicio ligeramente destacado.
     nav_cols = st.columns(pesos, gap="small")
 
-    for idx, (col, grupo) in enumerate(zip(nav_cols, GRUPOS_MENU)):
+    for idx, (col, grupo) in enumerate(zip(nav_cols, grupos)):
         activo = grupo.titulo == grupo_activo
         etiqueta = f"{grupo.icono} {grupo.titulo}".strip() if grupo.icono else grupo.titulo
         with col:
@@ -761,6 +852,10 @@ def _menu_navegacion_popovers(vista_actual: str) -> None:
                 )
                 st.markdown(
                     '<span class="pde-nav-brand"></span>', unsafe_allow_html=True
+                )
+            if grupo.titulo == "Más":
+                st.markdown(
+                    '<span class="pde-nav-secondary"></span>', unsafe_allow_html=True
                 )
             if activo:
                 st.markdown(
@@ -802,10 +897,135 @@ def _seccion_en_desarrollo(nombre_grupo: str) -> None:
     st.info("Sección en desarrollo. Próximamente estará disponible en esta herramienta.")
 
 
+def _contexto_analisis_sesion() -> ContextoAnalisis:
+    """Puerto / escenario / horizonte desde sesión (sin inventar valores)."""
+    puerto = puerto_seleccionado() or "—"
+    esc = st.session_state.get("clima_esc")
+    anio = st.session_state.get("clima_anio")
+    escenario = "—" if not esc or esc == "Todos" else str(esc)
+    horizonte = "—" if not anio or anio == "Todos" else str(anio)
+    return ContextoAnalisis(puerto=puerto, escenario=escenario, horizonte=horizonte)
+
+
+def _estado_analisis_para_flujo() -> tuple[list, dict]:
+    """Deriva fases del flujo y métricas auxiliares desde datos reales."""
+    excel_faltantes = fuentes_excel_faltantes()
+    excel_ok = len(excel_faltantes) == 0
+
+    config_presente = False
+    n_activos = 0
+    try:
+        config_df, _ = _obtener_config_puerto(_firma_datos_excel())
+        config_presente = config_df is not None and not config_df.empty
+        if config_presente:
+            n_activos = len(listar_activos_config(config_df))
+    except FileNotFoundError:
+        pass
+
+    n_impactos = 0
+    try:
+        modos, _ = _obtener_modos(_firma_datos_excel())
+        n_impactos = len(modos) if modos is not None else 0
+    except FileNotFoundError:
+        pass
+
+    clima_ok = False
+    try:
+        _obtener_clima(_firma_datos_excel())
+        clima_ok = True
+    except FileNotFoundError:
+        pass
+
+    validacion = st.session_state.get("ultima_validacion_puerto")
+    n_err = 0
+    n_adv = 0
+    if validacion is not None:
+        stats = resumen_validacion(validacion)
+        n_err = int(stats.get("errores", 0))
+        n_adv = int(stats.get("advertencias", 0))
+
+    fases = derivar_fases(
+        excel_ok=excel_ok,
+        config_presente=config_presente,
+        n_activos=n_activos,
+        n_impactos=n_impactos,
+        clima_ok=clima_ok,
+        validacion_errores=n_err,
+        validacion_avisos=n_adv,
+    )
+    meta = {
+        "n_activos": n_activos,
+        "n_impactos": n_impactos,
+        "n_err": n_err,
+        "n_adv": n_adv,
+        "excel_ok": excel_ok,
+        "config_presente": config_presente,
+        "clima_ok": clima_ok,
+    }
+    return fases, meta
+
+
+def _kpis_inicio(meta: dict) -> list[KpiItem]:
+    n_calc = "—"
+    n_alertas = "—"
+    if hay_resultado_calculo():
+        res = st.session_state.get("resultado_calculo_puerto")
+        if res is not None:
+            ok_act = sum(1 for r in getattr(res, "resultados_por_activo", []) if getattr(r, "ok", False))
+            n_calc = str(ok_act)
+            adv = list(getattr(res, "advertencias", []) or [])
+            n_alertas = str(len(adv) + meta.get("n_adv", 0) + meta.get("n_err", 0))
+        else:
+            n_calc = "1"
+            n_alertas = str(meta.get("n_adv", 0) + meta.get("n_err", 0))
+    elif meta.get("n_err") or meta.get("n_adv"):
+        n_alertas = str(meta.get("n_err", 0) + meta.get("n_adv", 0))
+
+    return [
+        KpiItem("Activos", str(meta.get("n_activos", 0) or "—"), "Configuración del puerto"),
+        KpiItem("Impactos", str(meta.get("n_impactos", 0) or "—"), "Inventario de modos"),
+        KpiItem("Calculados", n_calc, "Tras ejecutar el cálculo"),
+        KpiItem("Alertas", n_alertas, "Avisos de validación / cálculo"),
+    ]
+
+
+def _checklist_estado_analisis(meta: dict, fases: list) -> None:
+    """Checklist visual del estado del análisis (columna derecha Inicio)."""
+    st.markdown("#### Estado del análisis")
+    for fase in fases:
+        icono = {
+            "completado": "✅",
+            "advertencias": "⚠️",
+            "pendiente": "○",
+            "bloqueado": "⊘",
+        }.get(fase.estado.value, "·")
+        st.markdown(
+            f"{icono} **{fase.numero}. {fase.etiqueta}** — {fase.detalle or fase.estado.value}"
+        )
+
+    st.caption(
+        "El estado se deriva de la configuración cargada y de la sesión "
+        "(no inventa resultados económicos)."
+    )
+    if not meta.get("clima_ok"):
+        st.warning("Falta el Excel de indicadores climáticos.")
+    if not meta.get("config_presente"):
+        st.warning("Falta la configuración del puerto.")
+
+
+def _mostrar_flujo_si_aplica(vista: str) -> None:
+    if vista not in VISTAS_CON_FLUJO:
+        return
+    fases, _ = _estado_analisis_para_flujo()
+    mostrar_barra_progreso(fases, ir_a_vista=_ir_a_vista)
+
+
 def _render_vista(vista: str) -> None:
     """Despacha a la vista existente según la clave de navegación."""
+    _mostrar_flujo_si_aplica(vista)
+
     if vista == V_PUERTOS:
-        _seccion_puertos()
+        _seccion_inicio()
     elif vista == V_HERRAMIENTA:
         _seccion_herramienta()
     elif vista == V_TIPOS_UO:
@@ -832,38 +1052,48 @@ def _render_vista(vista: str) -> None:
         _seccion_modelos_economicos()
     elif vista == V_CALCULO_IMPACTOS:
         _seccion_calculo_impactos()
+    elif vista == V_RESULTADOS:
+        _seccion_resultados()
+    elif vista == V_FUENTES:
+        _seccion_fuentes_datos()
+    elif vista == V_CATALOGO_MODELOS:
+        _seccion_catalogo_modelos_hub()
+    elif vista == V_METODOLOGIA:
+        _seccion_metodologia()
+    elif vista == V_CONFIG_AVANZADA:
+        _seccion_config_avanzada()
+    elif vista == V_AYUDA:
+        _seccion_ayuda()
     elif vista == V_ADAPTACION:
-        _seccion_en_desarrollo("ADAPTACIÓN")
+        _seccion_en_desarrollo("Adaptación")
     elif vista == V_RESUMEN:
-        _seccion_en_desarrollo("RESUMEN")
+        _seccion_resultados()
     else:
         st.warning(f"Vista no configurada: {vista}")
 
 
 # ---------------------------------------------------------------------------
-# Sección: Puertos
+# Sección: Inicio (panel de control + mapa)
 # ---------------------------------------------------------------------------
-def _seccion_puertos() -> None:
+def _seccion_inicio() -> None:
+    """Portada: título, contexto, KPIs, mapa | estado, CTA y riesgos solo si hay cálculo."""
     df, info = _obtener_puertos(_firma_datos_excel())
-    meta = fuente("puertos")
+    meta_fuente = fuente("puertos")
+    fases, meta = _estado_analisis_para_flujo()
+    ctx = _contexto_analisis_sesion()
 
-    if info["origen"] == "excel":
-        _indicador_fuente(
-            [{"nombre": nombre_archivo_display(meta), "ruta": info["ruta"]}],
-            key="puertos",
-        )
-    else:
-        _indicador_fuente(
-            [{
-                "nombre": nombre_archivo_display(meta),
-                "descripcion": "Sin Excel; datos incorporados en la aplicación.",
-            }],
-            key="puertos",
-        )
+    st.markdown("## RIESGO CLIMÁTICO EN PUERTOS")
+    st.caption(
+        "Panel de control del análisis. Selecciona el puerto y continúa por el flujo."
+    )
+    mostrar_franja_contexto(ctx)
+    mostrar_kpis(_kpis_inicio(meta))
 
-    # Consulta de datos en la vista principal (no en barra lateral).
     if info["origen"] != "excel":
-        st.warning(_mensaje_excel_no_encontrado(meta) + " Se muestra la lista por defecto de Puertos del Estado.")
+        st.warning(
+            _mensaje_excel_no_encontrado(meta_fuente)
+            + " Se muestra la lista por defecto de Puertos del Estado."
+        )
 
     puertos = sorted(df["puerto"].dropna().unique().tolist())
     opciones = [TODOS] + puertos
@@ -871,25 +1101,21 @@ def _seccion_puertos() -> None:
     if "puerto_sel" not in st.session_state:
         st.session_state.puerto_sel = TODOS
 
-    col_izq, col_der = st.columns([1, 2], gap="large")
+    col_mapa, col_estado = st.columns([1.55, 1], gap="large")
 
-    with col_izq:
-        st.subheader("Puertos")
-        st.caption("Selecciona un puerto para centrar el mapa.")
+    with col_mapa:
+        st.markdown("#### Mapa de puertos")
         st.selectbox(
             "Puerto",
             options=opciones,
             key="puerto_sel",
-            label_visibility="collapsed",
         )
-
         puerto_sel = st.session_state.puerto_sel
 
         if puerto_sel != TODOS:
             fila = df[df["puerto"] == puerto_sel].iloc[0]
-            st.markdown(f"### {puerto_sel}")
             if "autoridad_portuaria" in df.columns and pd.notna(fila.get("autoridad_portuaria")):
-                st.write(f"**Autoridad Portuaria:** {fila['autoridad_portuaria']}")
+                st.caption(f"Autoridad Portuaria: {fila['autoridad_portuaria']}")
             lat, lon = fila.get("lat"), fila.get("lon")
             if pd.notna(lat) and pd.notna(lon):
                 lat_txt = fila.get("lat_grados")
@@ -898,47 +1124,74 @@ def _seccion_puertos() -> None:
                 lon_ok = pd.notna(lon_txt) and str(lon_txt).strip() not in {"", "nan"}
                 lat_str = str(lat_txt).strip() if lat_ok else _fmt_lat(float(lat))
                 lon_str = str(lon_txt).strip() if lon_ok else _fmt_lon(float(lon))
-                st.write(f"**Latitud:** {lat_str} · **Longitud:** {lon_str}")
-            else:
-                st.info("Este puerto no tiene coordenadas; no aparecerá en el mapa.")
+                st.caption(f"{lat_str} · {lon_str}")
 
-        st.metric("Puertos disponibles", len(puertos))
+        centro, zoom = CENTRO_ESPANA, ZOOM_ESPANA
+        if puerto_sel != TODOS:
+            sel = df[df["puerto"] == puerto_sel]
+            if not sel.empty and pd.notna(sel.iloc[0]["lat"]) and pd.notna(sel.iloc[0]["lon"]):
+                centro = [float(sel.iloc[0]["lat"]), float(sel.iloc[0]["lon"])]
+                zoom = ZOOM_PUERTO
 
-        with st.popover("Info ▾"):
-            st.caption("Consulta y descarga de datos de puertos.")
-            if st.button("Consultar datos", key="consultar_puertos", use_container_width=True):
-                _dialogo_puertos(df, info)
-            _botones_descarga(df, meta.archivo.lower(), hoja="Puertos")
-
-    # Vista del mapa según la selección (centro y zoom).
-    centro, zoom = CENTRO_ESPANA, ZOOM_ESPANA
-    if puerto_sel != TODOS:
-        sel = df[df["puerto"] == puerto_sel]
-        if not sel.empty and pd.notna(sel.iloc[0]["lat"]) and pd.notna(sel.iloc[0]["lon"]):
-            centro = [float(sel.iloc[0]["lat"]), float(sel.iloc[0]["lon"])]
-            zoom = ZOOM_PUERTO
-
-    salida = None
-    with col_der:
-        st.subheader("Mapa de puertos (España)")
         mapa = _mapa_base(df)
-        # Key estable + center/zoom: la vista se desplaza de forma fluida (sin remontar).
         salida = st_folium(
             mapa,
             center=centro,
             zoom=zoom,
-            height=560,
+            height=480,
             use_container_width=True,
             returned_objects=["last_object_clicked_tooltip"],
             key="mapa_puertos",
         )
+        if salida:
+            clic = salida.get("last_object_clicked_tooltip")
+            if clic and clic in puertos and clic != st.session_state.puerto_sel:
+                st.session_state.puerto_sel = clic
+                st.rerun()
 
-    # Clic en un punto del mapa -> seleccionar ese puerto y acercarse.
-    if salida:
-        clic = salida.get("last_object_clicked_tooltip")
-        if clic and clic in puertos and clic != st.session_state.puerto_sel:
-            st.session_state.puerto_sel = clic
-            st.rerun()
+    with col_estado:
+        _checklist_estado_analisis(meta, fases)
+
+        sig = siguiente_fase_incompleta(fases)
+        if sig is None:
+            st.success("Flujo completo en esta sesión.")
+            if st.button("Ver resultados", type="primary", use_container_width=True):
+                _ir_a_vista(V_RESULTADOS)
+        else:
+            etiqueta_cta = f"Continuar análisis → {sig.etiqueta}"
+            if st.button(etiqueta_cta, type="primary", use_container_width=True):
+                _ir_a_vista(vista_para_fase(sig.id))
+
+        st.divider()
+        st.markdown("#### Principales riesgos")
+        if hay_resultado_calculo():
+            st.caption(
+                "Resumen a partir del cálculo en sesión. "
+                "Abre Resultados para el detalle por activo."
+            )
+            res = st.session_state.get("resultado_calculo_puerto")
+            if res is not None and getattr(res, "ok", False):
+                n_ok = sum(
+                    1 for r in res.resultados_por_activo if getattr(r, "ok", False)
+                )
+                st.write(f"Activos con resultado: **{n_ok}** / {res.cp_total or n_ok}")
+                if res.advertencias:
+                    st.write(f"Advertencias del cálculo: **{len(res.advertencias)}**")
+            if st.button("Ir a Resultados", use_container_width=True, key="inicio_ir_res"):
+                _ir_a_vista(V_RESULTADOS)
+        else:
+            st.info("Sin resultados aún — ejecuta el cálculo")
+
+        with st.popover("Datos del mapa ▾"):
+            st.caption("Consulta y descarga de la lista de puertos.")
+            if st.button("Consultar datos", key="consultar_puertos", use_container_width=True):
+                _dialogo_puertos(df, info)
+            _botones_descarga(df, meta_fuente.archivo.lower(), hoja="Puertos")
+
+
+def _seccion_puertos() -> None:
+    """Compatibilidad: redirige al panel de Inicio."""
+    _seccion_inicio()
 
 
 # ---------------------------------------------------------------------------
@@ -3431,7 +3684,7 @@ def _seccion_modelos_impactos() -> None:
 
 
 def _seccion_calculo_impactos() -> None:
-    """Cálculo, validación y resultados de impactos (menú RIESGO)."""
+    """Cálculo, validación y resultados de impactos (Analizar riesgo)."""
     meta_clima = fuente("clima")
     meta_cfg = fuente("config_puerto")
     try:
@@ -3449,76 +3702,364 @@ def _seccion_calculo_impactos() -> None:
     except FileNotFoundError:
         st.error(_mensaje_excel_no_encontrado(meta_cfg))
 
-    _cabecera_seccion("Cálculo de impactos")
+    _fases, meta = _estado_analisis_para_flujo()
+    ctx = _contexto_analisis_sesion()
+    with plantilla_pagina(
+        "Cálculo de impactos",
+        "Ejecuta la validación y el cálculo físico de impactos para el puerto seleccionado.",
+        contexto=ctx,
+        kpis=_kpis_inicio(meta),
+        key_export="calc_impactos",
+    ):
+        if config_df is None or config_df.empty:
+            st.error(_mensaje_excel_no_encontrado(meta_cfg))
+            return
 
-    if config_df is None or config_df.empty:
-        st.error(_mensaje_excel_no_encontrado(meta_cfg))
+        cp_total = _selector_activo_cp(config_df)
+        st.session_state.cp_total_activos = cp_total
+
+        pulsar, params = _bloque_calculo_activo()
+        if pulsar:
+            # Siempre recomputar: no reutilizar resultado_calculo_* de un filtro anterior.
+            _limpiar_resultados_calculo()
+            try:
+                # Copia superficial: evita mutar el objeto cacheado por @st.cache_data.
+                repo = copy(
+                    _obtener_repositorio(
+                        _firma_datos_excel(),
+                        REPOSITORIO_CACHE_VERSION,
+                    )
+                )
+                # Garantiza Excel 4 aunque un cache antiguo llegara incompleto.
+                if getattr(repo, "relacion_modelos", None) is None or getattr(
+                    repo.relacion_modelos, "empty", True
+                ):
+                    df_rm, info_rm = cargar_relacion_modelos_activos_indicadores()
+                    repo.relacion_modelos = df_rm
+                    if getattr(repo, "rutas", None) is not None:
+                        repo.rutas["relacion_modelos"] = info_rm.get("ruta", "")
+            except FileNotFoundError as exc:
+                st.error(str(exc))
+                return
+
+            filtro_nf = _filtro_impactos_no_factibles_sesion()
+            huella_nf = _huella_filtro_no_factibles(filtro_nf)
+            validacion = validar_puerto_antes_calculo(
+                repo,
+                filtro_impactos_no_factibles=filtro_nf,
+            )
+            _mostrar_informe_validacion_puerto(validacion)
+            st.session_state.ultima_validacion_puerto = validacion
+
+            if not validacion.puede_calcular:
+                st.error(
+                    "No se puede ejecutar el cálculo: faltan archivos críticos o "
+                    "no hay activos en Configuración del puerto."
+                )
+                _mostrar_detalle_validacion_puerto(validacion)
+                return
+
+            resultado_puerto = calcular_impactos_puerto(
+                repo,
+                filtro_impactos_no_factibles=filtro_nf,
+            )
+            st.session_state.resultado_calculo_puerto = resultado_puerto
+            st.session_state._huella_filtro_nf_resultado = huella_nf
+            st.session_state.cp_total_activos = resultado_puerto.cp_total
+            primer_ok = next(
+                (r for r in resultado_puerto.resultados_por_activo if r.ok),
+                None,
+            )
+            st.session_state.resultado_calculo_activo = primer_ok
+            st.session_state.resultado_pi = (
+                primer_ok.resultado_agitacion if primer_ok else None
+            )
+
+        if pulsar:
+            _mostrar_detalle_validacion_puerto(validacion)
+
+        _resultados_impactos_puerto()
+
+        if hay_resultado_calculo():
+            st.divider()
+            if st.button(
+                "Abrir Resultados",
+                use_container_width=True,
+                key="calc_ir_resultados",
+            ):
+                _ir_a_vista(V_RESULTADOS)
+
+
+def _resultado_puerto_sesion():
+    """Obtiene resultado_calculo_puerto o adapta resultado_calculo_activo legacy."""
+    resultado_puerto = st.session_state.get("resultado_calculo_puerto")
+    if resultado_puerto is not None:
+        return resultado_puerto
+    resultado = st.session_state.get("resultado_calculo_activo")
+    if resultado is not None and resultado.ok:
+        return type("LegacyPuerto", (), {
+            "ok": True,
+            "error": "",
+            "advertencias": getattr(resultado, "advertencias", []),
+            "modos_sin_modelo": [],
+            "cp_total": int(st.session_state.get("cp_total_activos", 1)),
+            "resultados_por_activo": [resultado],
+        })()
+    return None
+
+
+def _tab_resultados_resumen(resultado_puerto) -> None:
+    """Nivel 1: KPIs y agregados del cálculo en sesión."""
+    if resultado_puerto is None or not getattr(resultado_puerto, "ok", False):
+        st.info(
+            "Sin resultados aún. Ve a **Analizar riesgo → Cálculo de impactos** "
+            "y ejecuta el cálculo."
+        )
+        if st.button("Ir al cálculo", key="res_ir_calc", use_container_width=True):
+            _ir_a_vista(V_CALCULO_IMPACTOS)
         return
 
-    cp_total = _selector_activo_cp(config_df)
-    st.session_state.cp_total_activos = cp_total
+    resultados = list(getattr(resultado_puerto, "resultados_por_activo", []) or [])
+    n_ok = sum(1 for r in resultados if getattr(r, "ok", False))
+    n_err = sum(1 for r in resultados if not getattr(r, "ok", False))
+    n_iters = 0
+    for r in resultados:
+        if getattr(r, "ok", False):
+            n_iters += len(iteraciones_desde_calculo_activo(r) or [])
 
-    pulsar, params = _bloque_calculo_activo()
-    if pulsar:
-        # Siempre recomputar: no reutilizar resultado_calculo_* de un filtro anterior.
-        _limpiar_resultados_calculo()
-        try:
-            # Copia superficial: evita mutar el objeto cacheado por @st.cache_data.
-            repo = copy(
-                _obtener_repositorio(
-                    _firma_datos_excel(),
-                    REPOSITORIO_CACHE_VERSION,
-                )
-            )
-            # Garantiza Excel 4 aunque un cache antiguo llegara incompleto.
-            if getattr(repo, "relacion_modelos", None) is None or getattr(
-                repo.relacion_modelos, "empty", True
-            ):
-                df_rm, info_rm = cargar_relacion_modelos_activos_indicadores()
-                repo.relacion_modelos = df_rm
-                if getattr(repo, "rutas", None) is not None:
-                    repo.rutas["relacion_modelos"] = info_rm.get("ruta", "")
-        except FileNotFoundError as exc:
-            st.error(str(exc))
-            return
+    mostrar_kpis([
+        KpiItem("Activos OK", str(n_ok)),
+        KpiItem("Activos con error", str(n_err)),
+        KpiItem("Iteraciones", str(n_iters)),
+        KpiItem(
+            "Advertencias",
+            str(len(getattr(resultado_puerto, "advertencias", []) or [])),
+        ),
+    ])
 
-        filtro_nf = _filtro_impactos_no_factibles_sesion()
-        huella_nf = _huella_filtro_no_factibles(filtro_nf)
-        validacion = validar_puerto_antes_calculo(
-            repo,
-            filtro_impactos_no_factibles=filtro_nf,
-        )
-        _mostrar_informe_validacion_puerto(validacion)
-        st.session_state.ultima_validacion_puerto = validacion
+    filas = []
+    for r in resultados:
+        filas.append({
+            "CP": getattr(r, "cp_numero", ""),
+            "Activo": getattr(r, "activo_raw", None) or getattr(r, "activo", ""),
+            "Estado": "OK" if getattr(r, "ok", False) else "Error",
+            "Detalle": (getattr(r, "error", "") or "")[:120],
+        })
+    if filas:
+        st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
 
-        if not validacion.puede_calcular:
-            st.error(
-                "No se puede ejecutar el calculo: faltan archivos criticos o "
-                "no hay activos en Configuracion del puerto."
-            )
-            _mostrar_detalle_validacion_puerto(validacion)
-            return
+    _mostrar_modos_sin_modelo(getattr(resultado_puerto, "modos_sin_modelo", []))
+    if resultado_puerto.advertencias:
+        with st.expander("Advertencias del cálculo", expanded=False):
+            for adv in resultado_puerto.advertencias:
+                if "No hay modos de superación de umbral" in adv:
+                    continue
+                st.warning(adv)
 
-        resultado_puerto = calcular_impactos_puerto(
-            repo,
-            filtro_impactos_no_factibles=filtro_nf,
-        )
-        st.session_state.resultado_calculo_puerto = resultado_puerto
-        st.session_state._huella_filtro_nf_resultado = huella_nf
-        st.session_state.cp_total_activos = resultado_puerto.cp_total
-        primer_ok = next(
-            (r for r in resultado_puerto.resultados_por_activo if r.ok),
-            None,
-        )
-        st.session_state.resultado_calculo_activo = primer_ok
-        st.session_state.resultado_pi = (
-            primer_ok.resultado_agitacion if primer_ok else None
-        )
 
-    if pulsar:
-        _mostrar_detalle_validacion_puerto(validacion)
-
+def _tab_resultados_por_activo() -> None:
+    """Reutiliza la vista existente de resultados por activo."""
+    if not hay_resultado_calculo():
+        st.info("Sin resultados aún — ejecuta el cálculo.")
+        return
     _resultados_impactos_puerto()
+
+
+def _tab_resultados_por_impacto(resultado_puerto) -> None:
+    """Agrupación ligera por modo de fallo si hay iteraciones; si no, stub."""
+    if resultado_puerto is None or not getattr(resultado_puerto, "ok", False):
+        st.info("Sin resultados aún — ejecuta el cálculo.")
+        return
+
+    por_modo: dict[str, list[str]] = {}
+    for r in getattr(resultado_puerto, "resultados_por_activo", []) or []:
+        if not getattr(r, "ok", False):
+            continue
+        activo = getattr(r, "activo_raw", None) or getattr(r, "activo", "")
+        for it in iteraciones_desde_calculo_activo(r) or []:
+            modo = getattr(it, "modo_fallo", None) or getattr(it, "modo", None) or "—"
+            por_modo.setdefault(str(modo), []).append(str(activo))
+
+    if not por_modo:
+        st.info(
+            "Próximamente: vista consolidada por impacto. "
+            "Mientras tanto usa la pestaña Por activo."
+        )
+        return
+
+    st.caption("Agrupación orientativa a partir de las iteraciones calculadas.")
+    for modo, activos in sorted(por_modo.items(), key=lambda x: x[0].lower()):
+        unicos = sorted(set(activos))
+        with st.expander(f"{modo} ({len(unicos)} activo(s))", expanded=False):
+            for a in unicos:
+                st.write(f"· {a}")
+
+
+def _tab_resultados_trazabilidad(resultado_puerto) -> None:
+    """Procedimiento / inputs / validación (detalle técnico)."""
+    validacion = st.session_state.get("ultima_validacion_puerto")
+    if validacion is not None:
+        st.markdown("#### Validación previa al cálculo")
+        _mostrar_informe_validacion_puerto(validacion)
+        _mostrar_detalle_validacion_puerto(validacion)
+    else:
+        st.caption("No hay informe de validación en esta sesión.")
+
+    st.markdown("#### Contexto de ejecución")
+    ctx = _contexto_analisis_sesion()
+    st.write(f"Puerto: **{ctx.puerto}**")
+    st.write(f"Escenario (filtro clima): **{ctx.escenario}**")
+    st.write(f"Horizonte (filtro clima): **{ctx.horizonte}**")
+
+    if resultado_puerto is None:
+        st.info("Sin cálculo en sesión: la trazabilidad de pasos aparecerá tras ejecutar.")
+        return
+
+    st.markdown("#### Detalle técnico por activo")
+    st.caption(
+        "Los nombres de hojas Excel y pasos de procedimiento están en el detalle "
+        "de cada activo (misma vista que en Cálculo)."
+    )
+    _resultados_impactos_puerto()
+
+
+def _seccion_resultados() -> None:
+    """Shell Resultados: Resumen / Por activo / Por impacto / Trazabilidad."""
+    _fases, meta = _estado_analisis_para_flujo()
+    ctx = _contexto_analisis_sesion()
+    resultado_puerto = _resultado_puerto_sesion()
+
+    with plantilla_pagina(
+        "Resultados",
+        "Riesgo físico calculado y prioridades a partir de la sesión actual.",
+        contexto=ctx,
+        kpis=_kpis_inicio(meta),
+        key_export="resultados",
+    ):
+        tab_res, tab_act, tab_imp, tab_traz = st.tabs(
+            ["Resumen", "Por activo", "Por impacto", "Trazabilidad"]
+        )
+        with tab_res:
+            _tab_resultados_resumen(resultado_puerto)
+        with tab_act:
+            _tab_resultados_por_activo()
+        with tab_imp:
+            _tab_resultados_por_impacto(resultado_puerto)
+        with tab_traz:
+            _tab_resultados_trazabilidad(resultado_puerto)
+
+
+def _seccion_fuentes_datos() -> None:
+    """Hub de fuentes Excel (nombres técnicos fuera del menú primario)."""
+    st.subheader("Fuentes de datos")
+    st.caption(
+        "Inventarios y relaciones de entrada. Los nombres de archivo Excel "
+        "se consultan aquí, no en la navegación principal."
+    )
+    _mostrar_alerta_estado_excel()
+
+    destinos = [
+        ("Lista de puertos", V_PUERTOS, "Mapa y selección de puerto (Inicio)"),
+        ("Tipos de UO", V_TIPOS_UO, nombre_archivo_display(fuente("tipos_uo"))),
+        ("Impactos a evaluar", V_IMPACTOS, nombre_archivo_display(fuente("impactos"))),
+        (
+            "Relación impactos vs variables climáticas",
+            V_RELACION_IVC,
+            nombre_archivo_display(fuente("relacion_ivc")),
+        ),
+        (
+            "Umbrales y curvas de daño",
+            V_UMBRALES,
+            nombre_archivo_display(fuente("umbrales")),
+        ),
+        (
+            "Relación modelos, activos e indicadores",
+            V_RELACION_MODELOS,
+            nombre_archivo_display(fuente("relacion_modelos")),
+        ),
+        (
+            "Indicadores climáticos",
+            V_CLIMA,
+            nombre_archivo_display(fuente("clima")),
+        ),
+        (
+            "Configuración del puerto",
+            V_CONFIG_PUERTO,
+            nombre_archivo_display(fuente("config_puerto")),
+        ),
+        ("Estado y recarga de Excels", V_HERRAMIENTA, "Auditoría de archivos"),
+    ]
+    for etiqueta, vista, detalle in destinos:
+        c1, c2 = st.columns([3, 1], vertical_alignment="center")
+        with c1:
+            st.markdown(f"**{etiqueta}**")
+            st.caption(str(detalle))
+        with c2:
+            if st.button("Abrir", key=f"fuente_ir_{vista}", use_container_width=True):
+                _ir_a_vista(vista)
+
+
+def _seccion_catalogo_modelos_hub() -> None:
+    st.subheader("Catálogo de modelos")
+    st.caption("Modelos de impactos y económicos (antes menú MODELOS).")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Modelos de impactos", use_container_width=True, key="hub_mod_imp"):
+            _ir_a_vista(V_MODELOS_IMPACTOS)
+    with c2:
+        if st.button("Modelos económicos", use_container_width=True, key="hub_mod_eco"):
+            _ir_a_vista(V_MODELOS_ECONOMICOS)
+    st.divider()
+    _seccion_modelos_impactos()
+
+
+def _seccion_metodologia() -> None:
+    st.subheader("Metodología")
+    st.caption(
+        "Acceso a la relación modelos–activos–indicadores y al catálogo. "
+        "No sustituye la documentación formal del proyecto."
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(
+            "Relación modelos / activos / indicadores",
+            use_container_width=True,
+            key="met_rel",
+        ):
+            _ir_a_vista(V_RELACION_MODELOS)
+    with c2:
+        if st.button("Catálogo de modelos", use_container_width=True, key="met_cat"):
+            _ir_a_vista(V_CATALOGO_MODELOS)
+
+
+def _seccion_config_avanzada() -> None:
+    st.subheader("Configuración avanzada")
+    st.caption("Ajustes y tablas técnicas menos frecuentes en el flujo diario.")
+    destinos = [
+        ("Umbrales y curvas de daño", V_UMBRALES),
+        ("Tipos de UO", V_TIPOS_UO),
+        ("Impactos no factibles", V_CONFIG_IMPACTOS_NO_FACTIBLES),
+        ("Excels de entrada", V_HERRAMIENTA),
+    ]
+    for etiqueta, vista in destinos:
+        if st.button(etiqueta, key=f"cfg_adv_{vista}", use_container_width=True):
+            _ir_a_vista(vista)
+
+
+def _seccion_ayuda() -> None:
+    st.subheader("Ayuda")
+    st.info(
+        "Ayuda en desarrollo. Flujo orientativo: "
+        "Inicio (puerto) → Preparar análisis → Analizar riesgo → Resultados."
+    )
+    st.markdown(
+        """
+1. Selecciona el **puerto** en Inicio.
+2. Revisa **configuración** e impactos no factibles.
+3. Consulta **clima** y ejecuta el **cálculo de impactos**.
+4. Explora **Resultados** (resumen y detalle por activo).
+        """
+    )
 
 
 def _seccion_modelos_economicos() -> None:

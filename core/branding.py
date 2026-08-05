@@ -518,6 +518,14 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(.pde-modelo-card-marker) but
     color: {BRAND_NAVY} !important;
     font-weight: 700 !important;
 }}
+
+/* Menú secundario «Más»: tipografía más discreta (solo esa columna) */
+div[data-testid="column"]:has(.pde-nav-secondary) button {{
+    font-weight: 600 !important;
+    font-size: 0.74rem !important;
+    opacity: 0.88;
+    padding: 0 0.85rem !important;
+}}
 </style>
         """,
         unsafe_allow_html=True,
