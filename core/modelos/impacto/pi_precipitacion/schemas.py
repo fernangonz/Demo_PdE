@@ -59,22 +59,42 @@ def etiqueta_umbral_columna(nombre_indicador: str, indice: int = 1) -> str:
     return umbral_mm_desde_indicador(nombre_indicador) or f"ind. {indice}"
 
 
-def col_cambio_indicador(nombre_indicador: str, indice: int = 1) -> str:
+def col_cambio_indicador(
+    nombre_indicador: str,
+    indice: int = 1,
+    *,
+    con_sufijo: bool = True,
+) -> str:
+    if not con_sufijo:
+        return PREF_CAMBIO
     return f"{PREF_CAMBIO} ({etiqueta_umbral_columna(nombre_indicador, indice)})"
 
 
-def col_interpretacion_indicador(nombre_indicador: str, indice: int = 1) -> str:
+def col_interpretacion_indicador(
+    nombre_indicador: str,
+    indice: int = 1,
+    *,
+    con_sufijo: bool = True,
+) -> str:
+    if not con_sufijo:
+        return PREF_INTERP
     return f"{PREF_INTERP} ({etiqueta_umbral_columna(nombre_indicador, indice)})"
 
 
 def columnas_pares_indicadores(*nombres_indicadores: str) -> tuple[str, ...]:
-    """Pares Cambio/Interpretacion por indicador (1 o 2)."""
+    """Pares Cambio/Interpretaci\u00f3n por indicador (1 o 2).
+
+    Con un solo indicador: nombres sin sufijo
+    (``Cambio respecto al hist\u00f3rico``, ``Interpretaci\u00f3n``).
+    Con 2+: sufijo mm o etiqueta corta para distinguir.
+    """
     if not nombres_indicadores:
         raise ValueError("Se requiere al menos un nombre de indicador.")
+    con_sufijo = len(nombres_indicadores) >= 2
     cols: list[str] = []
     for i, nombre in enumerate(nombres_indicadores, start=1):
-        cols.append(col_cambio_indicador(nombre, i))
-        cols.append(col_interpretacion_indicador(nombre, i))
+        cols.append(col_cambio_indicador(nombre, i, con_sufijo=con_sufijo))
+        cols.append(col_interpretacion_indicador(nombre, i, con_sufijo=con_sufijo))
     return tuple(cols)
 
 

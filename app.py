@@ -49,6 +49,9 @@ from core.branding import (
 from core.datos import RepositorioDatos
 from core.fuentes_datos import fuente, nombre_archivo_display
 from core.impact_models import (
+    _es_col_cambio_precip,
+    _es_col_interp_precip,
+    _es_tabla_precipitacion,
     export_resumen_activo_xlsx,
     html_tabla_resumen_activo,
     iteraciones_desde_calculo_activo,
@@ -1733,22 +1736,31 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
         for c in tabla.columns
         if str(c).startswith("Cambio respecto al histórico (")
         or str(c).startswith("Cambio respecto al historico (")
-    ) >= 1:
+    ) >= 1 or (
+        # Un indicador precip: columnas bare sin columna Indicador.
+        "Indicador" not in tabla.columns
+        and any(
+            str(c) in ("Cambio respecto al histórico", "Cambio respecto al historico")
+            for c in tabla.columns
+        )
+        and any(
+            str(c) in ("Interpretación", "Interpretacion")
+            for c in tabla.columns
+        )
+    ):
         # 1 o 2 indicadores predefinidos: 2 o 4 columnas (nunca sumar).
         partes = [
             p.strip()
             for p in str(getattr(r, "indicador_seleccionado", "") or "").split("|")
             if p.strip()
         ]
-        n_inds = max(1, len(partes)) if partes else max(
-            1,
-            sum(
-                1
-                for c in tabla.columns
-                if str(c).startswith("Cambio respecto al histórico (")
-                or str(c).startswith("Cambio respecto al historico (")
-            ),
+        n_paren = sum(
+            1
+            for c in tabla.columns
+            if str(c).startswith("Cambio respecto al histórico (")
+            or str(c).startswith("Cambio respecto al historico (")
         )
+        n_inds = max(1, len(partes)) if partes else max(1, n_paren)
         if n_inds == 1:
             etq = partes[0] if partes else "indicador 1"
             st.caption(
@@ -1774,6 +1786,12 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
             or str(c).startswith("Cambio respecto al historico (")
             or str(c).startswith("Interpretación (")
             or str(c).startswith("Interpretacion (")
+            or str(c) in (
+                "Cambio respecto al histórico",
+                "Cambio respecto al historico",
+                "Interpretación",
+                "Interpretacion",
+            )
         ]
         cols_tabla = cols_precip
         cfg = {
@@ -2271,7 +2289,16 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                                     for c in it.tabla_resultado.columns
                                     if str(c).startswith("Cambio respecto al histórico (")
                                     or str(c).startswith("Cambio respecto al historico (")
-                                ) >= 2:
+                                ) >= 1 or (
+                                    "Indicador" not in it.tabla_resultado.columns
+                                    and any(
+                                        str(c) in (
+                                            "Cambio respecto al histórico",
+                                            "Cambio respecto al historico",
+                                        )
+                                        for c in it.tabla_resultado.columns
+                                    )
+                                ):
                                     cols_dl = [
                                         str(c)
                                         for c in it.tabla_resultado.columns
@@ -2280,6 +2307,12 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                                         or str(c).startswith("Cambio respecto al historico (")
                                         or str(c).startswith("Interpretación (")
                                         or str(c).startswith("Interpretacion (")
+                                        or str(c) in (
+                                            "Cambio respecto al histórico",
+                                            "Cambio respecto al historico",
+                                            "Interpretación",
+                                            "Interpretacion",
+                                        )
                                     ]
                                     prefijo = f"{cp_clave}_precip_im_{im_num}"
                                 else:

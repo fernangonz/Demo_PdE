@@ -22,8 +22,7 @@ from core.modelos.impacto.pi_precipitacion.schemas import (
     NUM_INDICADORES_MIN,
     PREF_CAMBIO,
     PREF_INTERP,
-    col_cambio_indicador,
-    col_interpretacion_indicador,
+    columnas_pares_indicadores,
     umbral_mm_desde_indicador,
 )
 from core.relacion_modelos import (
@@ -113,8 +112,8 @@ def indicadores_predefinidos_precipitacion(
         )
         if not df_ok:
             detalle = (
-                " Causa: Excel 4 no esta cargado en memoria "
-                "(relacion_modelos=None/vacio). Recargue datos / limpie cache."
+                " Causa: Excel 4 no est\u00e1 cargado en memoria "
+                "(relacion_modelos=None/vac\u00edo). Recargue datos / limpie cach\u00e9."
             )
         elif activo or modo_fallo or variable:
             detalle = " " + diagnosticar_busqueda_regla(
@@ -128,14 +127,14 @@ def indicadores_predefinidos_precipitacion(
         else:
             detalle = ""
         return (), (
-            "Exceso de precipitacion requiere fila explicita en Excel 4 "
-            "(Relacion_modelos_activos_e_indicadores) con Seleccion indicador = Predefinido "
+            "Exceso de precipitaci\u00f3n requiere fila expl\u00edcita en Excel 4 "
+            "(Relacion_modelos_activos_e_indicadores) con Selecci\u00f3n indicador = Predefinido "
             f"y entre {minimo} y {maximo} indicadores.{detalle}"
         )
     if not regla.regla_indicador.usa_predefinido:
         fila = f" (fila {regla.fila})" if regla.fila else ""
         return (), (
-            "Exceso de precipitacion exige Seleccion indicador = Predefinido en Excel 4"
+            "Exceso de precipitaci\u00f3n exige Selecci\u00f3n indicador = Predefinido en Excel 4"
             f"{fila} (no se busca umbral)."
         )
 
@@ -145,8 +144,8 @@ def indicadores_predefinidos_precipitacion(
         fila = f" fila {regla.fila}" if regla.fila else ""
         return (), (
             f"Se requiere al menos {minimo} indicador(es) predefinido(s) en Excel 4"
-            f"{fila} (maximo {maximo}); encontrados {len(encontrados)}: {nombres}. "
-            "Revise columnas Indicador climatico / Indicador climatico.1."
+            f"{fila} (m\u00e1ximo {maximo}); encontrados {len(encontrados)}: {nombres}. "
+            "Revise columnas Indicador clim\u00e1tico / Indicador clim\u00e1tico.1."
         )
     tomar = min(len(encontrados), maximo)
     return tuple(encontrados[:tomar]), None
@@ -305,12 +304,10 @@ def tabla_resultado_indicadores(
         )
     nombres = nombres[: len(filas_indicadores)]
 
+    cols_pares = columnas_pares_indicadores(*nombres)
     pares = [
-        (
-            col_cambio_indicador(nom, i),
-            col_interpretacion_indicador(nom, i),
-        )
-        for i, nom in enumerate(nombres, start=1)
+        (cols_pares[i], cols_pares[i + 1])
+        for i in range(0, len(cols_pares), 2)
     ]
     hist_vals = [_valor_indicador(fila, col_hist.columna) for fila in filas_indicadores]
 

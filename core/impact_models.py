@@ -102,12 +102,15 @@ PLANTILLA_FILAS_RESUMEN = [
     ("SSP2-8.5", "2080-2100", 2100),
 ]
 
-COL_CAMBIO = "Cambio respecto al historico"
-COL_INTERP = "Interpretación"
+COL_CAMBIO = "Cambio respecto al hist\u00f3rico"
+COL_INTERP = "Interpretaci\u00f3n"
 
 # Prefijos de columnas PI precipitación (umbral mm en paréntesis; dinámicos).
 PREF_PRECIP_CAMBIO = "Cambio respecto al histórico ("
 PREF_PRECIP_INTERP = "Interpretación ("
+# Un solo indicador: mismos nombres que el modo estándar (sin sufijo).
+COL_PRECIP_CAMBIO_BARE = "Cambio respecto al histórico"
+COL_PRECIP_INTERP_BARE = "Interpretación"
 SUBCOLS_MODO_ESTANDAR = (COL_CAMBIO, COL_INTERP)
 # Fallback estático (1 mm / 20 mm típicos de Excel 4 con 2 indicadores).
 SUBCOLS_MODO_PRECIP = (
@@ -116,6 +119,7 @@ SUBCOLS_MODO_PRECIP = (
     "Cambio respecto al histórico (20 mm)",
     "Interpretación (20 mm)",
 )
+SUBCOLS_MODO_PRECIP_UNO = (COL_PRECIP_CAMBIO_BARE, COL_PRECIP_INTERP_BARE)
 
 
 @dataclass
@@ -194,19 +198,53 @@ def _escenario_plantilla_a_datos(escenario: str) -> str:
     return escenario
 
 
+def _norm_col_ascii(nombre: str) -> str:
+    return (
+        str(nombre)
+        .lower()
+        .replace("\u00e1", "a")
+        .replace("\u00e9", "e")
+        .replace("\u00ed", "i")
+        .replace("\u00f3", "o")
+        .replace("\u00fa", "u")
+    )
+
+
+def _es_col_cambio_precip_paren(nombre: str) -> bool:
+    s = str(nombre)
+    return s.startswith(PREF_PRECIP_CAMBIO) or s.startswith("Cambio respecto al historico (")
+
+
+def _es_col_interp_precip_paren(nombre: str) -> bool:
+    s = str(nombre)
+    return s.startswith(PREF_PRECIP_INTERP) or s.startswith("Interpretacion (")
+
+
+def _es_col_cambio_bare(nombre: str) -> bool:
+    return _norm_col_ascii(nombre) == _norm_col_ascii(COL_PRECIP_CAMBIO_BARE)
+
+
+def _es_col_interp_bare(nombre: str) -> bool:
+    return _norm_col_ascii(nombre) == _norm_col_ascii(COL_PRECIP_INTERP_BARE)
+
+
 def _es_tabla_calado(tabla: pd.DataFrame) -> bool:
     return "h" in tabla.columns and "NM" in tabla.columns
 
 
 def _es_tabla_precipitacion(tabla: pd.DataFrame) -> bool:
-    """True si hay >=1 columna Cambio respecto al historico (umbral mm)."""
-    n_cambio = sum(
-        1
-        for c in tabla.columns
-        if str(c).startswith(PREF_PRECIP_CAMBIO)
-        or str(c).startswith("Cambio respecto al historico (")
+    """True si hay >=1 columna Cambio con sufijo (mm) o 1 par bare sin Indicador."""
+    n_cambio = sum(1 for c in tabla.columns if _es_col_cambio_precip_paren(c))
+    if n_cambio >= 1:
+        return True
+    # Un indicador: columnas sin sufijo; no confundir con PI estándar (tiene Indicador).
+    cols_norm = {_norm_col_ascii(c) for c in tabla.columns}
+    if "indicador" in cols_norm:
+        return False
+    return (
+        _norm_col_ascii(COL_PRECIP_CAMBIO_BARE) in cols_norm
+        and _norm_col_ascii(COL_PRECIP_INTERP_BARE) in cols_norm
     )
-    return n_cambio >= 1
 
 
 def _subcols_precip_desde_tabla(tabla: pd.DataFrame) -> tuple[str, ...]:
@@ -215,31 +253,35 @@ def _subcols_precip_desde_tabla(tabla: pd.DataFrame) -> tuple[str, ...]:
     for c in tabla.columns:
         s = str(c)
         if (
-            s.startswith(PREF_PRECIP_CAMBIO)
-            or s.startswith("Cambio respecto al historico (")
-            or s.startswith(PREF_PRECIP_INTERP)
-            or s.startswith("Interpretacion (")
+            _es_col_cambio_precip_paren(s)
+            or _es_col_interp_precip_paren(s)
+            or _es_col_cambio_bare(s)
+            or _es_col_interp_bare(s)
         ):
             out.append(s)
-    # Al menos un par (2 cols); si no hay columnas reconocibles, fallback 2 indicadores.
     if len(out) >= 2:
         return tuple(out)
+    if _es_tabla_precipitacion(tabla):
+        return SUBCOLS_MODO_PRECIP_UNO
     return SUBCOLS_MODO_PRECIP
 
 
 def _col_por_nombre(tabla: pd.DataFrame, nombre: str) -> str | None:
     if nombre in tabla.columns:
         return nombre
-    objetivo = nombre.lower().replace("á", "a")
+    objetivo = _norm_col_ascii(nombre)
     for c in tabla.columns:
-        if str(c).lower().replace("á", "a") == objetivo:
+        if _norm_col_ascii(c) == objetivo:
             return str(c)
     return None
 
 
 def _es_col_cambio_precip(nombre: str) -> bool:
-    s = str(nombre)
-    return s.startswith(PREF_PRECIP_CAMBIO) or s.startswith("Cambio respecto al historico (")
+    return _es_col_cambio_precip_paren(nombre) or _es_col_cambio_bare(nombre)
+
+
+def _es_col_interp_precip(nombre: str) -> bool:
+    return _es_col_interp_precip_paren(nombre) or _es_col_interp_bare(nombre)
 
 
 def _indexar_variaciones_por_modo(
@@ -263,7 +305,7 @@ def _indexar_variaciones_por_modo(
                 h_val = row.get("h")
                 indice[(r.modo_fallo, esc, anio)] = {
                     COL_CAMBIO: h_val,
-                    COL_INTERP: row.get("Interpretación", ""),
+                    COL_INTERP: row.get(COL_INTERP, ""),
                 }
             continue
         if _es_tabla_precipitacion(r.tabla_resultado):
@@ -288,8 +330,8 @@ def _indexar_variaciones_por_modo(
             if esc == "Histórico" or anio is None:
                 continue
             indice[(r.modo_fallo, esc, anio)] = {
-                COL_CAMBIO: row.get("Cambio respecto al histórico"),
-                COL_INTERP: row.get("Interpretación", ""),
+                COL_CAMBIO: row.get(COL_CAMBIO),
+                COL_INTERP: row.get(COL_INTERP, ""),
             }
     return indice
 

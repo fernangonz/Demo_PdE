@@ -158,8 +158,10 @@ class TestPrecipitacion(unittest.TestCase):
     def test_columnas_un_indicador(self) -> None:
         cols = columnas_pares_indicadores("\u2265 1 mm")
         self.assertEqual(len(cols), 2)
-        self.assertEqual(cols[0], f"{PREF_CAMBIO} (1 mm)")
-        self.assertEqual(cols[1], f"{PREF_INTERP} (1 mm)")
+        self.assertEqual(cols[0], PREF_CAMBIO)
+        self.assertEqual(cols[1], PREF_INTERP)
+        self.assertNotIn("ind.", cols[0])
+        self.assertNotIn("(", cols[0])
 
     def test_limites_indicadores_excel4(self) -> None:
         self.assertEqual(NUM_INDICADORES_MIN, 1)
@@ -208,16 +210,18 @@ class TestPrecipitacion(unittest.TestCase):
         cols = list(tabla.columns)
         self.assertEqual(cols, [
             "Escenario",
-            f"{PREF_CAMBIO} (1 mm)",
-            f"{PREF_INTERP} (1 mm)",
+            PREF_CAMBIO,
+            PREF_INTERP,
         ])
         self.assertFalse(any("20 mm" in c for c in cols))
+        self.assertFalse(any("ind." in c for c in cols))
         self.assertTrue(_es_tabla_precipitacion(tabla))
         sub = _subcols_precip_desde_tabla(tabla)
         self.assertEqual(len(sub), 2)
+        self.assertEqual(list(sub), [PREF_CAMBIO, PREF_INTERP])
         futuros = tabla[tabla["Escenario"].astype(str) != "Hist\u00f3rico"]
-        self.assertEqual(int(futuros.iloc[0][f"{PREF_CAMBIO} (1 mm)"]), -3)
-        self.assertEqual(futuros.iloc[0][f"{PREF_INTERP} (1 mm)"], INTERP_MEJORA)
+        self.assertEqual(int(futuros.iloc[0][PREF_CAMBIO]), -3)
+        self.assertEqual(futuros.iloc[0][PREF_INTERP], INTERP_MEJORA)
 
     def test_tabla_resultado_dos_indicadores(self) -> None:
         f1 = pd.Series({"Indicador": "\u2265 1 mm", "Hist": 10, "Fut": 12})
@@ -283,6 +287,14 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertEqual(len(precip), 1, [it.modo_fallo for it in r.resultado_precipitacion.iteraciones])
         self.assertEqual(precip[0].estado, "ok", precip[0].motivo)
         self.assertNotIn("fila explicita", (precip[0].motivo or "").lower())
+        cols_personal = list(precip[0].tabla_resultado.columns)
+        self.assertEqual(
+            cols_personal,
+            ["Escenario", PREF_CAMBIO, PREF_INTERP],
+            cols_personal,
+        )
+        self.assertFalse(any("ind." in c for c in cols_personal))
+        self.assertFalse(any("(" in c for c in cols_personal if c != "Escenario"))
 
     def test_calc_sin_relacion_modelos_recarga_excel4(self) -> None:
         """Si datos llega sin Excel 4, precip debe recargarlo (no falso fila explicita)."""
