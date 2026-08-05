@@ -93,6 +93,40 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertTrue(tiene_diagrama(MOTOR_PI_PRECIPITACION))
         self.assertIn(TITULO, MODOS_FALLO_PLANTILLA)
 
+    def test_ficha_word_emparejada(self) -> None:
+        import unicodedata
+
+        from core.modelos.fichas_word import (
+            emparejar_nombre_ficha,
+            ficha_word_por_entrada,
+        )
+        from core.modelos.flujos import buscar_diagrama_pdf
+
+        entrada = entrada_catalogo(
+            modo_fallo=MODO,
+            variable=VARIABLE,
+            tipo_impacto="ELO",
+        )
+        self.assertIsNotNone(entrada)
+        assert entrada is not None
+        self.assertEqual(
+            emparejar_nombre_ficha("PI EXCESO DE PRECIPITACION.docx"),
+            entrada.id,
+        )
+        ficha = ficha_word_por_entrada(entrada)
+        self.assertIsNotNone(ficha)
+        assert ficha is not None
+        stem = (
+            unicodedata.normalize("NFKD", ficha.archivo)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .upper()
+        )
+        self.assertIn("PRECIPITACION", stem)
+        self.assertTrue((ficha.html or "").strip())
+        self.assertIn("<table", (ficha.html or "").lower())
+        self.assertIsNotNone(buscar_diagrama_pdf(MOTOR_PI_PRECIPITACION))
+
     def test_matcher_y_resolver(self) -> None:
         self.assertTrue(es_modo_exceso_precipitacion(MODO, VARIABLE, "ELO"))
         self.assertFalse(es_modo_exceso_precipitacion("Exceso de Viento", "Viento", "ELO"))

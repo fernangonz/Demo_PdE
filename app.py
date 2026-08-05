@@ -3046,11 +3046,13 @@ def _mostrar_ficha_html(html: str) -> None:
     """Renderiza la ficha Word/HTML (sin imagenes embebidas).
 
     Las imagenes del Word solo se abren con el boton ⓘ (ventana flotante).
-    Preferir ``st.html`` (Streamlit >=1.45) o ``components.v1.html``.
+    Usar ``components.v1.html`` con altura explícita: ``st.html`` a veces
+    monta el bloque con altura 0 y la ficha parece vacía («no se ve nada»).
     Nunca ``st.markdown``/``st.code``/``st.text``: escapan el HTML y el
     usuario ve etiquetas como texto gris.
     """
     from core.modelos.fichas_word import html_ficha_sin_imagenes
+    import streamlit.components.v1 as components
 
     body = html_ficha_sin_imagenes((html or "").strip())
     if not body:
@@ -3059,16 +3061,6 @@ def _mostrar_ficha_html(html: str) -> None:
     if "pde-ficha-word" not in low and "pde-ficha-excel" not in low:
         body = f'<div class="pde-ficha-word">{body}</div>'
         low = body.lower()
-
-    # st.html inserta HTML de confianza sin pasar por el sanitizador Markdown.
-    if hasattr(st, "html"):
-        try:
-            st.html(body)
-            return
-        except Exception:
-            pass
-
-    import streamlit.components.v1 as components
 
     n_rows = max(1, low.count("<tr") + low.count("<p"))
     height = min(2200, max(480, 72 + n_rows * 36))
