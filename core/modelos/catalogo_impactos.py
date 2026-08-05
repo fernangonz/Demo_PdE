@@ -160,7 +160,7 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         descripcion=(
             "Cadena procedural como PI superación de umbral, sin búsqueda de umbral: "
             "1 o 2 indicadores predefinidos desde Excel 4; cambio futuro − histórico "
-            "por indicador (Interpretaci\u00f3n Mejora / no mejora / Sin cambios)."
+            "por indicador (Interpretaci\u00f3n Mejora / Empeora / Sin cambios)."
         ),
         notas_inputs=(
             "Automático: Excel 4 (Selección indicador = Predefinido, 1 o 2 indicadores) "

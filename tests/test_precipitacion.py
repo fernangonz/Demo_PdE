@@ -22,6 +22,7 @@ from core.modelos.impacto.calculo_activo import calcular_impactos_activo
 from core.modelos.impacto.pi_agitacion import ParametrosEntrada
 from core.modelos.impacto.pi_agitacion.utilidades import ColumnaEscenario
 from core.modelos.impacto.pi_precipitacion.schemas import (
+    INTERP_EMPEORA,
     INTERP_MEJORA,
     INTERP_NO_MEJORA,
     INTERP_SIN_CAMBIOS,
@@ -247,7 +248,9 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertEqual(len(_subcols_precip_desde_tabla(tabla)), 4)
 
     def test_interpretacion_polaridad(self) -> None:
-        self.assertEqual(interpretar_delta_precip(1), INTERP_NO_MEJORA)
+        self.assertEqual(INTERP_EMPEORA, "Empeora")
+        self.assertEqual(INTERP_NO_MEJORA, INTERP_EMPEORA)
+        self.assertEqual(interpretar_delta_precip(1), INTERP_EMPEORA)
         self.assertEqual(interpretar_delta_precip(-3), INTERP_MEJORA)
         self.assertEqual(interpretar_delta_precip(0), INTERP_SIN_CAMBIOS)
         self.assertEqual(interpretar_delta_precip(0, es_historico=True), "Referencia")

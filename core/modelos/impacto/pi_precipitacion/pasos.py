@@ -168,7 +168,7 @@ def construir_pasos_precipitacion(
         )],
         procedimiento=(
             "Por cada indicador: delta = valor escenario \u2212 hist\u00f3rico; "
-            "Interpretaci\u00f3n = no mejora si delta > 0, Mejora si delta < 0, "
+            "Interpretaci\u00f3n = Empeora si delta > 0, Mejora si delta < 0, "
             "Sin cambios si delta = 0 (misma polaridad que PI agitaci\u00f3n). "
             f"Referencia hist\u00f3rica: {col_hist.etiqueta}; "
             f"{len(columnas_fut)} escenarios futuros; "

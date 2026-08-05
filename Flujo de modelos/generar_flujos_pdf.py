@@ -1507,8 +1507,8 @@ def build_precipitacion(out_path: Path):
         [
             ["Escenario", "Cambio (ind.i)", "Interp. (ind.i)", "(+ ind.2 si aplica)", ""],
             ["Histórico", "0", "Referencia", "0 / —", "Referencia / —"],
-            ["SSP2-4.5 2040", "Fut-Hist", "Mejora/no mejora/…", "Fut-Hist / —", "…"],
-            ["SSP5-8.5 2040", "Fut-Hist", "Mejora/no mejora/…", "Fut-Hist / —", "…"],
+            ["SSP2-4.5 2040", "Fut-Hist", "Mejora/Empeora/…", "Fut-Hist / —", "…"],
+            ["SSP5-8.5 2040", "Fut-Hist", "Mejora/Empeora/…", "Fut-Hist / —", "…"],
             ["...", "...", "...", "...", "..."],
         ],
         font_size=9,
@@ -1525,7 +1525,7 @@ def build_precipitacion(out_path: Path):
         [
             "Para cada indicador, según el cambio Δ:",
             "• Δ < 0 → Mejora",
-            "• Δ > 0 → no mejora",
+            "• Δ > 0 → Empeora",
             "• Δ = 0 → Sin cambios",
             "(Etiquetas de columna pueden usar el umbral en mm",
             "del nombre del indicador, p. ej. 1 mm / 20 mm.)",

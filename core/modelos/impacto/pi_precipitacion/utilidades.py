@@ -14,8 +14,8 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
     indicador_coincide_nombre,
 )
 from core.modelos.impacto.pi_precipitacion.schemas import (
+    INTERP_EMPEORA,
     INTERP_MEJORA,
-    INTERP_NO_MEJORA,
     INTERP_REFERENCIA,
     INTERP_SIN_CAMBIOS,
     NUM_INDICADORES_MAX,
@@ -250,10 +250,10 @@ def interpretar_delta_precip(
     *,
     es_historico: bool = False,
 ) -> str:
-    """Polaridad como PI agitaci\u00f3n (>0 adverso), etiquetas Mejora / no mejora.
+    """Polaridad como PI agitaci\u00f3n (>0 adverso), etiquetas Mejora / Empeora.
 
     - hist\u00f3rico -> Referencia
-    - delta > 0 (m\u00e1s d\u00edas) -> no mejora
+    - delta > 0 (m\u00e1s d\u00edas) -> Empeora
     - delta < 0 (menos d\u00edas) -> Mejora
     - delta == 0 -> Sin cambios
     """
@@ -266,7 +266,7 @@ def interpretar_delta_precip(
     except (TypeError, ValueError):
         return "\u2014"
     if cambio > 0:
-        return INTERP_NO_MEJORA
+        return INTERP_EMPEORA
     if cambio < 0:
         return INTERP_MEJORA
     return INTERP_SIN_CAMBIOS

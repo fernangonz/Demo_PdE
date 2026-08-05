@@ -371,7 +371,7 @@ Para cada indicador, según el cambio ?:
 
 • ? < 0 ? Mejora
 
-• ? > 0 ? no mejora
+• ? > 0 ? Empeora
 
 • ? = 0 ? Sin cambios
 

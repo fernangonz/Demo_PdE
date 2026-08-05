@@ -30,7 +30,9 @@ PREF_CAMBIO = "Cambio respecto al hist\u00f3rico"
 PREF_INTERP = "Interpretaci\u00f3n"
 
 INTERP_MEJORA = "Mejora"
-INTERP_NO_MEJORA = "no mejora"
+INTERP_EMPEORA = "Empeora"
+# Compat: antigua etiqueta no mejora (delta > 0).
+INTERP_NO_MEJORA = INTERP_EMPEORA
 INTERP_SIN_CAMBIOS = "Sin cambios"
 INTERP_REFERENCIA = "Referencia"
 
@@ -106,7 +108,7 @@ METADATOS = MetadatosModelo(
     descripcion=(
         "Misma cadena procedural que PI superaci\u00f3n de umbral, sin b\u00fasqueda de umbral: "
         "1 o 2 indicadores predefinidos desde Excel 4; cambio futuro \u2212 hist\u00f3rico "
-        "por indicador con interpretaci\u00f3n Mejora / no mejora / Sin cambios."
+        "por indicador con interpretaci\u00f3n Mejora / Empeora / Sin cambios."
     ),
 )
 
@@ -172,6 +174,7 @@ class ResultadoPIPrecipitacion(ResultadoPIAgitacion):
 
 __all__ = [
     "BASELINE_YEAR",
+    "INTERP_EMPEORA",
     "INTERP_MEJORA",
     "INTERP_NO_MEJORA",
     "INTERP_REFERENCIA",

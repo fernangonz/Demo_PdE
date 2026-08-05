@@ -282,7 +282,7 @@ FICHA_PI_PRECIPITACION = FichaModelo(
     tipo_impacto="ELO",
     ecuacion=r"\Delta_i = I_{i,\mathrm{esc}} - I_{i,\mathrm{hist}}",
     ecuacion_umbral=(
-        r"\Delta_i > 0 \Rightarrow \mathrm{no\ mejora};\quad "
+        r"\Delta_i > 0 \Rightarrow \mathrm{Empeora};\quad "
         r"\Delta_i < 0 \Rightarrow \mathrm{Mejora};\quad "
         r"\Delta_i = 0 \Rightarrow \mathrm{Sin\ cambios}"
     ),
@@ -313,13 +313,13 @@ FICHA_PI_PRECIPITACION = FichaModelo(
             descripcion=(
                 "Futuro \u2212 hist\u00f3rico por indicador; con 1 indicador "
                 "cabeceras sin sufijo; con 2, umbral mm (p. ej. 1 mm, 20 mm); "
-                "Mejora / no mejora / Sin cambios"
+                "Mejora / Empeora / Sin cambios"
             ),
         ),
     ),
     regla_interpretacion=(
         "Por cada indicador (misma polaridad que PI agitaci\u00f3n): "
-        "\u0394 > 0 \u2192 no mejora; \u0394 < 0 \u2192 Mejora; \u0394 = 0 \u2192 Sin cambios."
+        "\u0394 > 0 \u2192 Empeora; \u0394 < 0 \u2192 Mejora; \u0394 = 0 \u2192 Sin cambios."
     ),
     notas="Sin umbral. Excel 4 define 1 o 2 indicadores predefinidos.",
 )
