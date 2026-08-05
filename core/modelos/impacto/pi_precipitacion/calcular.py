@@ -142,6 +142,18 @@ def calcular(
     iteraciones: list[IteracionResultado] = []
     omitidos_no_factibles: list[dict[str, str]] = []
     relacion_modelos = getattr(datos, "relacion_modelos", None)
+    if relacion_modelos is None or getattr(relacion_modelos, "empty", True):
+        # Evita falso "fila explicita" cuando el repo/cache llega sin Excel 4.
+        from core.data_loader import cargar_relacion_modelos_activos_indicadores
+
+        relacion_modelos, _info_rm = cargar_relacion_modelos_activos_indicadores()
+        try:
+            setattr(datos, "relacion_modelos", relacion_modelos)
+            rutas = getattr(datos, "rutas", None)
+            if isinstance(rutas, dict) and _info_rm.get("ruta"):
+                rutas["relacion_modelos"] = _info_rm["ruta"]
+        except Exception:
+            pass
 
     for numero, fila_rel in enumerate(modos, start=1):
         modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()

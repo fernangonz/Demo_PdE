@@ -106,8 +106,17 @@ def indicadores_predefinidos_precipitacion(
 ) -> tuple[tuple[IndicadorRelacion, ...], str | None]:
     """Toma 1 o 2 indicadores predefinidos de Excel 4 (si hay mas, los primeros N<=max)."""
     if not regla.desde_excel:
-        detalle = ""
-        if df_relacion is not None and (activo or modo_fallo or variable):
+        df_ok = (
+            df_relacion is not None
+            and hasattr(df_relacion, "empty")
+            and not df_relacion.empty  # type: ignore[union-attr]
+        )
+        if not df_ok:
+            detalle = (
+                " Causa: Excel 4 no esta cargado en memoria "
+                "(relacion_modelos=None/vacio). Recargue datos / limpie cache."
+            )
+        elif activo or modo_fallo or variable:
             detalle = " " + diagnosticar_busqueda_regla(
                 df_relacion,  # type: ignore[arg-type]
                 modelo_id=modelo_id,
@@ -116,6 +125,8 @@ def indicadores_predefinidos_precipitacion(
                 variable=variable,
                 estado_limite=estado_limite,
             )
+        else:
+            detalle = ""
         return (), (
             "Exceso de precipitacion requiere fila explicita en Excel 4 "
             "(Relacion_modelos_activos_e_indicadores) con Seleccion indicador = Predefinido "

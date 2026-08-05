@@ -774,6 +774,11 @@ def _validar_fila_precipitacion(
         )
         return False
 
+    if relacion_modelos is None or getattr(relacion_modelos, "empty", True):
+        from core.data_loader import cargar_relacion_modelos_activos_indicadores
+
+        relacion_modelos, _ = cargar_relacion_modelos_activos_indicadores()
+
     regla_modelo = buscar_regla_modelo(
         relacion_modelos,
         modelo_id=motor_id,

@@ -284,6 +284,36 @@ class TestPrecipitacion(unittest.TestCase):
         self.assertEqual(precip[0].estado, "ok", precip[0].motivo)
         self.assertNotIn("fila explicita", (precip[0].motivo or "").lower())
 
+    def test_calc_sin_relacion_modelos_recarga_excel4(self) -> None:
+        """Si datos llega sin Excel 4, precip debe recargarlo (no falso fila explicita)."""
+
+        class DatosSinRM:
+            def __init__(self, base):
+                self.info_clima = base.info_clima
+                self.config_puerto = base.config_puerto
+                self.relacion_impactos = base.relacion_impactos
+                self.umbrales_por_hoja = base.umbrales_por_hoja
+                self.umbrales_lista_master = base.umbrales_lista_master
+                self.rutas = dict(base.rutas)
+
+        r = calcular_impactos_activo(
+            DatosSinRM(self.repo),
+            params_agitacion=ParametrosEntrada(activo=ACTIVO_PERSONAL),
+            incluir_agitacion=False,
+            incluir_francobordo=False,
+            incluir_calado=False,
+            incluir_precipitacion=True,
+        )
+        self.assertTrue(r.ok, r.advertencias)
+        assert r.resultado_precipitacion is not None
+        precip = [
+            it
+            for it in r.resultado_precipitacion.iteraciones
+            if "precipit" in it.modo_fallo.lower()
+        ]
+        self.assertEqual(len(precip), 1)
+        self.assertEqual(precip[0].estado, "ok", precip[0].motivo)
+
     def test_lluvia_intensa_fallback_percentil_p98(self) -> None:
         """P98 pedido + lluvia intensa solo en P50/P99 no debe fallar (ni con P98 ajeno)."""
         from core.modelos.impacto.pi_precipitacion.utilidades import (

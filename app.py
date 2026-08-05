@@ -340,8 +340,12 @@ def _obtener_relacion_modelos(_firma_excel: str):
     return cargar_relacion_modelos_activos_indicadores()
 
 
+# Incrementar si cambia el esquema de RepositorioDatos / carga de Excel 4.
+REPOSITORIO_CACHE_VERSION = 3
+
+
 @st.cache_data(show_spinner="Cargando datos del puerto...")
-def _obtener_repositorio(_firma_excel: str):
+def _obtener_repositorio(_firma_excel: str, loader_version: int = REPOSITORIO_CACHE_VERSION):
     return RepositorioDatos.cargar()
 
 
@@ -3478,7 +3482,20 @@ def _seccion_calculo_impactos() -> None:
         _limpiar_resultados_calculo()
         try:
             # Copia superficial: evita mutar el objeto cacheado por @st.cache_data.
-            repo = copy(_obtener_repositorio(_firma_datos_excel()))
+            repo = copy(
+                _obtener_repositorio(
+                    _firma_datos_excel(),
+                    REPOSITORIO_CACHE_VERSION,
+                )
+            )
+            # Garantiza Excel 4 aunque un cache antiguo llegara incompleto.
+            if getattr(repo, "relacion_modelos", None) is None or getattr(
+                repo.relacion_modelos, "empty", True
+            ):
+                df_rm, info_rm = cargar_relacion_modelos_activos_indicadores()
+                repo.relacion_modelos = df_rm
+                if getattr(repo, "rutas", None) is not None:
+                    repo.rutas["relacion_modelos"] = info_rm.get("ruta", "")
         except FileNotFoundError as exc:
             st.error(str(exc))
             return

@@ -99,8 +99,13 @@ def _modelo_aplica(celda_modelo: object, modelo_id: str, variable: str) -> bool:
         return var in ("nivel del mar", "calado") or "francobordo" in mid
     if "inundacion" in texto:
         return "inundacion" in var or "agitacion" in mid or "superacion" in texto
-    if "precipitacion" in texto or var == "precipitacion":
-        return mid == "pi_precipitacion" or var == "precipitacion"
+    if "precipitacion" in texto or "precipitacion" in mid or var == "precipitacion":
+        return (
+            "precipitacion" in mid
+            or mid.replace("_", " ") in texto
+            or var == "precipitacion"
+            or "precipitacion" in texto
+        )
     return match_texto(celda_modelo, modelo_id)
 
 
@@ -387,7 +392,10 @@ def diagnosticar_busqueda_regla(
 ) -> str:
     """Explica por qué no hay fila Excel 4 usable (celdas concretas)."""
     if df is None or df.empty:
-        return "Excel 4 esta vacio o no se cargo."
+        return (
+            f"Excel 4 esta vacio o no se cargo "
+            f"(filas={0 if df is None else len(df)})."
+        )
 
     cols = mapear_columnas_relacion_modelos(df)
     faltan = [k for k in ("modo_fallo", "variable") if k not in cols]
@@ -395,18 +403,56 @@ def diagnosticar_busqueda_regla(
         return (
             "Excel 4 no tiene columnas reconocibles para "
             + ", ".join(faltan)
-            + f" (cabeceras: {list(df.columns)[:8]}…)."
+            + f" (cabeceras: {list(df.columns)[:8]})."
         )
 
     col_act = cols.get("activo")
     col_modo = cols["modo_fallo"]
     col_var = cols["variable"]
-    col_modelo = cols.get("modelo")
-    col_tipo = cols.get("estado_limite")
     col_sel = cols.get("modo_seleccion")
+    col_ind = cols.get("indicador")
+
+    mejor_idx = None
+    mejor_puntos = -1
+    for idx, row in df.iterrows():
+        puntos = _puntuar_fila(
+            row,
+            cols,
+            modelo_id=modelo_id,
+            activo=activo,
+            modo_fallo=modo_fallo,
+            variable=variable,
+            estado_limite=estado_limite,
+        )
+        if puntos > mejor_puntos:
+            mejor_puntos = puntos
+            mejor_idx = idx
+
+    if mejor_idx is not None and mejor_puntos >= 0:
+        row = df.loc[mejor_idx]
+        try:
+            fila_excel = int(mejor_idx) + 2  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            fila_excel = mejor_idx
+        num, inds = _indicadores_desde_fila(row, cols)
+        ind_txt = (
+            ", ".join(f"{i.indicador!r}" for i in inds if i.indicador) or "(ninguno)"
+        )
+        sel_v = row.get(col_sel) if col_sel else None
+        ind_v = row.get(col_ind) if col_ind else None
+        modelo_v = row.get(cols["modelo"]) if cols.get("modelo") else None
+        return (
+            f"Fila {fila_excel} SI puntua ({mejor_puntos}) para "
+            f"Activo={activo!r} Modo={modo_fallo!r} Variable={variable!r}: "
+            f"Modelo={modelo_v!r}, Seleccion={sel_v!r}, "
+            f"No indicadores={num}, Indicadores parseados=[{ind_txt}], "
+            f"Indicador climatico celda={ind_v!r}. "
+            "Si aun asi falla, recargue Excel 4 / limpie cache de Streamlit."
+        )
 
     candidatos_modo_var: list[int] = []
     candidatos_activo: list[int] = []
+    muestras: list[str] = []
     for idx, row in df.iterrows():
         try:
             fila_excel = int(idx) + 2  # type: ignore[arg-type]
@@ -414,42 +460,25 @@ def diagnosticar_busqueda_regla(
             fila_excel = -1
         modo_ok = match_texto(row.get(col_modo), modo_fallo)
         var_ok = match_texto(row.get(col_var), variable)
+        act_ok = (not col_act) or match_activo(row.get(col_act), activo)
         if modo_ok and var_ok:
             candidatos_modo_var.append(fila_excel)
-        act_ok = (not col_act) or match_activo(row.get(col_act), activo)
-        if act_ok and (modo_ok or var_ok or "precipitacion" in _normalizar(variable)):
-            if act_ok and (modo_ok or var_ok):
-                candidatos_activo.append(fila_excel)
-
-        if not (modo_ok and var_ok):
-            continue
-        if col_act and not match_activo(row.get(col_act), activo):
-            continue
-        if col_modelo and not _modelo_aplica(row.get(col_modelo), modelo_id, variable):
-            return (
-                f"Fila {fila_excel}: Modelo={row.get(col_modelo)!r} no aplica a "
-                f"{modelo_id!r} / variable {variable!r}."
-            )
-        if col_tipo and estado_limite and not _celda_coincide(row.get(col_tipo), estado_limite):
-            return (
-                f"Fila {fila_excel}: Tipo de impacto={row.get(col_tipo)!r} "
-                f"no coincide con {estado_limite!r}."
-            )
-        if _es_comodin(row.get(col_modo)) or _es_comodin(row.get(col_var)):
-            return (
-                f"Fila {fila_excel}: Modos/Variable son comodin; se exige fila explicita."
-            )
-        sel = row.get(col_sel) if col_sel else None
-        return (
-            f"Fila {fila_excel} coincide en Activo/Modo/Variable pero no se acepto "
-            f"(Seleccion indicador={sel!r})."
-        )
+            if len(muestras) < 3:
+                muestras.append(
+                    f"fila {fila_excel}: Activo={row.get(col_act)!r}, "
+                    f"Modelo={(row.get(cols['modelo']) if cols.get('modelo') else None)!r}, "
+                    f"Sel={(row.get(col_sel) if col_sel else None)!r}, "
+                    f"Ind={(row.get(col_ind) if col_ind else None)!r}"
+                )
+        if act_ok and (modo_ok or var_ok):
+            candidatos_activo.append(fila_excel)
 
     if candidatos_modo_var:
+        extra = ("; ".join(muestras)) if muestras else ""
         return (
             f"Hay fila(s) {candidatos_modo_var} con Modo={modo_fallo!r} y "
-            f"Variable={variable!r}, pero Activo no es {activo!r} "
-            f"(ni Tipo/Modelo compatibles)."
+            f"Variable={variable!r}, pero Activo/Modelo/Tipo no cuadran con "
+            f"activo={activo!r} modelo_id={modelo_id!r}. {extra}"
         )
     if candidatos_activo:
         return (
@@ -460,7 +489,7 @@ def diagnosticar_busqueda_regla(
         f"No hay fila en Excel 4 con Activo={activo!r}, "
         f"Modos={modo_fallo!r}, Variable={variable!r}"
         + (f", Tipo={estado_limite!r}" if estado_limite else "")
-        + "."
+        + f" (Excel 4 tiene {len(df)} filas cargadas)."
     )
 
 
