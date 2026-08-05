@@ -51,35 +51,36 @@ def fila_tiene_modelo_implementado(row: pd.Series) -> bool:
 
     Sin diagrama de metodologia (p. ej. PI FALTA DE CALADO / ELO) -> False:
     se reporta como sin metodologia, no se inventan inputs del procedimiento.
+
+    Fuente de verdad: ``resolver_motor_fila`` (mismos matchers que el calculo).
     """
+    motor_id, entrada = resolver_motor_fila(row)
+    if motor_id and _motor_con_procedimiento(motor_id):
+        return True
+
+    # Fallbacks legacy (por si el resolver no mapea aun pero el matcher si).
     modo = str(row.get("Modos de fallo / Modos de parada", "")).strip()
     variable = str(row.get("Variable", "")).strip()
     tipo = str(row.get("Tipo de impacto", "")).strip()
 
-    if es_modo_superacion_umbral(modo, variable, tipo):
-        from core.modelos.catalogo_impactos import MOTOR_PI_SUPERACION
-
-        return _motor_con_procedimiento(MOTOR_PI_SUPERACION)
-
-    if es_modo_exceso_precipitacion(modo, variable, tipo):
+    if es_modo_exceso_precipitacion(modo, variable, tipo or None):
         from core.modelos.catalogo_impactos import MOTOR_PI_PRECIPITACION
 
         return _motor_con_procedimiento(MOTOR_PI_PRECIPITACION)
 
+    if es_modo_superacion_umbral(modo, variable, tipo or None):
+        from core.modelos.catalogo_impactos import MOTOR_PI_SUPERACION
+
+        return _motor_con_procedimiento(MOTOR_PI_SUPERACION)
+
     if es_modo_falta_calado(modo, variable):
-        motor_id, _entrada = resolver_motor_fila(row)
         return _motor_con_procedimiento(motor_id)
 
-    if es_modo_falta_francobordo(modo, variable, tipo):
+    if es_modo_falta_francobordo(modo, variable, tipo or None):
         from core.modelos.catalogo_impactos import MOTOR_PI_FRANCOBORDO
 
         return _motor_con_procedimiento(MOTOR_PI_FRANCOBORDO)
 
-    entrada = entrada_catalogo(
-        modo_fallo=modo,
-        variable=variable,
-        tipo_impacto=tipo or None,
-    )
     if entrada is None or not entrada.implementado:
         return False
     return _motor_con_procedimiento(entrada.motor_id)
