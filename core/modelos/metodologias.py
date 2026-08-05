@@ -18,6 +18,7 @@ from core.modelos.catalogo_impactos import (
     MOTOR_PI_CALADO_ELS,
     MOTOR_PI_CALADO_ELU,
     MOTOR_PI_FRANCOBORDO,
+    MOTOR_PI_PRECIPITACION,
     MOTOR_PI_SUPERACION,
     EntradaCatalogoImpacto,
     entrada_catalogo,
@@ -26,6 +27,7 @@ from core.modelos.inputs_activo import CampoInputActivo, INPUTS_CALADO_ACTIVO
 from core.modelos.impacto.pi_agitacion.utilidades import es_modo_superacion_umbral, match_texto
 from core.modelos.impacto.pi_calado.utilidades import es_modo_falta_calado
 from core.modelos.impacto.pi_francobordo.utilidades import es_modo_falta_francobordo
+from core.modelos.impacto.pi_precipitacion.utilidades import es_modo_exceso_precipitacion
 from core.modelos.registro import MODELOS_IMPACTO
 
 
@@ -128,11 +130,37 @@ _FUENTES_PI_FRANCOBORDO = (
     ),
 )
 
+_FUENTES_PI_PRECIPITACION = (
+    _fuente(
+        "config_puerto",
+        descripcion="fila del activo (tipo UO, activo)",
+    ),
+    _fuente(
+        "relacion_ivc",
+        hoja="ListRelacion impactos-indicador",
+        descripcion="modos Exceso de precipitación (ELO)",
+    ),
+    _fuente(
+        "relacion_modelos",
+        descripcion="percentil y 2 indicadores predefinidos (paso 5b; sin umbral)",
+    ),
+    _fuente(
+        "clima",
+        hoja="Precipitacion",
+        descripcion="valores de los 2 indicadores predefinidos",
+    ),
+)
+
 METODOLOGIAS_IMPACTO: dict[str, MetodologiaImpacto] = {
     MOTOR_PI_SUPERACION: MetodologiaImpacto(
         motor_id=MOTOR_PI_SUPERACION,
         nombre="PI SUPERACIÓN DE UMBRAL",
         fuentes=_FUENTES_PI_SUPERACION,
+    ),
+    MOTOR_PI_PRECIPITACION: MetodologiaImpacto(
+        motor_id=MOTOR_PI_PRECIPITACION,
+        nombre="PI EXCESO DE PRECIPITACIÓN",
+        fuentes=_FUENTES_PI_PRECIPITACION,
     ),
     MOTOR_PI_CALADO_ELO: MetodologiaImpacto(
         motor_id=MOTOR_PI_CALADO_ELO,
@@ -193,6 +221,14 @@ def resolver_motor_fila(
     modo = str(row.get("Modos de fallo / Modos de parada", "")).strip()
     variable = str(row.get("Variable", "")).strip()
     tipo = str(row.get("Tipo de impacto", "")).strip()
+
+    if es_modo_exceso_precipitacion(modo, variable, tipo):
+        entrada = entrada_catalogo(
+            modo_fallo=modo,
+            variable=variable,
+            tipo_impacto=tipo or None,
+        )
+        return MOTOR_PI_PRECIPITACION, entrada
 
     if es_modo_superacion_umbral(modo, variable, tipo):
         entrada = entrada_catalogo(

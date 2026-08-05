@@ -275,6 +275,52 @@ FICHA_PI_FRANCOBORDO = FichaModelo(
     ),
 )
 
+FICHA_PI_PRECIPITACION = FichaModelo(
+    nombre="PI EXCESO DE PRECIPITACIÓN",
+    motor_id="PI_PRECIPITACION",
+    familia="PI",
+    tipo_impacto="ELO",
+    ecuacion=r"\Delta_i = I_{i,\mathrm{esc}} - I_{i,\mathrm{hist}}",
+    ecuacion_umbral=(
+        r"\Delta_i > 0 \Rightarrow \mathrm{INCREMENTA};\quad "
+        r"\Delta_i \le 0 \Rightarrow \mathrm{NO}"
+    ),
+    inputs=(
+        CampoFicha(
+            nombre="Indicadores predefinidos (2)",
+            simbolo="I_1, I_2",
+            unidad="d/ano",
+            fuente="Relacion_modelos_activos_e_indicadores (Excel 4)",
+            descripcion="Selección indicador = Predefinido; sin búsqueda de umbral",
+        ),
+        CampoFicha(
+            nombre="Percentil",
+            simbolo="",
+            unidad="",
+            fuente="Relacion_modelos_activos_e_indicadores",
+            descripcion="Paso 5b: percentil de la fila Excel 4",
+        ),
+    ),
+    outputs=(
+        CampoFicha(
+            nombre="Incremento ind. 1 / Análisis ind. 1",
+            simbolo=r"\Delta_1",
+            unidad="d/ano",
+            descripcion="Futuro − histórico; INCREMENTA si Δ>0, si no NO",
+        ),
+        CampoFicha(
+            nombre="Incremento ind. 2 / Análisis ind. 2",
+            simbolo=r"\Delta_2",
+            unidad="d/ano",
+            descripcion="Futuro − histórico; INCREMENTA si Δ>0, si no NO",
+        ),
+    ),
+    regla_interpretacion=(
+        "Por cada indicador: Δ > 0 → INCREMENTA; Δ ≤ 0 → NO."
+    ),
+    notas="Sin umbral. Dos indicadores predefinidos desde Excel 4.",
+)
+
 
 FICHAS_POR_MOTOR: dict[str, FichaModelo] = {
     f.motor_id: f
@@ -284,6 +330,7 @@ FICHAS_POR_MOTOR: dict[str, FichaModelo] = {
         FICHA_PI_CALADO_ELU,
         FICHA_PI_AGITACION,
         FICHA_PI_FRANCOBORDO,
+        FICHA_PI_PRECIPITACION,
     )
 }
 
@@ -348,6 +395,9 @@ def resolver_ficha(
     if "francobordo" in texto:
         return FICHA_PI_FRANCOBORDO
 
+    if "precipit" in texto:
+        return FICHA_PI_PRECIPITACION
+
     if any(
         k in texto
         for k in ("agitaci", "oleaje", "viento", "corriente", "visibilidad", "superaci")
@@ -371,6 +421,7 @@ __all__ = [
     "FICHA_PI_CALADO_ELU",
     "FICHA_PI_AGITACION",
     "FICHA_PI_FRANCOBORDO",
+    "FICHA_PI_PRECIPITACION",
     "ficha_por_motor",
     "nombre_motor_display",
     "resolver_ficha",

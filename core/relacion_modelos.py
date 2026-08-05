@@ -99,6 +99,8 @@ def _modelo_aplica(celda_modelo: object, modelo_id: str, variable: str) -> bool:
         return var in ("nivel del mar", "calado") or "francobordo" in mid
     if "inundacion" in texto:
         return "inundacion" in var or "agitacion" in mid or "superacion" in texto
+    if "precipitacion" in texto or var == "precipitacion":
+        return mid == "pi_precipitacion" or var == "precipitacion"
     return match_texto(celda_modelo, modelo_id)
 
 

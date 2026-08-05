@@ -79,6 +79,7 @@ MODOS_FALLO_PLANTILLA = [
     "PI Exceso de Corriente",
     "PI Visibilidad reducida",
     "PI Inundación costera",
+    "PI Exceso de precipitación",
     "OPEX FALTA DE CALADO",
     "CAPEX FALTA DE CALADO",
 ]
@@ -177,6 +178,15 @@ def _es_tabla_calado(tabla: pd.DataFrame) -> bool:
     return "h" in tabla.columns and "NM" in tabla.columns
 
 
+def _es_tabla_precipitacion(tabla: pd.DataFrame) -> bool:
+    return (
+        "Incremento ind. 1" in tabla.columns
+        and "Análisis ind. 1" in tabla.columns
+        and "Incremento ind. 2" in tabla.columns
+        and "Análisis ind. 2" in tabla.columns
+    )
+
+
 def _indexar_variaciones_por_modo(
     iteraciones: list[ResumenIteracion],
     *,
@@ -199,6 +209,20 @@ def _indexar_variaciones_por_modo(
                 indice[(r.modo_fallo, esc, anio)] = {
                     COL_CAMBIO: h_val,
                     COL_INTERP: row.get("Interpretación", ""),
+                }
+            continue
+        if _es_tabla_precipitacion(r.tabla_resultado):
+            for _, row in r.tabla_resultado.iterrows():
+                esc, _horizonte, anio, _orden = _parse_etiqueta_escenario(
+                    str(row.get("Escenario", "")),
+                    baseline_year=baseline_year,
+                )
+                if esc == "Histórico" or anio is None:
+                    continue
+                # Resumen consolidado: ind. 1 como columna principal del modo.
+                indice[(r.modo_fallo, esc, anio)] = {
+                    COL_CAMBIO: row.get("Incremento ind. 1"),
+                    COL_INTERP: row.get("Análisis ind. 1", ""),
                 }
             continue
         for _, row in r.tabla_resultado.iterrows():
@@ -677,6 +701,10 @@ def iteraciones_desde_calculo_activo(resultado) -> list[ResumenIteracion]:
     fb = getattr(resultado, "resultado_francobordo", None)
     if fb is not None and (fb.ok or getattr(fb, "iteraciones", None)):
         resumenes.extend(iteraciones_para_ui(fb))
+
+    prec = getattr(resultado, "resultado_precipitacion", None)
+    if prec is not None and (prec.ok or getattr(prec, "iteraciones", None)):
+        resumenes.extend(iteraciones_para_ui(prec))
 
     calado_resultados = []
     for attr in ("resultado_calado_pi", "resultado_calado_opex", "resultado_calado", "resultado_calado_capex"):

@@ -8,6 +8,7 @@ from core.modelos.inputs_activo import IDS_MODOS_FALTA_CALADO
 from core.modelos.impacto.pi_agitacion.utilidades import match_modo_fallo_superacion
 
 MOTOR_PI_SUPERACION = "PI_AGITACION"
+MOTOR_PI_PRECIPITACION = "PI_PRECIPITACION"
 MOTOR_PI_FRANCOBORDO = "PI_FRANCOBORDO"
 MOTOR_PI_CALADO_ELO = "PI_CALADO_ELO"
 MOTOR_PI_CALADO_ELS = "PI_CALADO_ELS"
@@ -146,6 +147,27 @@ CATALOGO_MODOS_IMPACTO: tuple[EntradaCatalogoImpacto, ...] = (
         ),
     ),
     EntradaCatalogoImpacto(
+        id="exceso_precipitacion",
+        familia="PI",
+        modo_fallo="Exceso de precipitación",
+        variable="Precipitación",
+        tipo_impacto="ELO",
+        motor_id=MOTOR_PI_PRECIPITACION,
+        motor_nombre="PI EXCESO DE PRECIPITACIÓN",
+        implementado=True,
+        requiere_inputs_ui=False,
+        diagrama_modelo_id=MOTOR_PI_PRECIPITACION,
+        descripcion=(
+            "Cadena procedural como PI superación de umbral, sin búsqueda de umbral: "
+            "dos indicadores predefinidos desde Excel 4; incremento futuro − histórico "
+            "por indicador (Análisis INCREMENTA / NO)."
+        ),
+        notas_inputs=(
+            "Automático: Excel 4 (Selección indicador = Predefinido, ≥ 2 indicadores) "
+            "e indicadores climáticos (hoja Precipitación)."
+        ),
+    ),
+    EntradaCatalogoImpacto(
         id="falta_francobordo_elo",
         familia="PI",
         modo_fallo="Falta de francobordo",
@@ -270,11 +292,26 @@ def entrada_catalogo(
     tipo_impacto: str | None = None,
     motor_id: str | None = None,
 ) -> EntradaCatalogoImpacto | None:
+    from core.data_loader import _normalizar
+
+    modo_n = _normalizar(modo_fallo)
+    var_n = _normalizar(variable) if variable is not None else None
     for entrada in CATALOGO_MODOS_IMPACTO:
-        if entrada.modo_fallo != modo_fallo:
-            continue
-        if variable is not None and entrada.variable != variable:
-            continue
+        if entrada.modo_fallo != modo_fallo and _normalizar(entrada.modo_fallo) != modo_n:
+            # Equivalencia oleaje: Agitación ↔ Exceso de Oleaje (mismo motor).
+            if not match_modo_fallo_superacion(
+                entrada.modo_fallo,
+                modo_fallo,
+                entrada.variable,
+                tipo_impacto=tipo_impacto,
+            ):
+                continue
+        if var_n is not None:
+            if (
+                entrada.variable != variable
+                and _normalizar(entrada.variable) != var_n
+            ):
+                continue
         if tipo_impacto is not None and entrada.tipo_impacto != tipo_impacto:
             continue
         if motor_id is not None and entrada.motor_id != motor_id:

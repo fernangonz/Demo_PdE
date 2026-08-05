@@ -107,6 +107,10 @@ def _meta_activo(resultado) -> tuple[str, str]:
         fb = resultado.resultado_francobordo.metadatos_ejecucion
         meta.setdefault("activo", fb.get("activo", ""))
         meta.setdefault("tipo_uo", fb.get("tipo_uo", ""))
+    if getattr(resultado, "resultado_precipitacion", None) and resultado.resultado_precipitacion.ok:
+        prec = resultado.resultado_precipitacion.metadatos_ejecucion
+        meta.setdefault("activo", prec.get("activo", ""))
+        meta.setdefault("tipo_uo", prec.get("tipo_uo", ""))
     return str(meta.get("activo", "")), str(meta.get("tipo_uo", ""))
 
 
@@ -133,8 +137,10 @@ def _grupos_im_por_modo(
     grupos_calado: list[GrupoPasosIM],
     grupos_francobordo: list[GrupoPasosIM],
     iteraciones: list[ResumenIteracion],
+    grupos_precipitacion: list[GrupoPasosIM] | None = None,
 ) -> list[GrupoPasosIM]:
     """Une pasos IM siguiendo el orden de iteraciones; prioriza pasos embebidos."""
+    grupos_precipitacion = grupos_precipitacion or []
     por_modo_agit: dict[str, GrupoPasosIM] = {
         g.modo_fallo: g for g in grupos_agitacion
     }
@@ -143,6 +149,9 @@ def _grupos_im_por_modo(
     }
     por_modo_fb: dict[str, GrupoPasosIM] = {
         g.modo_fallo: g for g in grupos_francobordo
+    }
+    por_modo_prec: dict[str, GrupoPasosIM] = {
+        g.modo_fallo: g for g in grupos_precipitacion
     }
     vistos: set[str] = set()
     ordenados: list[GrupoPasosIM] = []
@@ -159,6 +168,8 @@ def _grupos_im_por_modo(
                 fallback = por_modo_cal[modo].pasos
             elif modo in por_modo_fb:
                 fallback = por_modo_fb[modo].pasos
+            elif modo in por_modo_prec:
+                fallback = por_modo_prec[modo].pasos
             elif modo in por_modo_agit:
                 fallback = por_modo_agit[modo].pasos
             ordenados.append(_grupo_desde_iteracion(it, fallback))
@@ -167,10 +178,12 @@ def _grupos_im_por_modo(
             ordenados.append(por_modo_cal[modo])
         elif modo in por_modo_fb:
             ordenados.append(por_modo_fb[modo])
+        elif modo in por_modo_prec:
+            ordenados.append(por_modo_prec[modo])
         elif modo in por_modo_agit:
             ordenados.append(por_modo_agit[modo])
 
-    for g in grupos_agitacion + grupos_francobordo + grupos_calado:
+    for g in grupos_agitacion + grupos_francobordo + grupos_precipitacion + grupos_calado:
         if g.modo_fallo not in vistos:
             ordenados.append(g)
     return ordenados
@@ -224,6 +237,7 @@ def construir_vista_resultados_activo(
 
     pasos_ag: list[Any] = []
     pasos_fb: list[Any] = []
+    pasos_prec: list[Any] = []
     pasos_cal_im: list[Any] = []
     pasos_cal_comunes: list[Any] = []
     if getattr(resultado, "resultado_agitacion", None) and resultado.resultado_agitacion.ok:
@@ -235,6 +249,11 @@ def construir_vista_resultados_activo(
         rp_fb = resultado.resultado_francobordo.resultados_por_pasos
         if rp_fb is not None:
             pasos_fb = list(rp_fb.pasos)
+
+    if getattr(resultado, "resultado_precipitacion", None) and resultado.resultado_precipitacion.ok:
+        rp_prec = resultado.resultado_precipitacion.resultados_por_pasos
+        if rp_prec is not None:
+            pasos_prec = list(rp_prec.pasos)
 
     calado_resultados = []
     for attr in ("resultado_calado_pi", "resultado_calado_opex", "resultado_calado_capex"):
@@ -255,12 +274,18 @@ def construir_vista_resultados_activo(
         )
 
     pasos_cal = pasos_cal_im
-    comunes = pasos_comunes_desde_lista(pasos_ag) + pasos_comunes_desde_lista(pasos_fb) + pasos_cal_comunes
+    comunes = (
+        pasos_comunes_desde_lista(pasos_ag)
+        + pasos_comunes_desde_lista(pasos_fb)
+        + pasos_comunes_desde_lista(pasos_prec)
+        + pasos_cal_comunes
+    )
     modos = _grupos_im_por_modo(
         agrupar_pasos_por_im(pasos_ag),
         agrupar_pasos_por_im(pasos_cal),
         agrupar_pasos_por_im(pasos_fb),
         iteraciones,
+        grupos_precipitacion=agrupar_pasos_por_im(pasos_prec),
     )
 
     return VistaResultadosActivo(

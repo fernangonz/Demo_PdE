@@ -27,12 +27,21 @@ from core.modelos.impacto.pi_calado.utilidades import modos_falta_calado
 from core.modelos.impacto.pi_francobordo import ParametrosEntrada as ParametrosFrancobordo
 from core.modelos.impacto.pi_francobordo import ResultadoPIFrancobordo
 from core.modelos.impacto.pi_francobordo.utilidades import modos_falta_francobordo
+from core.modelos.impacto.pi_precipitacion import (
+    ParametrosEntrada as ParametrosPrecipitacion,
+)
+from core.modelos.impacto.pi_precipitacion import ResultadoPIPrecipitacion
+from core.modelos.impacto.pi_precipitacion.schemas import (
+    MODO_FALLO_DEFAULT as MODO_PRECIP_DEFAULT,
+    VARIABLE_DEFAULT as VARIABLE_PRECIP_DEFAULT,
+)
 from core.modelos.impacto.pi_agitacion.utilidades import (
     es_modo_inundacion_costera,
     impactos_por_activo,
     modos_superacion_umbral,
     nombre_activo_resumen,
 )
+from core.modelos.impacto.pi_precipitacion.utilidades import modos_exceso_precipitacion
 from core.modelos.impacto.impactos_no_factibles import FiltroImpactosNoFactibles
 from core.modelos.impacto.vista_resultados import listar_activos_config
 from core.modelos.inputs_activo import (
@@ -40,7 +49,11 @@ from core.modelos.inputs_activo import (
     leer_calado_activo_desde_fila,
     leer_inputs_config_activo_desde_fila,
 )
-from core.modelos.registro import ejecutar_pi_agitacion, ejecutar_pi_francobordo
+from core.modelos.registro import (
+    ejecutar_pi_agitacion,
+    ejecutar_pi_francobordo,
+    ejecutar_pi_precipitacion,
+)
 
 
 def _calado_con_procedimiento(tipo_impacto: str) -> bool:
@@ -68,6 +81,7 @@ class ResultadoCalculoActivo:
     advertencias: list[str] = field(default_factory=list)
     resultado_agitacion: ResultadoPIAgitacion | None = None
     resultado_francobordo: ResultadoPIFrancobordo | None = None
+    resultado_precipitacion: ResultadoPIPrecipitacion | None = None
     resultado_calado_pi: ResultadoPICalado | None = None
     resultado_calado_opex: ResultadoPICalado | None = None
     resultado_calado_capex: ResultadoPICalado | None = None
@@ -157,6 +171,14 @@ def _activo_requiere_agitacion(
     return bool(modos_superacion_umbral(impactos))
 
 
+def _activo_requiere_precipitacion(
+    df_relacion: pd.DataFrame,
+    activo_raw: str,
+) -> bool:
+    impactos = impactos_por_activo(df_relacion, activo_raw)
+    return bool(modos_exceso_precipitacion(impactos))
+
+
 def _activo_requiere_francobordo(
     df_relacion: pd.DataFrame,
     activo_raw: str,
@@ -206,6 +228,7 @@ def calcular_impactos_activo(
     params_calado: ParametrosCalado | None = None,
     incluir_agitacion: bool = True,
     incluir_francobordo: bool = True,
+    incluir_precipitacion: bool = True,
     incluir_calado: bool = True,
     cp_numero: int = 1,
 ) -> ResultadoCalculoActivo:
@@ -216,6 +239,7 @@ def calcular_impactos_activo(
     advertencias: list[str] = []
     resultado_ag: ResultadoPIAgitacion | None = None
     resultado_fb: ResultadoPIFrancobordo | None = None
+    resultado_prec: ResultadoPIPrecipitacion | None = None
     resultado_pi_cal: ResultadoPICalado | None = None
     resultado_opex: ResultadoPICalado | None = None
     resultado_capex: ResultadoPICalado | None = None
@@ -233,6 +257,23 @@ def calcular_impactos_activo(
                 and error_ag not in advertencias
             ):
                 advertencias.append(error_ag)
+
+    if incluir_precipitacion:
+        resultado_prec = ejecutar_pi_precipitacion(
+            datos,
+            params=ParametrosPrecipitacion(
+                tipo_uo=params_agitacion.tipo_uo,
+                activo=params_agitacion.activo,
+                modo_fallo=MODO_PRECIP_DEFAULT,
+                variable_climatica=VARIABLE_PRECIP_DEFAULT,
+                baseline_year=params_agitacion.baseline_year,
+            ),
+        )
+        omitido_prec = (resultado_prec.metadatos_ejecucion or {}).get("omitido")
+        if not resultado_prec.ok and omitido_prec != "sin_modos_exceso_precipitacion":
+            advertencias.append(
+                resultado_prec.error or "Error en PI exceso de precipitación."
+            )
 
     if incluir_francobordo:
         resultado_fb = ejecutar_pi_francobordo(
@@ -325,6 +366,7 @@ def calcular_impactos_activo(
     if (
         not incluir_agitacion
         and not incluir_francobordo
+        and not incluir_precipitacion
         and resultado_pi_cal is None
         and resultado_opex is None
         and resultado_capex is None
@@ -338,6 +380,7 @@ def calcular_impactos_activo(
             advertencias=[],
             resultado_agitacion=None,
             resultado_francobordo=None,
+            resultado_precipitacion=None,
             resultado_calado_pi=None,
             resultado_calado_opex=None,
             resultado_calado_capex=None,
@@ -348,6 +391,8 @@ def calcular_impactos_activo(
         meta.update(resultado_ag.metadatos_ejecucion)
     if resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None)):
         meta["francobordo"] = resultado_fb.metadatos_ejecucion
+    if resultado_prec and (resultado_prec.ok or resultado_prec.iteraciones):
+        meta["precipitacion"] = resultado_prec.metadatos_ejecucion
     if resultado_pi_cal:
         meta["calado_pi"] = resultado_pi_cal.metadatos_ejecucion
     if resultado_opex:
@@ -358,6 +403,7 @@ def calcular_impactos_activo(
     ok = bool(
         (resultado_ag and (resultado_ag.ok or resultado_ag.iteraciones))
         or (resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None)))
+        or (resultado_prec and (resultado_prec.ok or resultado_prec.iteraciones))
         or (resultado_pi_cal and resultado_pi_cal.ok)
         or (resultado_opex and resultado_opex.ok)
         or (resultado_capex and resultado_capex.ok)
@@ -382,6 +428,11 @@ def calcular_impactos_activo(
             if resultado_fb and (resultado_fb.ok or getattr(resultado_fb, "iteraciones", None))
             else None
         ),
+        resultado_precipitacion=(
+            resultado_prec
+            if resultado_prec and (resultado_prec.ok or resultado_prec.iteraciones)
+            else None
+        ),
         resultado_calado_pi=resultado_pi_cal,
         resultado_calado_opex=resultado_opex,
         resultado_calado_capex=resultado_capex,
@@ -395,6 +446,7 @@ def calcular_impactos_puerto(
     overrides_calado: dict[str, float] | None = None,
     incluir_agitacion: bool = True,
     incluir_francobordo: bool = True,
+    incluir_precipitacion: bool = True,
     incluir_calado: bool = True,
     filtro_impactos_no_factibles: FiltroImpactosNoFactibles | None = None,
 ) -> ResultadoCalculoPuerto:
@@ -460,6 +512,11 @@ def calcular_impactos_puerto(
             and not df_relacion.empty
             and _activo_requiere_francobordo(df_relacion, activo_raw)
         )
+        requiere_precipitacion = (
+            df_relacion is not None
+            and not df_relacion.empty
+            and _activo_requiere_precipitacion(df_relacion, activo_raw)
+        )
         inputs_cfg = leer_inputs_config_activo_desde_fila(fila_cfg, columnas)
         fb_activo = inputs_cfg.get("francobordo")
         if (
@@ -511,6 +568,7 @@ def calcular_impactos_puerto(
             params_calado=params_calado,
             incluir_agitacion=incluir_agitacion and requiere_agitacion,
             incluir_francobordo=incluir_francobordo and requiere_francobordo,
+            incluir_precipitacion=incluir_precipitacion and requiere_precipitacion,
             incluir_calado=incluir_calado and params_calado is not None,
             cp_numero=cp_num,
         )

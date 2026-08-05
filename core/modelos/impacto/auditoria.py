@@ -15,6 +15,7 @@ from core.modelos.impacto.pi_agitacion.utilidades import (
 )
 from core.modelos.impacto.pi_calado.utilidades import es_modo_falta_calado
 from core.modelos.impacto.pi_francobordo.utilidades import es_modo_falta_francobordo
+from core.modelos.impacto.pi_precipitacion.utilidades import es_modo_exceso_precipitacion
 from core.modelos.metodologias import motor_registrado, resolver_motor_fila
 
 
@@ -59,6 +60,11 @@ def fila_tiene_modelo_implementado(row: pd.Series) -> bool:
         from core.modelos.catalogo_impactos import MOTOR_PI_SUPERACION
 
         return _motor_con_procedimiento(MOTOR_PI_SUPERACION)
+
+    if es_modo_exceso_precipitacion(modo, variable, tipo):
+        from core.modelos.catalogo_impactos import MOTOR_PI_PRECIPITACION
+
+        return _motor_con_procedimiento(MOTOR_PI_PRECIPITACION)
 
     if es_modo_falta_calado(modo, variable):
         motor_id, _entrada = resolver_motor_fila(row)

@@ -1724,6 +1724,37 @@ def _mostrar_valores_indicador_por_escenario(r) -> None:
             "Umbral": st.column_config.NumberColumn("Umbral", format="%.3f"),
             "Interpretación": st.column_config.TextColumn("Interpretación", width="medium"),
         }
+    elif (
+        "Incremento ind. 1" in tabla.columns
+        and "Análisis ind. 1" in tabla.columns
+    ):
+        st.caption(
+            "Sin umbral. Dos indicadores predefinidos (Excel 4). "
+            "Incremento = valor escenario − histórico. "
+            "Análisis = INCREMENTA si Δ > 0; si no NO."
+        )
+        cols_tabla = [
+            "Escenario",
+            "Incremento ind. 1",
+            "Análisis ind. 1",
+            "Incremento ind. 2",
+            "Análisis ind. 2",
+        ]
+        cfg = {
+            "Escenario": st.column_config.TextColumn("Escenario", width="medium"),
+            "Incremento ind. 1": st.column_config.NumberColumn(
+                "Incremento ind. 1", format="%d"
+            ),
+            "Análisis ind. 1": st.column_config.TextColumn(
+                "Análisis ind. 1", width="small"
+            ),
+            "Incremento ind. 2": st.column_config.NumberColumn(
+                "Incremento ind. 2", format="%d"
+            ),
+            "Análisis ind. 2": st.column_config.TextColumn(
+                "Análisis ind. 2", width="small"
+            ),
+        }
     else:
         st.caption(
             "Indicador = valor físico del Excel. "
@@ -2202,6 +2233,15 @@ def _mostrar_vista_cp_im(vista, *, expanded: bool = False) -> None:
                                         "Umbral", "Interpretación",
                                     ]
                                     prefijo = f"{cp_clave}_calado_im_{im_num}"
+                                elif "Incremento ind. 1" in it.tabla_resultado.columns:
+                                    cols_dl = [
+                                        "Escenario",
+                                        "Incremento ind. 1",
+                                        "Análisis ind. 1",
+                                        "Incremento ind. 2",
+                                        "Análisis ind. 2",
+                                    ]
+                                    prefijo = f"{cp_clave}_precip_im_{im_num}"
                                 else:
                                     cols_dl = [
                                         "Escenario", "Indicador", "Cambio respecto al histórico",

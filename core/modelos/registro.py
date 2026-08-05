@@ -25,6 +25,12 @@ from core.modelos.impacto.pi_francobordo.schemas import (
     ParametrosEntrada as ParametrosFrancobordo,
     ResultadoPIFrancobordo,
 )
+from core.modelos.impacto.pi_precipitacion.calcular import calcular as calcular_pi_precipitacion
+from core.modelos.impacto.pi_precipitacion.schemas import (
+    METADATOS as PI_PRECIPITACION_META,
+    ParametrosEntrada as ParametrosPrecipitacion,
+    ResultadoPIPrecipitacion,
+)
 from core.schemas.base import MetadatosModelo, ResultadoModelo
 
 
@@ -62,6 +68,11 @@ MODELOS_IMPACTO: dict[str, DefinicionModelo] = {
         metadatos=PI_FRANCOBORDO_META,
         calcular=calcular_pi_francobordo,
         parametros_tipo=ParametrosFrancobordo,
+    ),
+    PI_PRECIPITACION_META.id: DefinicionModelo(
+        metadatos=PI_PRECIPITACION_META,
+        calcular=calcular_pi_precipitacion,
+        parametros_tipo=ParametrosPrecipitacion,
     ),
 }
 
@@ -135,4 +146,19 @@ def ejecutar_pi_francobordo(
         params = ParametrosFrancobordo(**kwargs) if kwargs else ParametrosFrancobordo()
     resultado = ejecutar_modelo_impacto(PI_FRANCOBORDO_META.id, datos, params)
     assert isinstance(resultado, ResultadoPIFrancobordo)
+    return resultado
+
+
+def ejecutar_pi_precipitacion(
+    datos: Any,
+    params: ParametrosPrecipitacion | None = None,
+    **kwargs: Any,
+) -> ResultadoPIPrecipitacion:
+    """Atajo tipado para PI_PRECIPITACION."""
+    if params is None:
+        params = (
+            ParametrosPrecipitacion(**kwargs) if kwargs else ParametrosPrecipitacion()
+        )
+    resultado = ejecutar_modelo_impacto(PI_PRECIPITACION_META.id, datos, params)
+    assert isinstance(resultado, ResultadoPIPrecipitacion)
     return resultado

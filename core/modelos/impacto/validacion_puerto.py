@@ -15,6 +15,7 @@ from core.modelos.catalogo_impactos import (
     MOTOR_PI_CALADO_ELS,
     MOTOR_PI_CALADO_ELU,
     MOTOR_PI_FRANCOBORDO,
+    MOTOR_PI_PRECIPITACION,
     MOTOR_PI_SUPERACION,
     titulo_desde_modo,
 )
@@ -56,7 +57,15 @@ from core.modelos.impacto.pi_francobordo.utilidades import (
     pestana_clima_francobordo,
     variable_clima_francobordo,
 )
+from core.modelos.impacto.pi_precipitacion.utilidades import (
+    buscar_fila_indicador_predefinido,
+    es_modo_exceso_precipitacion,
+    indicadores_predefinidos_precipitacion,
+    modos_exceso_precipitacion,
+    resolver_pestana_clima_precipitacion,
+)
 from core.modelos.impacto.vista_resultados import listar_activos_config
+from core.relacion_modelos import buscar_regla_modelo
 from core.modelos.inputs_activo import (
     leer_calado_activo_desde_fila,
     leer_inputs_config_activo_desde_fila,
@@ -69,7 +78,6 @@ from core.modelos.metodologias import (
     motor_registrado,
     resolver_motor_fila,
 )
-from core.relacion_modelos import buscar_regla_modelo
 
 NivelAviso = Literal["error", "warning", "info"]
 
@@ -722,6 +730,154 @@ def _validar_fila_francobordo(
     return True
 
 
+def _validar_fila_precipitacion(
+    resultado: ResultadoValidacionPuerto,
+    *,
+    activo_raw: str,
+    activo_resumen: str,
+    fila_rel: pd.Series,
+    relacion_modelos: pd.DataFrame | None,
+    info_clima: dict,
+    baseline_year: int,
+) -> bool:
+    """Valida exceso de precipitación: Excel 4 con ≥2 indicadores predefinidos; sin umbral."""
+    modo_fallo = str(fila_rel.get("Modos de fallo / Modos de parada", "")).strip()
+    variable = str(fila_rel.get("Variable", "")).strip()
+    estado_limite = str(fila_rel.get("Tipo de impacto", "")).strip() or None
+    n_rel = _n_relacion(fila_rel)
+    etiqueta_im = titulo_desde_modo(
+        modo_fallo,
+        variable=variable,
+        tipo_impacto=estado_limite,
+    )
+    motor_id = MOTOR_PI_PRECIPITACION
+
+    if not tiene_diagrama(motor_id):
+        resultado.avisos.append(
+            _aviso(
+                nivel="error",
+                codigo="PROCEDIMIENTO_FLUJO_FALTANTE",
+                activo=activo_resumen,
+                activo_raw=activo_raw,
+                modo_fallo=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite or "",
+                motor_id=motor_id,
+                input_faltante="diagrama de procedimiento",
+                archivo="Flujo de modelos",
+                mensaje=(
+                    f"{activo_resumen} - {etiqueta_im}: falta diagrama de procedimiento "
+                    f"para PI exceso de precipitación."
+                ),
+                n_relacion=n_rel,
+            )
+        )
+        return False
+
+    regla_modelo = buscar_regla_modelo(
+        relacion_modelos,
+        modelo_id=motor_id,
+        activo=activo_raw,
+        modo_fallo=modo_fallo,
+        variable=variable,
+        estado_limite=estado_limite,
+    )
+    indicadores, error_inds = indicadores_predefinidos_precipitacion(regla_modelo)
+    if error_inds:
+        resultado.avisos.append(
+            _aviso(
+                nivel="error",
+                codigo="INDICADORES_PREDEFINIDOS_INSUFICIENTES",
+                activo=activo_resumen,
+                activo_raw=activo_raw,
+                modo_fallo=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite or "",
+                motor_id=motor_id,
+                input_faltante="≥2 indicadores predefinidos",
+                archivo=etiqueta_archivo_fuente("relacion_modelos"),
+                mensaje=f"{activo_resumen} - {etiqueta_im}: {error_inds}",
+                n_relacion=n_rel,
+            )
+        )
+        return False
+
+    pestana_ref = next((i.pestaña for i in indicadores if i.pestaña), "")
+    df_clima, pestana_clima = resolver_pestana_clima_precipitacion(
+        info_clima,
+        variable=variable,
+        pestana=pestana_ref,
+    )
+    col_hist, columnas_fut = columnas_oleaje(
+        info_clima, baseline_year, variable=pestana_clima
+    )
+    if col_hist is None or not columnas_fut:
+        resultado.avisos.append(
+            _aviso(
+                nivel="error",
+                codigo="COLUMNAS_CLIMA_FALTANTES",
+                activo=activo_resumen,
+                activo_raw=activo_raw,
+                modo_fallo=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite or "",
+                motor_id=motor_id,
+                input_faltante="columnas climaticas",
+                archivo=etiqueta_archivo_fuente("clima"),
+                hoja=pestana_clima,
+                mensaje=(
+                    f"{activo_resumen} - {etiqueta_im}: no hay columnas climaticas "
+                    f"para {pestana_clima}."
+                ),
+                n_relacion=n_rel,
+            )
+        )
+        return False
+
+    faltantes: list[str] = []
+    for ind in indicadores:
+        fila_ind, _ = buscar_fila_indicador_predefinido(
+            df_clima,
+            percentil=regla_modelo.percentil,
+            nombre_indicador=ind.indicador,
+        )
+        if fila_ind is None:
+            faltantes.append(ind.indicador)
+    if faltantes:
+        encontrados = [i.indicador for i in indicadores if i.indicador not in faltantes]
+        resultado.avisos.append(
+            _aviso(
+                nivel="error",
+                codigo="INDICADOR_CLIMA_FALTANTE",
+                activo=activo_resumen,
+                activo_raw=activo_raw,
+                modo_fallo=modo_fallo,
+                variable=variable,
+                tipo_impacto=estado_limite or "",
+                motor_id=motor_id,
+                input_faltante="indicadores climaticos",
+                archivo=etiqueta_archivo_fuente("clima"),
+                hoja=pestana_clima,
+                mensaje=(
+                    f"{activo_resumen} - {etiqueta_im}: faltan indicadores en "
+                    f"{pestana_clima} ({regla_modelo.percentil}): "
+                    f"{', '.join(f'«{f}»' for f in faltantes)}. "
+                    f"Encontrados: "
+                    + (
+                        ", ".join(f"«{e}»" for e in encontrados)
+                        if encontrados
+                        else "(ninguno)"
+                    )
+                    + "."
+                ),
+                n_relacion=n_rel,
+            )
+        )
+        return False
+
+    return True
+
+
 def _validar_fila_calado(
     resultado: ResultadoValidacionPuerto,
     *,
@@ -986,6 +1142,12 @@ def _validar_modos_catalogo_extra(
             fila_rel.get("Tipo de impacto"),
         ):
             continue
+        if es_modo_exceso_precipitacion(
+            fila_rel.get("Modos de fallo / Modos de parada"),
+            fila_rel.get("Variable"),
+            fila_rel.get("Tipo de impacto"),
+        ):
+            continue
         if es_modo_falta_calado(
             fila_rel.get("Modos de fallo / Modos de parada"),
             fila_rel.get("Variable"),
@@ -1155,8 +1317,8 @@ def validar_puerto_antes_calculo(
                     f"{modo.tipo_impacto or 'sin tipo'}) esta en ListRelacion pero no tiene "
                     f"motor de calculo implementado. No implica que el activo sea desconocido: "
                     f"solo ese modo se omite. Motores actuales: PI superacion de umbral "
-                    f"(oleaje/viento/corriente/visibilidad/inundacion), falta de francobordo "
-                    f"y falta de calado."
+                    f"(oleaje/viento/corriente/visibilidad/inundacion), exceso de "
+                    f"precipitacion, falta de francobordo y falta de calado."
                 ),
                 n_relacion=modo.n_relacion,
             )
@@ -1276,6 +1438,20 @@ def validar_puerto_antes_calculo(
                 baseline_year=baseline_year,
                 fila_cfg=fila_cfg,
                 columnas_cfg=columnas_cfg,
+            ):
+                activo_tiene_calculable = True
+
+        for fila_rel in modos_exceso_precipitacion(impactos):
+            if _omitir_modo_no_factible(datos, activo_raw=activo_raw, fila_rel=fila_rel):
+                continue
+            if _validar_fila_precipitacion(
+                resultado,
+                activo_raw=activo_raw,
+                activo_resumen=activo_resumen,
+                fila_rel=fila_rel,
+                relacion_modelos=relacion_modelos,
+                info_clima=info_clima,
+                baseline_year=baseline_year,
             ):
                 activo_tiene_calculable = True
 

@@ -46,6 +46,14 @@ _ALIASES_FLUJO: dict[str, tuple[str, ...]] = {
         "PI AGITACIÓN",
         "PI_AGITACION",
     ),
+    # Reutiliza el PDF/TXT de PI SUPERACIÓN DE UMBRAL (misma cadena; sin umbral).
+    "PI_PRECIPITACION": (
+        "PI SUPERACION DE UMBRAL",
+        "PI SUPERACIÓN DE UMBRAL",
+        "PI EXCESO DE PRECIPITACION",
+        "PI EXCESO DE PRECIPITACIÓN",
+        "PI_PRECIPITACION",
+    ),
     "PI_CALADO_ELO": (
         "PI FALTA DE CALADO",
         "PI_CALADO_ELO",
