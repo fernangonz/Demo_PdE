@@ -2293,7 +2293,7 @@ def _selector_activo_cp(config_df: pd.DataFrame) -> tuple[str, str, int, int, pd
     ]
     _ajustar_selectbox("calc_activo_sel", etiquetas)
     etiqueta_sel = st.selectbox(
-        "Activo (vista / foco)",
+        "Filtrar por activos",
         options=etiquetas,
         key="calc_activo_sel",
         help="Lista completa de activos del puerto. El cálculo itera todos; "
